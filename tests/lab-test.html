@@ -18,12 +18,13 @@
   <div id="out"></div>
   <div id="summary"></div>
 
-  <script src="../assets/js/core/utils.js"></script>
-  <script src="../data/experiments.js"></script>
-  <script src="../assets/js/core/circuit.js"></script>
-  <script src="../assets/js/labs/lab-series.js"></script>
-  <script src="../assets/js/labs/lab-ohm-r.js"></script>
-  <script src="../assets/js/labs/lab-ohm-law.js"></script>
+  <script src="../assets/js/core/utils.js?v=41"></script>
+  <script src="../data/experiments.js?v=41"></script>
+  <script src="../assets/js/core/circuit.js?v=41"></script>
+  <script src="../assets/js/labs/lab-series.js?v=41"></script>
+  <script src="../assets/js/labs/lab-ohm-r.js?v=41"></script>
+  <script src="../assets/js/labs/lab-ohm-law.js?v=41"></script>
+  <script src="../assets/js/labs/lab-free.js?v=41"></script>
   <script>
   (function () {
     var SL = window.SparkLab;
@@ -143,6 +144,21 @@
       return { ok: s5 && s6 && s7 && s8, detail: 'parallel=' + ctx.result.sceneType + ' 干路=' + main + ' 支路=' + b1 + '/' + b2 + ' [5]' + s5 + ' [6]' + s6 + ' [7]' + s7 };
     });
 
+    test('实验二 接 B 柱时滑片最左为最大端（第 2 步）', function () {
+      var scene = SL.labs['ohm-r'].example();
+      var rheo = comps(scene, 'rheostat')[0];
+      scene.wires.forEach(function (w) {
+        if (w.from.compId === rheo.id && w.from.terminalId === 'a') w.from.terminalId = 'b';
+        if (w.to.compId === rheo.id && w.to.terminalId === 'a') w.to.terminalId = 'b';
+      });
+      rheo.props.slider = 0;
+      var info = SL.circuit.rheostatInfo(rheo, scene);
+      var left = stepCheck(SL.labs['ohm-r'], 1)(ctxOf(scene));
+      rheo.props.slider = 1;
+      var right = stepCheck(SL.labs['ohm-r'], 1)(ctxOf(scene));
+      return { ok: info.wiring === 'valid' && left === true && right === false, detail: 'wiring=' + info.wiring + ' R(左)=' + info.active + 'Ω 左通过=' + left + ' 右通过=' + right };
+    });
+
     /* ---------- 实验二 ---------- */
     test('实验二 示例电路正确连接（第 1 步）', function () {
       var scene = SL.labs['ohm-r'].example();
@@ -257,6 +273,24 @@
     test('实验三 结论步骤随结论完成', function () {
       var ctx = ctxOf(SL.labs['ohm-law'].example(), [], { allAnswered: true });
       return { ok: stepCheck(SL.labs['ohm-law'], 4)(ctx) === true };
+    });
+
+    /* ---------- 全自由实验室 ---------- */
+    test('全自由实验室 空场景与示例电路可求解', function () {
+      var empty = SL.labs['sandbox'].initial();
+      var r0 = SL.circuit.solve(empty);
+      var scene = withClosedSwitch(SL.labs['sandbox'].example());
+      var r = SL.circuit.solve(scene);
+      var ok = empty.components.length === 0 && r0.ok && r.ok;
+      return { ok: ok, detail: '空=' + r0.ok + ' 示例=' + r.ok + ' type=' + r.sceneType };
+    });
+
+    test('全自由实验室 记录一行 U/I/R', function () {
+      var lab = SL.labs['sandbox'];
+      var scene = withClosedSwitch(lab.example());
+      var row = lab.measure(ctxOf(scene));
+      var ok = !!row && row.voltage != null && row.current != null && Math.abs(row.resistance - 8.33) < 0.5;
+      return { ok: ok, detail: row ? 'U=' + row.voltage + ' I=' + row.current + ' R=' + row.resistance : '未记录' };
     });
 
     var summary = document.getElementById('summary');
