@@ -48,7 +48,7 @@
     function (ctx) { return connected(ctx); },
     function (ctx) {
       var rheo = comps(ctx.scene, 'rheostat')[0];
-      return !!rheo && rheo.props.slider >= 0.95;
+      return !!rheo && SL.circuit.rheostatInfo(rheo, ctx.scene).atMax;
     },
     function (ctx) {
       var rows = rowsWithData(ctx.rows);
@@ -123,9 +123,9 @@
         state.flags = {};
         return;
       }
-      if (rheo && rheo.props.slider < 0.9 && !state.flags.lowSlider) {
+      if (rheo && !SL.circuit.rheostatInfo(rheo, ctx.scene).atMax && !state.flags.lowSlider) {
         state.flags.lowSlider = true;
-        SL.toast('闭合开关前应先把滑片移到阻值最大端，以保护电路', 'warn');
+        SL.toast('闭合开关前应先把滑片移到接入阻值最大的一端（接 A 柱时移到最右，接 B 柱时移到最左）', 'warn');
       }
       if (res && amp && !state.flags.ammeterParallel) {
         var nodes = ctx.result.terminalNode;

@@ -344,7 +344,7 @@ code {
 .hall-head p { margin-top: 4px; color: var(--muted); font-size: 13.5px; }
 .lab-grid-home {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
   gap: 18px;
 }
 .lab-card {

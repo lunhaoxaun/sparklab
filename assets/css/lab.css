@@ -316,6 +316,10 @@
 .chip.active { background: var(--primary-soft); border-color: rgba(31, 111, 178, .35); color: var(--primary-dark); }
 .chip:focus-visible { outline: none; box-shadow: var(--focus); }
 .slider-input { width: 112px; accent-color: var(--accent, var(--primary)); cursor: pointer; }
+input[type="number"].slider-input {
+  width: 74px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: var(--ink); font: inherit; text-align: center; cursor: text;
+}
 
 /* ---------- 画布下方操作条 ---------- */
 .stage-bar {

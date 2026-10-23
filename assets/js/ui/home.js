@@ -9,18 +9,30 @@
   }
 
   function labProgress(lab) {
+    var total = lab.steps ? lab.steps.length : 0;
+    if (!total) return { done: 0, total: 0, free: true };
     var p = progressMap()[lab.id];
-    if (!p) return { done: 0, total: lab.steps.length };
-    return { done: Math.min(lab.steps.length, p.stepIndex || 0), total: lab.steps.length };
+    if (!p) return { done: 0, total: total, free: false };
+    return { done: Math.min(total, p.stepIndex || 0), total: total, free: false };
   }
 
   function card(lab) {
     var prog = labProgress(lab);
-    var pct = Math.round((prog.done / prog.total) * 100);
+    var pct = prog.total ? Math.round((prog.done / prog.total) * 100) : 0;
     var count = SL.records.count(lab.id);
     var equipment = lab.equipment.map(function (item) {
       return '<span class="equip-chip">' + SL.icon(item.icon, '', 16) + item.label + '</span>';
     }).join('');
+    var progressBlock = prog.free
+      ? '<div class="lab-progress"><div class="progress-info"><span>自由搭建 · 元件数量不限</span>' +
+        '<span class="record-count">' + SL.icon('chart-line', '', 14) + ' 记录 ' + count + ' 条</span></div></div>'
+      : '<div class="lab-progress"><div class="progress-info"><span>引导进度 ' + prog.done + '/' + prog.total + '</span>' +
+        '<span class="record-count">' + SL.icon('chart-line', '', 14) + ' 记录 ' + count + ' 条</span></div>' +
+        '<div class="progress-track"><span style="width:' + pct + '%"></span></div></div>';
+    var actions = prog.free
+      ? '<button class="btn btn-primary" type="button" data-mode="free" data-lab="' + lab.id + '">' + SL.icon('player-play', '', 16) + '进入实验室</button>'
+      : '<button class="btn btn-primary" type="button" data-mode="guided" data-lab="' + lab.id + '">' + SL.icon('player-play', '', 16) + '引导模式</button>' +
+        '<button class="btn btn-ghost" type="button" data-mode="free" data-lab="' + lab.id + '">' + SL.icon('settings', '', 16) + '自由探究</button>';
     return '<article class="lab-card" data-lab="' + lab.id + '" style="--accent:' + lab.accent + '">' +
       '<div class="lab-card-top">' +
       '<span class="lab-icon">' + SL.icon(lab.equipment[0].icon, '', 26) + '</span>' +
@@ -29,13 +41,8 @@
       '<h3 class="lab-title">' + lab.name + '</h3>' +
       '<p class="lab-desc">' + lab.short + '</p>' +
       '<div class="equip-row">' + equipment + '</div>' +
-      '<div class="lab-progress"><div class="progress-info"><span>引导进度 ' + prog.done + '/' + prog.total + '</span>' +
-      '<span class="record-count">' + SL.icon('chart-line', '', 14) + ' 记录 ' + count + ' 条</span></div>' +
-      '<div class="progress-track"><span style="width:' + pct + '%"></span></div></div>' +
-      '<div class="lab-actions">' +
-      '<button class="btn btn-primary" type="button" data-mode="guided" data-lab="' + lab.id + '">' + SL.icon('player-play', '', 16) + '引导模式</button>' +
-      '<button class="btn btn-ghost" type="button" data-mode="free" data-lab="' + lab.id + '">' + SL.icon('settings', '', 16) + '自由探究</button>' +
-      '</div></article>';
+      progressBlock +
+      '<div class="lab-actions">' + actions + '</div></article>';
   }
 
   var home = {
@@ -65,7 +72,7 @@
         '</div>' +
         '</div>' +
 
-        '<div class="hall-head"><div><h2>物理 · 电学实验</h2><p>三个实验共用同一套电路仿真引擎，接线、读数、记录都与真实实验一致。</p></div>' +
+        '<div class="hall-head"><div><h2>物理 · 电学实验</h2><p>三个教材实验与全自由实验室共用同一套电路仿真引擎，接线、读数、记录都与真实实验一致。</p></div>' +
         '<button class="btn btn-soft" type="button" id="all-records">' + SL.icon('chart-line', '', 16) + '我的记录</button></div>' +
         '<div class="lab-grid-home">' + SL.data.labs.map(card).join('') + '</div>' +
         '<div class="home-foot"><span>' + SL.icon('settings', '', 14) + '所有计算在本地完成，无需联网</span>' +
@@ -123,7 +130,7 @@
     about: function () {
       var body = '<p class="modal-text">星火电学实验室是一个面向初中物理教学的离线虚拟实验工具，全部计算与数据存储都在你的浏览器本地完成。</p>' +
         '<section class="about-block"><h3>版本</h3><p>当前版本 <strong>v' + SL.VERSION + '</strong>（' + SL.VERSION_DATE + '）</p>' +
-        '<p class="muted">v1.0.0 首个完整版 · v1.1.0 一键美化 · v1.2.0 撤回/重做 · v1.3.0 画布缩放与变阻器接线校验</p></section>' +
+        '<p class="muted">v1.0.0 首个完整版 · v1.1.0 一键美化 · v1.2.0 撤回/重做 · v1.3.0 画布缩放与变阻器接线校验 · v1.4.0 全自由实验室与变阻器电阻判断修复</p></section>' +
         '<section class="about-block"><h3>图标素材</h3><p>界面与元件图标来自 <strong>Tabler Icons</strong>（MIT License），已下载并内联到本项目，运行时不访问网络。</p>' +
         '<p class="muted">https://github.com/tabler/tabler-icons</p></section>' +
         '<section class="about-block"><h3>自绘素材</h3><p>滑动变阻器、单刀开关、导线与电流动画由本项目按教材标准画法自绘。</p></section>' +

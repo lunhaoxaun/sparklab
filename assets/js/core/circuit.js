@@ -131,6 +131,46 @@
     return set;
   }
 
+  /* 滑动变阻器接入信息：按实际接线柱判断接入电阻与“阻值最大端” */
+  function rheostatInfo(comp, scene) {
+    var p = comp.props || {};
+    var max = p.max || 20;
+    var slider = Math.max(0, Math.min(1, p.slider == null ? 0.5 : p.slider));
+    var wired = scene ? connectedTerminals(scene, comp) : {};
+    var bottoms = (wired.a ? 1 : 0) + (wired.b ? 1 : 0);
+    var tops = (wired.c ? 1 : 0) + (wired.d ? 1 : 0);
+    var lower = wired.a && !wired.b ? 'a' : wired.b && !wired.a ? 'b' : null;
+
+    var wiring, active, maxAtSlider = null, atMax = false;
+    if (bottoms + tops < 2) {
+      wiring = 'incomplete';
+      active = 0;
+    } else if (bottoms === 2) {
+      wiring = tops >= 1 ? 'mixed' : 'fixed-max';
+      active = max;
+      atMax = true;
+    } else if (bottoms === 0) {
+      wiring = 'fixed-zero';
+      active = 0;
+    } else {
+      wiring = 'valid';
+      maxAtSlider = lower === 'a' ? 1 : 0;
+      active = (lower === 'a' ? slider : 1 - slider) * max;
+      atMax = lower === 'a' ? slider >= 0.95 : slider <= 0.05;
+    }
+    return {
+      slider: slider,
+      max: max,
+      wiring: wiring,
+      bottoms: bottoms,
+      tops: tops,
+      lower: lower,
+      active: Math.max(0, active),
+      maxAtSlider: maxAtSlider,
+      atMax: atMax
+    };
+  }
+
   /* ---------- 求解 ---------- */
   function solveLinear(A, rhs) {
     var n = rhs.length;
@@ -425,17 +465,12 @@
     result.rheostats = {};
     scene.components.forEach(function (comp) {
       if (comp.type !== 'rheostat') return;
-      var wired = connectedTerminals(scene, comp);
-      var bottoms = ['a', 'b'].filter(function (k) { return wired[k]; }).length;
-      var tops = ['c', 'd'].filter(function (k) { return wired[k]; }).length;
-      var wiring = 'valid';
-      if (bottoms === 2 && tops === 0) wiring = 'fixed-max';
-      else if (tops >= 1 && bottoms === 0) wiring = 'fixed-zero';
-      else if (bottoms + tops < 2) wiring = 'incomplete';
-      result.rheostats[comp.id] = { wiring: wiring, bottoms: bottoms, tops: tops };
-      if (wiring === 'fixed-max') result.warnings.push({ type: 'rheostat', compId: comp.id, message: '滑动变阻器接成了定值电阻（只接下面两个接线柱），滑片不起作用' });
-      if (wiring === 'fixed-zero') result.warnings.push({ type: 'rheostat', compId: comp.id, message: '滑动变阻器只接了上面接线柱，接入电阻几乎为零' });
-      if (wiring === 'incomplete') result.warnings.push({ type: 'rheostat', compId: comp.id, message: '滑动变阻器接线不完整，请“一上一下”接入电路' });
+      var info = rheostatInfo(comp, scene);
+      result.rheostats[comp.id] = info;
+      if (info.wiring === 'fixed-max') result.warnings.push({ type: 'rheostat', compId: comp.id, message: '滑动变阻器接成了定值电阻（只接下面两个接线柱），滑片不起作用' });
+      if (info.wiring === 'mixed') result.warnings.push({ type: 'rheostat', compId: comp.id, message: '同时接了下端两个接线柱，滑动变阻器被接成定值电阻，滑片不起作用' });
+      if (info.wiring === 'fixed-zero') result.warnings.push({ type: 'rheostat', compId: comp.id, message: '滑动变阻器只接了上面接线柱，接入电阻几乎为零' });
+      if (info.wiring === 'incomplete') result.warnings.push({ type: 'rheostat', compId: comp.id, message: '滑动变阻器接线不完整，请“一上一下”接入电路' });
     });
 
     /* 拓扑：串并联识别与电流路径 */
@@ -595,6 +630,7 @@
     terminalKey: terminalKey,
     getComp: getComp,
     connectedTerminals: connectedTerminals,
+    rheostatInfo: rheostatInfo,
     resetIds: function () { seq = 0; }
   };
 })();
