@@ -1,0 +1,461 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>画布交互自测</title>
+  <style>
+    body { font-family: ui-monospace, Consolas, monospace; background: #101820; color: #dbe6f0; padding: 18px; }
+    h1 { font-size: 16px; margin: 0 0 10px; }
+    .row { padding: 3px 0; font-size: 13px; }
+    .pass { color: #6ee7a8; }
+    .fail { color: #ff8080; }
+    .detail { color: #8aa0b6; margin-left: 10px; }
+    #summary { margin-top: 14px; font-size: 15px; font-weight: 700; }
+    #board-host { width: 900px; height: 520px; background: #fff; position: relative; }
+    #meters-host, #records-host { width: 900px; background: #fff; color: #16233a; }
+    #stage-warnings { display: none; }
+  </style>
+  <link rel="stylesheet" href="../assets/css/lab.css">
+</head>
+<body>
+  <h1>画布交互自测（示例载入 / 开关点击 / 仪表读数 / 记录）</h1>
+  <div id="out"></div>
+  <div id="summary"></div>
+  <div id="board-host"></div>
+  <div id="stage-warnings"></div>
+  <div id="meters-host"></div>
+  <div id="records-host"></div>
+
+  <script src="../assets/js/core/utils.js?v=25"></script>
+  <script src="../data/experiments.js?v=25"></script>
+  <script src="../assets/js/core/circuit.js?v=25"></script>
+  <script src="../assets/js/core/board.js?v=25"></script>
+  <script src="../assets/js/core/meters.js?v=25"></script>
+  <script src="../assets/js/core/records.js?v=25"></script>
+  <script src="../assets/js/labs/lab-ohm-r.js?v=25"></script>
+  <script>
+  (function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var total = 0, passed = 0;
+    var lab = SL.labs['ohm-r'];
+    var board = null;
+    var result = null;
+    var scene = null;
+
+    function test(name, fn) {
+      total += 1;
+      var ok = false, detail = '';
+      try {
+        var res = fn();
+        ok = res === true || (res && res.ok);
+        if (res && res.detail) detail = res.detail;
+      } catch (e) { detail = '异常：' + e.message; }
+      if (ok) passed += 1;
+      var row = document.createElement('div');
+      row.className = 'row ' + (ok ? 'pass' : 'fail');
+      row.innerHTML = (ok ? 'PASS ' : 'FAIL ') + total + '. ' + name +
+        (detail ? '<span class="detail">' + detail + '</span>' : '');
+      out.appendChild(row);
+    }
+
+    function solve() {
+      scene = board.getScene();
+      result = SL.circuit.solve(scene);
+      board.setResult(result);
+      SL.meters.render(document.getElementById('meters-host'), scene, result, function () {});
+      return result;
+    }
+
+    function toggleByPointer(swEl) {
+      var rect = swEl.querySelector('rect.comp-body');
+      var r = rect.getBoundingClientRect();
+      var svg = board.svg;
+      var orig = svg.setPointerCapture;
+      svg.setPointerCapture = function () {};
+      var o = {
+        bubbles: true, cancelable: true, pointerId: 1, isPrimary: true, pointerType: 'mouse',
+        clientX: r.x + r.width / 2, clientY: r.y + r.height / 2
+      };
+      rect.dispatchEvent(new PointerEvent('pointerdown', o));
+      rect.dispatchEvent(new PointerEvent('pointerup', o));
+      svg.setPointerCapture = orig;
+    }
+
+    function batteryCurrent(res) {
+      var max = 0;
+      Object.keys(res.batteries || {}).forEach(function (id) {
+        max = Math.max(max, Math.abs(res.batteries[id].current || 0));
+      });
+      return max;
+    }
+
+    function run() {
+      board = new SL.Board(document.getElementById('board-host'), {
+        onChange: function () { solve(); },
+        onSelect: function () {},
+        onInspect: function () {},
+        onSlider: function () { solve(); }
+      });
+      board.setScene(lab.example());
+
+      setTimeout(function () {
+        var renderErr = '';
+        try { board.render(); } catch (e) { renderErr = e.message + ' | ' + String(e.stack || '').split('\n')[1]; }
+        test('画布渲染不抛异常', function () {
+          return { ok: !renderErr, detail: renderErr || 'ok' };
+        });
+
+        var swEl = document.querySelector('#board-host g.comp-switch');
+
+        test('示例电路载入后元件数量为 6', function () {
+          var n = document.querySelectorAll('#board-host g.comp').length;
+          return { ok: n === 6, detail: 'comps=' + n };
+        });
+
+        test('示例电路中存在开关元件与杠杆线段', function () {
+          var lever = swEl ? swEl.querySelector('.switch-lever') : null;
+          return { ok: !!swEl && !!lever, detail: 'switch=' + !!swEl + ' lever=' + !!lever };
+        });
+
+        solve();
+
+        test('开关断开时电池电流为零', function () {
+          var i = batteryCurrent(result);
+          return { ok: i < 1e-3, detail: 'I=' + i.toFixed(5) };
+        });
+
+        test('开关断开时杠杆为断开姿态（y2=-12）', function () {
+          var y2 = swEl.querySelector('.switch-lever').getAttribute('y2');
+          return { ok: String(y2) === '-12', detail: 'y2=' + y2 };
+        });
+
+        toggleByPointer(swEl);
+        solve();
+
+        test('指针点击后开关闭合并重绘（y2=4）', function () {
+          board.render();
+          var sp = scene.components.filter(function (c) { return c.type === 'switch'; })[0];
+          var el = document.querySelector('#board-host g.comp-switch .switch-lever');
+          var y2 = el ? el.getAttribute('y2') : 'none';
+          return { ok: !!sp.props.closed && String(y2) === '4', detail: 'closed=' + !!sp.props.closed + ' y2=' + y2 };
+        });
+
+        test('闭合后电池电流在合理范围（0.1–0.6A）', function () {
+          var i = batteryCurrent(result);
+          return { ok: i > 0.1 && i < 0.6, detail: 'I=' + i.toFixed(4) };
+        });
+
+        test('电流表在串联路径、电压表跨接在 Rx 两端', function () {
+          var info = result.meterInfo || {};
+          var amp = scene.components.filter(function (c) { return c.type === 'ammeter'; })[0];
+          var volt = scene.components.filter(function (c) { return c.type === 'voltmeter'; })[0];
+          var rx = scene.components.filter(function (c) { return c.type === 'resistor'; })[0];
+          var onPath = (info.ammetersOnPath || []).indexOf(amp.id) !== -1;
+          var across = info.voltmeterAcross[volt.id] === rx.id;
+          return { ok: onPath && across, detail: 'onPath=' + onPath + ' across=' + across };
+        });
+
+        test('仪表卡片显示非零电流读数', function () {
+          var text = document.getElementById('meters-host').innerText.replace(/\s+/g, ' ');
+          var zero = /0\.00\s*A/.test(text);
+          return { ok: !zero && /A/.test(text), detail: text.slice(0, 120) };
+        });
+
+        var row = lab.measure({
+          scene: scene,
+          result: result,
+          rows: [],
+          state: { flags: {} }
+        });
+
+        test('measure 返回伏安法数据且 Rx≈10Ω', function () {
+          var ok = !!row && row.current > 0.1 && Math.abs(row.resistance - 10) < 0.6;
+          return { ok: ok, detail: row ? ('U=' + row.voltage.toFixed(2) + ' I=' + row.current.toFixed(3) + ' R=' + row.resistance) : 'null' };
+        });
+
+        test('记录单渲染一行数据并给出电阻平均值', function () {
+          SL.records.clear('ohm-r');
+          if (row) SL.records.add('ohm-r', row);
+          var host = document.getElementById('records-host');
+          SL.records.renderTable(host, lab.meta, SL.records.get('ohm-r'));
+          var trs = host.querySelectorAll('tbody tr').length;
+          var foot = host.querySelector('tfoot');
+          var footText = foot ? foot.innerText.replace(/\s+/g, ' ') : '';
+          return { ok: trs === 1 && /10\.0/.test(footText), detail: 'rows=' + trs + ' tfoot=' + footText };
+        });
+
+        /* ---------- 一键美化 ---------- */
+        function bodyRect(c) {
+          var def = SL.circuit.TYPES[c.type];
+          var turned = (c.rotation || 0) % 180 !== 0;
+          var w = turned ? def.h : def.w;
+          var h = turned ? def.w : def.h;
+          return { x1: c.x - w / 2, y1: c.y - h / 2, x2: c.x + w / 2, y2: c.y + h / 2 };
+        }
+
+        var wireCountBefore = scene.wires.length;
+        var currentBefore = batteryCurrent(result);
+        var compCountBefore = scene.components.length;
+        var beautified = board.beautify();
+        scene = board.getScene();
+
+        test('一键美化返回 true 且元件、导线数量不变', function () {
+          return {
+            ok: beautified === true && scene.components.length === compCountBefore && scene.wires.length === wireCountBefore,
+            detail: 'ok=' + beautified + ' comps=' + scene.components.length + '/' + compCountBefore +
+              ' wires=' + scene.wires.length + '/' + wireCountBefore
+          };
+        });
+
+        test('美化后所有元件都在画布范围内', function () {
+          var bad = scene.components.filter(function (c) {
+            var r = bodyRect(c);
+            return r.x1 < 0 || r.y1 < 0 || r.x2 > 1200 || r.y2 > 760;
+          }).map(function (c) { return c.id; });
+          return { ok: bad.length === 0, detail: bad.length ? '越界=' + bad.join(',') : '全部在 1200×760 内' };
+        });
+
+        test('美化后元件两两不重叠', function () {
+          var list = scene.components.map(function (c) { return { id: c.id, r: bodyRect(c) }; });
+          var hits = [];
+          for (var i = 0; i < list.length; i++) {
+            for (var j = i + 1; j < list.length; j++) {
+              var a = list[i].r, b = list[j].r;
+              var gap = 4;
+              var overlap = a.x1 + gap < b.x2 - gap && b.x1 + gap < a.x2 - gap &&
+                a.y1 + gap < b.y2 - gap && b.y1 + gap < a.y2 - gap;
+              if (overlap) hits.push(list[i].id + '↔' + list[j].id);
+            }
+          }
+          return { ok: hits.length === 0, detail: hits.length ? '重叠=' + hits.join(',') : '无重叠' };
+        });
+
+        test('美化后电路仍然闭合、电流不变', function () {
+          var now = batteryCurrent(result);
+          return { ok: Math.abs(now - currentBefore) < 1e-6, detail: 'I ' + currentBefore.toFixed(4) + ' → ' + now.toFixed(4) };
+        });
+
+        test('美化后元件沿矩形回路排布（含竖放元件）', function () {
+          var turned = scene.components.filter(function (c) { return (c.rotation || 0) % 180 !== 0; }).length;
+          var xs = scene.components.map(function (c) { return c.x; });
+          var span = Math.max.apply(null, xs) - Math.min.apply(null, xs);
+          return { ok: turned >= 1 && span > 400, detail: '竖放=' + turned + ' 横向跨度=' + Math.round(span) };
+        });
+
+        test('电压表被摆到被测电阻外侧（相距约一个身位）', function () {
+          var volt = scene.components.filter(function (c) { return c.type === 'voltmeter'; })[0];
+          var rx = scene.components.filter(function (c) { return c.type === 'resistor'; })[0];
+          var dist = volt && rx ? Math.abs(volt.x - rx.x) + Math.abs(volt.y - rx.y) : 0;
+          return { ok: !!volt && !!rx && dist > 100 && dist < 160, detail: volt && rx ? '间距=' + Math.round(dist) : '缺失' };
+        });
+
+        /* ---------- 撤回 / 重做 ---------- */
+        var baseCount = board.getScene().components.length;
+        board.addComponent('bulb', 400, 620);
+        var addedCount = board.getScene().components.length;
+        var undoAdd = board.undo();
+        var undoCount = board.getScene().components.length;
+        var redoAdd = board.redo();
+        var redoCount = board.getScene().components.length;
+
+        test('撤回新增元件后数量回退，重做后恢复', function () {
+          return {
+            ok: addedCount === baseCount + 1 && undoAdd === true && undoCount === baseCount &&
+              redoAdd === true && redoCount === baseCount + 1,
+            detail: baseCount + '→' + addedCount + '→撤销' + undoCount + '→重做' + redoCount
+          };
+        });
+
+        var swNow = board.getScene().components.filter(function (c) { return c.type === 'switch'; })[0];
+        var closedBefore = !!swNow.props.closed;
+        board.updateProps(swNow.id, { closed: !closedBefore });
+        var closedFlipped = !!board.findComp(swNow.id).props.closed;
+        board.undo();
+        var closedUndo = !!board.findComp(swNow.id).props.closed;
+        board.redo();
+        var closedRedo = !!board.findComp(swNow.id).props.closed;
+
+        test('撤回可还原开关的通断状态', function () {
+          return {
+            ok: closedFlipped === !closedBefore && closedUndo === closedBefore && closedRedo === !closedBefore,
+            detail: '原=' + closedBefore + ' 改=' + closedFlipped + ' 撤销=' + closedUndo + ' 重做=' + closedRedo
+          };
+        });
+
+        var wiresBefore = board.getScene().wires.length;
+        board.selected = { type: 'wire', id: board.getScene().wires[0].id };
+        board.removeSelected();
+        var wiresAfter = board.getScene().wires.length;
+        board.undo();
+        var wiresUndo = board.getScene().wires.length;
+
+        test('撤回可恢复被删除的导线', function () {
+          return {
+            ok: wiresAfter === wiresBefore - 1 && wiresUndo === wiresBefore,
+            detail: wiresBefore + '→删除' + wiresAfter + '→撤销' + wiresUndo
+          };
+        });
+
+        var chainBase = board.getScene().components.length;
+        board.addComponent('resistor', 220, 640);
+        board.addComponent('resistor', 300, 640);
+        board.addComponent('resistor', 380, 640);
+        var chainPlus = board.getScene().components.length;
+        board.undo(); board.undo(); board.undo();
+        var chainUndo = board.getScene().components.length;
+        board.redo(); board.redo(); board.redo();
+        var chainRedo = board.getScene().components.length;
+
+        test('连续 3 次撤回与重做保持栈一致', function () {
+          return {
+            ok: chainPlus === chainBase + 3 && chainUndo === chainBase && chainRedo === chainPlus,
+            detail: chainBase + '→+' + chainPlus + '→撤销' + chainUndo + '→重做' + chainRedo
+          };
+        });
+
+        var guard = 100;
+        while (guard > 0 && board.undo()) guard -= 1;
+        test('撤回到最早状态后 canUndo=false、canRedo=true', function () {
+          return { ok: !board.canUndo() && board.canRedo(), detail: 'canUndo=' + board.canUndo() + ' canRedo=' + board.canRedo() };
+        });
+
+        /* ---------- 变阻器自接线拦截 ---------- */
+        var rh = board.addComponent('rheostat', 600, 620);
+        var wireCountA = board.getScene().wires.length;
+        board.pending = { compId: rh.id, terminalId: 'a' };
+        board.completeWire({ compId: rh.id, terminalId: 'b' });
+        var wireCountB = board.getScene().wires.length;
+
+        test('滑动变阻器的接线柱不能接自己', function () {
+          return { ok: wireCountB === wireCountA && board.pending === null, detail: wireCountA + '→' + wireCountB };
+        });
+
+        var other = board.getScene().components.filter(function (c) { return c.id !== rh.id; })[0];
+        board.pending = { compId: rh.id, terminalId: 'a' };
+        board.completeWire({ compId: other.id, terminalId: SL.circuit.TYPES[other.type].terminals[0].id });
+        var wireCountC = board.getScene().wires.length;
+
+        test('变阻器接其他元件仍可正常连线', function () {
+          return { ok: wireCountC === wireCountA + 1, detail: wireCountA + '→' + wireCountC };
+        });
+
+        /* ---------- 画布点击接线柱：变阻器自接线拦截 ---------- */
+        var rh2 = board.addComponent('rheostat', 900, 620);
+        board.render();
+        var origCap = board.svg.setPointerCapture;
+        board.svg.setPointerCapture = function () {};
+
+        function tapTerm(compId, terminalId) {
+          var el = document.querySelector('#board-host .layer-terminals g[data-comp="' + compId + '"][data-terminal="' + terminalId + '"]');
+          if (!el) return false;
+          var r = el.getBoundingClientRect();
+          var o = {
+            bubbles: true, cancelable: true, pointerId: 31, isPrimary: true, pointerType: 'mouse',
+            clientX: r.left + r.width / 2, clientY: r.top + r.height / 2
+          };
+          el.dispatchEvent(new PointerEvent('pointerdown', o));
+          el.dispatchEvent(new PointerEvent('pointerup', o));
+          return true;
+        }
+
+        var uiWires0 = board.getScene().wires.length;
+        var tapA = tapTerm(rh2.id, 'a');
+        var tapB = tapTerm(rh2.id, 'b');
+        var uiWires1 = board.getScene().wires.length;
+        var toastHost = document.getElementById('toast-host');
+        var toastText = toastHost ? toastHost.innerText.replace(/\s+/g, '') : '';
+
+        test('画布上点击变阻器两个接线柱不会生成导线', function () {
+          return {
+            ok: tapA && tapB && uiWires1 === uiWires0 && board.pending === null && toastText.indexOf('不能接自己') !== -1,
+            detail: '导线 ' + uiWires0 + '→' + uiWires1 + ' 提示=' + (toastText || '无')
+          };
+        });
+
+        tapTerm(rh2.id, 'a');
+        var batteryComp = board.getScene().components.filter(function (c) { return c.type === 'battery'; })[0];
+        var tapBat = tapTerm(batteryComp.id, 'pos');
+        var uiWires2 = board.getScene().wires.length;
+        board.svg.setPointerCapture = origCap;
+        board.pointers = {};
+
+        test('画布上变阻器接电池组仍可连线', function () {
+          return { ok: tapBat && uiWires2 === uiWires1 + 1, detail: uiWires1 + '→' + uiWires2 };
+        });
+
+        /* ---------- 缩放 ---------- */
+        board.setView(0, 0, 1200, 760);
+        var zoomIn = board.zoomBy(1.5);
+        var wIn = board.view.w;
+        test('放大后 viewBox 宽度缩小', function () {
+          return { ok: zoomIn === true && wIn < 1200 - 1, detail: '1200→' + Math.round(wIn) };
+        });
+
+        var zoomOut = board.zoomBy(1 / 1.5);
+        test('缩小后 viewBox 宽度恢复', function () {
+          return { ok: zoomOut === true && Math.abs(board.view.w - 1200) < 1, detail: Math.round(board.view.w) };
+        });
+
+        for (var zi = 0; zi < 20; zi++) board.zoomBy(0.7);
+        test('缩小到下限后停止在 0.5×', function () {
+          return { ok: Math.abs(board.view.w - 2400) < 1, detail: 'w=' + Math.round(board.view.w) };
+        });
+
+        board.setView(0, 0, 1200, 760);
+        var rect = board.svg.getBoundingClientRect();
+        var ax = rect.left + rect.width * 0.3;
+        var ay = rect.top + rect.height * 0.4;
+        var anchorBefore = board.svgPoint({ clientX: ax, clientY: ay });
+        board.zoomAtClient(ax, ay, 1.4);
+        var anchorAfter = board.svgPoint({ clientX: ax, clientY: ay });
+        var drift = Math.sqrt(Math.pow(anchorAfter.x - anchorBefore.x, 2) + Math.pow(anchorAfter.y - anchorBefore.y, 2));
+
+        test('以光标为锚点缩放，锚点内容不漂移', function () {
+          return { ok: drift < 2, detail: '漂移=' + drift.toFixed(2) + 'px（模型坐标）' };
+        });
+
+        var wheelBefore = board.view.w;
+        board.svg.dispatchEvent(new WheelEvent('wheel', {
+          bubbles: true, cancelable: true, ctrlKey: true, deltaY: -150, clientX: ax, clientY: ay
+        }));
+        test('Ctrl+滚轮可缩放', function () {
+          return { ok: board.view.w < wheelBefore - 1, detail: Math.round(wheelBefore) + '→' + Math.round(board.view.w) };
+        });
+
+        board.setView(0, 0, 1200, 760);
+        var origCapture = board.svg.setPointerCapture;
+        board.svg.setPointerCapture = function () {};
+        var cx = rect.left + rect.width / 2;
+        var cy = rect.top + rect.height / 2;
+        board.svg.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 11, isPrimary: true, clientX: cx - 50, clientY: cy }));
+        board.svg.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 12, clientX: cx + 50, clientY: cy }));
+        var pinchBefore = board.view.w;
+        board.svg.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 12, clientX: cx + 150, clientY: cy }));
+        var pinchAfter = board.view.w;
+        board.svg.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 12, clientX: cx + 150, clientY: cy }));
+        board.svg.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 11, clientX: cx - 50, clientY: cy }));
+        board.svg.setPointerCapture = origCapture;
+
+        test('双指捏合可放大画面', function () {
+          return {
+            ok: pinchAfter < pinchBefore - 1 && Object.keys(board.pointers).length === 0 && board.pinch === null,
+            detail: Math.round(pinchBefore) + '→' + Math.round(pinchAfter) +
+              ' pointers=' + Object.keys(board.pointers).length + ' pinch=' + board.pinch
+          };
+        });
+
+        SL.records.clear('ohm-r');
+        var summary = document.getElementById('summary');
+        summary.textContent = (passed === total ? 'PASS ' : 'FAIL ') + passed + ' / ' + total;
+        summary.className = passed === total ? 'pass' : 'fail';
+        document.title = (passed === total ? 'PASS ' : 'FAIL ') + passed + '/' + total;
+        window.__testDone = true;
+      }, 160);
+    }
+
+    run();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>实验逻辑自测</title>
+  <style>
+    body { font-family: ui-monospace, Consolas, monospace; background: #101820; color: #dbe6f0; padding: 24px; }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    .row { padding: 4px 0; font-size: 13px; }
+    .pass { color: #6ee7a8; }
+    .fail { color: #ff8080; }
+    .detail { color: #8aa0b6; margin-left: 10px; }
+    #summary { margin-top: 16px; font-size: 15px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>实验逻辑自测（三个实验的判定与测量）</h1>
+  <div id="out"></div>
+  <div id="summary"></div>
+
+  <script src="../assets/js/core/utils.js"></script>
+  <script src="../data/experiments.js"></script>
+  <script src="../assets/js/core/circuit.js"></script>
+  <script src="../assets/js/labs/lab-series.js"></script>
+  <script src="../assets/js/labs/lab-ohm-r.js"></script>
+  <script src="../assets/js/labs/lab-ohm-law.js"></script>
+  <script>
+  (function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var total = 0, passed = 0;
+
+    function test(name, fn) {
+      total += 1;
+      var ok = false, detail = '';
+      try {
+        var res = fn();
+        ok = res === true || (res && res.ok);
+        if (res && res.detail) detail = res.detail;
+      } catch (e) {
+        detail = '异常：' + e.message;
+      }
+      if (ok) passed += 1;
+      var row = document.createElement('div');
+      row.className = 'row ' + (ok ? 'pass' : 'fail');
+      row.innerHTML = (ok ? 'PASS ' : 'FAIL ') + total + '. ' + name +
+        (detail ? '<span class="detail">' + detail + '</span>' : '');
+      out.appendChild(row);
+    }
+
+    function ctxOf(scene, rows, state) {
+      return {
+        scene: scene,
+        result: SL.circuit.solve(scene),
+        rows: rows || [],
+        state: state || {},
+        mode: 'guided'
+      };
+    }
+    function comps(scene, type) { return scene.components.filter(function (c) { return c.type === type; }); }
+    function stepCheck(lab, index) { return lab.meta.steps[index].check; }
+    function near(a, b, tol) { return Math.abs(a - b) <= tol; }
+
+    function withClosedSwitch(scene) {
+      comps(scene, 'switch').forEach(function (s) { s.props.closed = true; });
+      return scene;
+    }
+
+    /* ---------- 实验一 ---------- */
+    test('实验一 示例电路：串联识别 + 第 1 步', function () {
+      var scene = SL.labs['series'].example();
+      var ctx = ctxOf(scene);
+      var ok = ctx.result.sceneType === 'series' && stepCheck(SL.labs['series'], 0)(ctx);
+      return { ok: ok, detail: 'sceneType=' + ctx.result.sceneType };
+    });
+
+    test('实验一 闭合开关后第 2 步通过', function () {
+      var scene = withClosedSwitch(SL.labs['series'].example());
+      var ctx = ctxOf(scene);
+      var ok = stepCheck(SL.labs['series'], 1)(ctx);
+      var i = Math.abs(ctx.result.batteries[comps(scene, 'battery')[0].id].current);
+      return { ok: ok, detail: 'I=' + i.toFixed(4) };
+    });
+
+    test('实验一 串联电流记录：A/B/C 两点即可通过第 3 步', function () {
+      var scene = withClosedSwitch(SL.labs['series'].example());
+      var ctx = ctxOf(scene);
+      var i = SL.fmt(Math.abs(ctx.result.batteries[comps(scene, 'battery')[0].id].current), 2);
+      ctx.rows = [
+        { scene: '串联', point: 'A', current: i, voltage: '' },
+        { scene: '串联', point: 'C', current: i, voltage: '' }
+      ];
+      return { ok: stepCheck(SL.labs['series'], 2)(ctx), detail: 'I=' + i };
+    });
+
+    test('实验一 串联电压记录：U1+U2=U源 通过第 4 步', function () {
+      var scene = withClosedSwitch(SL.labs['series'].example());
+      var ctx = ctxOf(scene);
+      var bulbs = comps(scene, 'bulb');
+      var bat = comps(scene, 'battery')[0];
+      var u1 = SL.fmt(Math.abs(ctx.result.bulbs[bulbs[0].id].voltage), 2);
+      var u2 = SL.fmt(Math.abs(ctx.result.bulbs[bulbs[1].id].voltage), 2);
+      var us = SL.fmt(Math.abs(ctx.result.batteries[bat.id].voltage), 2);
+      ctx.rows = [
+        { scene: '串联', point: 'L1', current: '', voltage: u1 },
+        { scene: '串联', point: 'L2', current: '', voltage: u2 },
+        { scene: '串联', point: 'SRC', current: '', voltage: us }
+      ];
+      return { ok: stepCheck(SL.labs['series'], 3)(ctx), detail: u1 + '+' + u2 + '≈' + us };
+    });
+
+    test('实验一 并联：第 5、6、7 步与结论步骤', function () {
+      function C(type, x, y, p) { return SL.circuit.create(type, x, y, p); }
+      var bat = C('battery', 300, 400, { cells: 2 });
+      var l1 = C('bulb', 600, 300);
+      var l2 = C('bulb', 600, 500);
+      function W(a, at, b, bt) {
+        return { id: 'tt-' + (++wseq), from: { compId: a.id, terminalId: at }, to: { compId: b.id, terminalId: bt } };
+      }
+      var wseq = 0;
+      var scene = {
+        components: [bat, l1, l2],
+        wires: [W(bat, 'pos', l1, 'a'), W(l1, 'b', bat, 'neg'), W(bat, 'pos', l2, 'a'), W(l2, 'b', bat, 'neg')]
+      };
+      var ctx = ctxOf(scene);
+      var main = SL.fmt(Math.abs(ctx.result.batteries[bat.id].current), 2);
+      var b1 = SL.fmt(Math.abs(ctx.result.bulbs[l1.id].current), 2);
+      var b2 = SL.fmt(Math.abs(ctx.result.bulbs[l2.id].current), 2);
+      var u1 = SL.fmt(Math.abs(ctx.result.bulbs[l1.id].voltage), 2);
+      var u2 = SL.fmt(Math.abs(ctx.result.bulbs[l2.id].voltage), 2);
+      ctx.rows = [
+        { scene: '并联', point: 'A', current: main, voltage: u1 },
+        { scene: '并联', point: 'B', current: b1, voltage: '' },
+        { scene: '并联', point: 'C', current: b2, voltage: '' },
+        { scene: '并联', point: 'L1', current: '', voltage: u1 },
+        { scene: '并联', point: 'L2', current: '', voltage: u2 }
+      ];
+      var s5 = stepCheck(SL.labs['series'], 4)(ctx);
+      var s6 = stepCheck(SL.labs['series'], 5)(ctx);
+      var s7 = stepCheck(SL.labs['series'], 6)(ctx);
+      ctx.state.allAnswered = true;
+      var s8 = stepCheck(SL.labs['series'], 7)(ctx);
+      return { ok: s5 && s6 && s7 && s8, detail: 'parallel=' + ctx.result.sceneType + ' 干路=' + main + ' 支路=' + b1 + '/' + b2 + ' [5]' + s5 + ' [6]' + s6 + ' [7]' + s7 };
+    });
+
+    /* ---------- 实验二 ---------- */
+    test('实验二 示例电路正确连接（第 1 步）', function () {
+      var scene = SL.labs['ohm-r'].example();
+      var ctx = ctxOf(scene);
+      var rheo = comps(scene, 'rheostat')[0];
+      return { ok: stepCheck(SL.labs['ohm-r'], 0)(ctx), detail: 'wiring=' + ctx.result.rheostats[rheo.id].wiring };
+    });
+
+    test('实验二 变阻器接成“下+下”时第 1 步不通过', function () {
+      var scene = SL.labs['ohm-r'].example();
+      var rheo = comps(scene, 'rheostat')[0];
+      var wires = scene.wires;
+      for (var i = 0; i < wires.length; i++) {
+        if (wires[i].from.compId === rheo.id && wires[i].from.terminalId === 'c') wires[i].from.terminalId = 'b';
+        if (wires[i].to.compId === rheo.id && wires[i].to.terminalId === 'c') wires[i].to.terminalId = 'b';
+      }
+      var ctx = ctxOf(scene);
+      var ok = stepCheck(SL.labs['ohm-r'], 0)(ctx) === false;
+      return { ok: ok, detail: 'wiring=' + ctx.result.rheostats[rheo.id].wiring };
+    });
+
+    test('实验二 滑片位于最大端（第 2 步）', function () {
+      var scene = SL.labs['ohm-r'].example();
+      var ctx = ctxOf(scene);
+      var s2 = stepCheck(SL.labs['ohm-r'], 1)(ctx);
+      comps(scene, 'rheostat')[0].props.slider = 0.4;
+      var s2b = stepCheck(SL.labs['ohm-r'], 1)(ctxOf(scene));
+      return { ok: s2 === true && s2b === false, detail: 'slider=1→' + s2 + '，slider=0.4→' + s2b };
+    });
+
+    test('实验二 三组数据与 R≈10Ω（第 3 步）', function () {
+      var lab = SL.labs['ohm-r'];
+      var scene = withClosedSwitch(lab.example());
+      var rheo = comps(scene, 'rheostat')[0];
+      var rows = [];
+      [1, 0.7, 0.4].forEach(function (slider) {
+        rheo.props.slider = slider;
+        var ctx = ctxOf(scene, rows, {});
+        var row = lab.measure(ctx);
+        if (row) rows.push(row);
+      });
+      var ctx = ctxOf(scene, rows, {});
+      var ok = rows.length === 3 && stepCheck(lab, 2)(ctx);
+      var rs = rows.map(function (r) { return r.resistance; });
+      return { ok: ok && rs.every(function (r) { return near(r, 10, .3); }), detail: 'R=' + rs.join(', ') };
+    });
+
+    test('实验二 第 4 步随结论完成', function () {
+      var ctx = ctxOf(SL.labs['ohm-r'].example(), [], { allAnswered: true });
+      return { ok: stepCheck(SL.labs['ohm-r'], 3)(ctx) === true };
+    });
+
+    /* ---------- 实验三 ---------- */
+    test('实验三 示例电路正确连接（第 1 步）', function () {
+      var scene = SL.labs['ohm-law'].example();
+      var ctx = ctxOf(scene);
+      var rheo = comps(scene, 'rheostat')[0];
+      return { ok: stepCheck(SL.labs['ohm-law'], 0)(ctx), detail: 'wiring=' + ctx.result.rheostats[rheo.id].wiring };
+    });
+
+    test('实验三 R=10Ω 四组 U–I（第 2、3 步）', function () {
+      var lab = SL.labs['ohm-law'];
+      var scene = withClosedSwitch(lab.example());
+      var rheo = comps(scene, 'rheostat')[0];
+      var rows = [];
+      [0.8, 0.6, 0.4, 0.2].forEach(function (slider) {
+        rheo.props.slider = slider;
+        var row = lab.measure(ctxOf(scene, rows, {}));
+        if (row) rows.push(row);
+      });
+      var ctx = ctxOf(scene, rows, {});
+      var s2 = stepCheck(lab, 1)(ctx);
+      var s3 = stepCheck(lab, 2)(ctx);
+      return { ok: s2 && s3, detail: 'rows=' + rows.length + ' U=' + rows.map(function (r) { return r.voltage.toFixed(2); }).join('/') + ' [2]' + s2 + ' [3]' + s3 };
+    });
+
+    test('实验三 保持 2V 更换 4 种电阻（第 4 步）', function () {
+      var lab = SL.labs['ohm-law'];
+      var scene = withClosedSwitch(lab.example());
+      var res = comps(scene, 'resistor')[0];
+      var rheo = comps(scene, 'rheostat')[0];
+      var rows = [];
+      var plan = [[10, 0.2], [5, 0.075], [15, 0.325], [20, 0.45]];
+      plan.forEach(function (p) {
+        res.props.resistance = p[0];
+        rheo.props.slider = p[1];
+        var row = lab.measure(ctxOf(scene, rows, {}));
+        if (row) rows.push(row);
+      });
+      var ctx = ctxOf(scene, rows, {});
+      var ok = stepCheck(lab, 3)(ctx);
+      return { ok: ok, detail: 'U=' + rows.map(function (r) { return r.voltage.toFixed(2); }).join('/') + ' R=' + rows.map(function (r) { return r.resistance; }).join('/') };
+    });
+
+    test('实验三 图像数据点与拟合（renderExtra）', function () {
+      var host = document.createElement('div');
+      var rows = [
+        { group: 1, resistance: 10, voltage: 1, current: 0.1, ratio: 10 },
+        { group: 2, resistance: 10, voltage: 1.5, current: 0.15, ratio: 10 },
+        { group: 3, resistance: 10, voltage: 2, current: 0.2, ratio: 10 },
+        { group: 4, resistance: 10, voltage: 2.5, current: 0.25, ratio: 10 }
+      ];
+      SL.labs['ohm-law'].renderExtra(host, rows);
+      var svgs = host.querySelectorAll('svg.chart').length;
+      var note = host.querySelector('.chart-note');
+      var count2 = svgs === 2;
+      var hasNote = !!note;
+      var idx = note ? note.textContent.indexOf('R²') : -99;
+      return { ok: count2 && hasNote && idx !== -1, detail: 'chart=' + svgs + ' count2=' + count2 + ' note=' + hasNote + ' idx=' + idx + ' ' + (note ? note.textContent : '') };
+    });
+
+    test('实验三 结论步骤随结论完成', function () {
+      var ctx = ctxOf(SL.labs['ohm-law'].example(), [], { allAnswered: true });
+      return { ok: stepCheck(SL.labs['ohm-law'], 4)(ctx) === true };
+    });
+
+    var summary = document.getElementById('summary');
+    summary.textContent = (passed === total ? 'PASS ' : 'FAIL ') + passed + ' / ' + total;
+    summary.className = passed === total ? 'pass' : 'fail';
+    document.title = (passed === total ? 'PASS ' : 'FAIL ') + passed + '/' + total;
+    window.__testDone = true;
+  })();
+  </script>
+</body>
+</html>

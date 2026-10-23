@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>电路引擎自测</title>
+  <style>
+    body { font-family: ui-monospace, Consolas, monospace; background: #101820; color: #dbe6f0; padding: 24px; }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    .row { padding: 4px 0; font-size: 13px; }
+    .pass { color: #6ee7a8; }
+    .fail { color: #ff8080; }
+    .detail { color: #8aa0b6; margin-left: 10px; }
+    #summary { margin-top: 16px; font-size: 15px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>电路引擎自测</h1>
+  <div id="out"></div>
+  <div id="summary"></div>
+
+  <script src="../assets/js/core/circuit.js"></script>
+  <script>
+  (function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var total = 0, passed = 0;
+    var wireSeq = 0;
+
+    function C(type, x, y, props) { return SL.circuit.create(type, x, y, props); }
+    function W(a, at, b, bt) {
+      wireSeq += 1;
+      return { id: 't-w' + wireSeq, from: { compId: a.id, terminalId: at }, to: { compId: b.id, terminalId: bt } };
+    }
+    function near(actual, expect, tol) { return Math.abs(actual - expect) <= tol; }
+
+    function test(name, fn) {
+      total += 1;
+      var ok = false, detail = '';
+      try {
+        var res = fn();
+        ok = res === true || (res && res.ok);
+        if (res && res.detail) detail = res.detail;
+      } catch (e) {
+        detail = '异常：' + e.message;
+      }
+      if (ok) passed += 1;
+      var row = document.createElement('div');
+      row.className = 'row ' + (ok ? 'pass' : 'fail');
+      row.innerHTML = (ok ? 'PASS ' : 'FAIL ') + (total) + '. ' + name +
+        (detail ? '<span class="detail">' + detail + '</span>' : '');
+      out.appendChild(row);
+    }
+
+    function seriesScene(opts) {
+      opts = opts || {};
+      var bat = C('battery', 300, 400, { cells: opts.cells || 2 });
+      var sw = C('switch', 480, 400, { closed: opts.closed !== false });
+      var l1 = C('bulb', 660, 400);
+      var l2 = C('bulb', 820, 400);
+      var scene = {
+        components: [bat, sw, l1, l2],
+        wires: [
+          W(bat, 'pos', sw, 'a'),
+          W(sw, 'b', l1, 'a'),
+          W(l1, 'b', l2, 'a'),
+          W(l2, 'b', bat, 'neg')
+        ]
+      };
+      return { scene: scene, bat: bat, sw: sw, l1: l1, l2: l2 };
+    }
+
+    /* 1. 端子坐标与旋转 */
+    test('端子坐标 / 旋转 90°', function () {
+      var b = C('battery', 100, 100);
+      var p = SL.circuit.terminalPoint(b, 'pos');
+      b.rotation = 90;
+      var q = SL.circuit.terminalPoint(b, 'pos');
+      var ok = near(p.x, 148, .01) && near(p.y, 100, .01) && near(q.x, 100, .01) && near(q.y, 148, .01);
+      return { ok: ok, detail: 'pos=' + p.x + ',' + p.y + ' → ' + q.x + ',' + q.y };
+    });
+
+    /* 2. 串联识别与电流处处相等 */
+    test('串联电路识别 + 电流相等', function () {
+      var s = seriesScene();
+      var r = SL.circuit.solve(s.scene);
+      var i1 = Math.abs(r.bulbs[s.l1.id].current);
+      var i2 = Math.abs(r.bulbs[s.l2.id].current);
+      var ib = Math.abs(r.batteries[s.bat.id].current);
+      var ok = r.sceneType === 'series' && near(i1, i2, 1e-6) && near(i1, ib, 1e-6) && near(i1, 0.1698, .003);
+      return { ok: ok, detail: 'type=' + r.sceneType + ' I=' + i1.toFixed(4) + ' 期望 0.1698' };
+    });
+
+    /* 3. 串联电压关系 U1 + U2 ≈ 电源端电压 */
+    test('串联电压 U1+U2 ≈ U源', function () {
+      var s = seriesScene();
+      var r = SL.circuit.solve(s.scene);
+      var u1 = Math.abs(r.bulbs[s.l1.id].voltage);
+      var u2 = Math.abs(r.bulbs[s.l2.id].voltage);
+      var ub = Math.abs(r.batteries[s.bat.id].voltage);
+      var ok = near(u1 + u2, ub, .01) && near(u1, u2, 1e-6) && near(ub, 2.83, .03);
+      return { ok: ok, detail: 'U1=' + u1.toFixed(3) + ' U2=' + u2.toFixed(3) + ' U源=' + ub.toFixed(3) };
+    });
+
+    /* 4. 开关断开 → 无电流 */
+    test('开关断开：电路无电流', function () {
+      var s = seriesScene({ closed: false });
+      var r = SL.circuit.solve(s.scene);
+      var i = Math.abs(r.batteries[s.bat.id].current);
+      return { ok: i < 1e-6, detail: 'I=' + i.toExponential(2) };
+    });
+
+    /* 4b. 开关闭合但导线断开 → 断路提示 */
+    test('导线断开：断路提示', function () {
+      var s = seriesScene();
+      s.scene.wires.pop();
+      var r = SL.circuit.solve(s.scene);
+      var i = Math.abs(r.batteries[s.bat.id].current);
+      var ok = i < 1e-6 && r.flags.open === true && r.warnings.some(function (w) { return w.type === 'open'; });
+      return { ok: ok, detail: 'I=' + i.toExponential(2) + ' flags.open=' + r.flags.open };
+    });
+
+    /* 5. 并联识别 + 支路电压相等 + 干路电流为支路和 */
+    test('并联电路识别 + 电压相等', function () {
+      var bat = C('battery', 300, 400, { cells: 2 });
+      var l1 = C('bulb', 600, 300);
+      var l2 = C('bulb', 600, 500);
+      var scene = {
+        components: [bat, l1, l2],
+        wires: [W(bat, 'pos', l1, 'a'), W(l1, 'b', bat, 'neg'), W(bat, 'pos', l2, 'a'), W(l2, 'b', bat, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var u1 = Math.abs(r.bulbs[l1.id].voltage);
+      var u2 = Math.abs(r.bulbs[l2.id].voltage);
+      var total = Math.abs(r.batteries[bat.id].current);
+      var sum = Math.abs(r.bulbs[l1.id].current) + Math.abs(r.bulbs[l2.id].current);
+      var ok = r.sceneType === 'parallel' && near(u1, u2, 1e-6) && near(total, sum, 1e-6) && near(u1, 2.419, .05);
+      return { ok: ok, detail: 'type=' + r.sceneType + ' U=' + u1.toFixed(3) + ' I总=' + total.toFixed(3) };
+    });
+
+    /* 6. 电源短路检测 */
+    test('电源短路检测', function () {
+      var bat = C('battery', 300, 400, { cells: 2 });
+      var scene = { components: [bat], wires: [W(bat, 'pos', bat, 'neg')] };
+      var r = SL.circuit.solve(scene);
+      var ok = r.flags.short === true && r.warnings.some(function (w) { return w.type === 'short'; });
+      return { ok: ok, detail: 'I=' + Math.abs(r.batteries[bat.id].current).toFixed(3) + ' R外=' + (r.batteries[bat.id].voltage / r.batteries[bat.id].current).toFixed(3) };
+    });
+
+    /* 7. 电流表反接 */
+    test('电流表反接（指针反偏）', function () {
+      var s = seriesScene();
+      var amp = C('ammeter', 480, 560, { range: 3 });
+      s.scene.components.push(amp);
+      s.scene.wires = s.scene.wires.filter(function (w) { return !(w.from.compId === s.bat.id && w.from.terminalId === 'pos'); });
+      s.scene.wires.push(W(s.bat, 'pos', amp, 'minus'));
+      s.scene.wires.push(W(amp, 'plus', s.sw, 'a'));
+      var r = SL.circuit.solve(s.scene);
+      var m = r.meters[amp.id];
+      var ok = !!m && m.reversed === true && m.value < 0;
+      return { ok: ok, detail: 'value=' + (m ? m.value.toFixed(4) : 'null') + ' reversed=' + (m && m.reversed) };
+    });
+
+    /* 8. 电流表串联在路径上 + 电压表跨接识别 */
+    test('电表位置识别', function () {
+      var s = seriesScene();
+      var amp = C('ammeter', 480, 560, { range: 3 });
+      var volt = C('voltmeter', 660, 250, { range: 3 });
+      s.scene.components.push(amp, volt);
+      s.scene.wires = s.scene.wires.filter(function (w) {
+        return !(w.from.compId === s.bat.id && w.from.terminalId === 'pos');
+      });
+      s.scene.wires.push(W(s.bat, 'pos', amp, 'plus'));
+      s.scene.wires.push(W(amp, 'minus', s.sw, 'a'));
+      s.scene.wires.push(W(volt, 'plus', s.l1, 'a'));
+      s.scene.wires.push(W(volt, 'minus', s.l1, 'b'));
+      var r = SL.circuit.solve(s.scene);
+      var onPath = r.meterInfo.ammetersOnPath.indexOf(amp.id) !== -1;
+      var across = r.meterInfo.voltmeterAcross[volt.id] === s.l1.id;
+      var ok = onPath && across && near(Math.abs(r.meters[volt.id].value), Math.abs(r.bulbs[s.l1.id].voltage), .01);
+      return { ok: ok, detail: 'ammeterOnPath=' + onPath + ' voltmeterAcross=' + across };
+    });
+
+    /* 9. 超量程 */
+    test('电表超量程', function () {
+      var bat = C('battery', 300, 400, { cells: 2 });
+      var amp = C('ammeter', 480, 400, { range: 0.6 });
+      var scene = {
+        components: [bat, amp],
+        wires: [W(bat, 'pos', amp, 'plus'), W(amp, 'minus', bat, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var m = r.meters[amp.id];
+      var ok = !!m && m.overRange === true && r.warnings.some(function (w) { return w.type === 'overRange'; });
+      return { ok: ok, detail: 'I=' + (m ? m.value.toFixed(2) : '') + 'A 量程 ' + (m && m.range) };
+    });
+
+    /* 10. 滑动变阻器接法识别 */
+    test('滑动变阻器“下+下”识别', function () {
+      var rheo = C('rheostat', 400, 400, { slider: .5 });
+      var bat = C('battery', 200, 400);
+      var scene = {
+        components: [bat, rheo],
+        wires: [W(bat, 'pos', rheo, 'a'), W(rheo, 'b', bat, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.rheostats[rheo.id];
+      var ok = info.wiring === 'fixed-max' && r.warnings.some(function (w) { return w.type === 'rheostat'; });
+      return { ok: ok, detail: 'wiring=' + info.wiring };
+    });
+
+    /* 11. 滑动变阻器“一上一下”有效 */
+    test('滑动变阻器“一上一下”有效', function () {
+      var rheo = C('rheostat', 400, 400, { slider: 1, max: 20 });
+      var bat = C('battery', 200, 400, { cells: 2 });
+      var scene = {
+        components: [bat, rheo],
+        wires: [W(bat, 'pos', rheo, 'a'), W(rheo, 'c', bat, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.rheostats[rheo.id];
+      var i = Math.abs(r.batteries[bat.id].current);
+      var ok = info.wiring === 'valid' && near(i, 3 / 21, .005);
+      return { ok: ok, detail: 'wiring=' + info.wiring + ' I=' + i.toFixed(4) + ' 期望 ' + (3 / 21).toFixed(4) };
+    });
+
+    /* 12. 灯泡功率比 */
+    test('灯泡实际功率超过额定 1.5 倍可被识别', function () {
+      var bat = C('battery', 300, 400, { cells: 4 });
+      var l1 = C('bulb', 600, 400);
+      var scene = { components: [bat, l1], wires: [W(bat, 'pos', l1, 'a'), W(l1, 'b', bat, 'neg')] };
+      var r = SL.circuit.solve(scene);
+      var ratio = r.bulbs[l1.id].ratio;
+      var ok = ratio > 1.5;
+      return { ok: ok, detail: 'ratio=' + ratio.toFixed(2) };
+    });
+
+    /* 13. 空场景不报错 */
+    test('空场景求解', function () {
+      var r = SL.circuit.solve({ components: [], wires: [] });
+      return { ok: r.ok === true && r.sceneType === 'other' };
+    });
+
+    /* 14. ID 唯一性（恢复场景后新增元件不冲突） */
+    test('恢复场景后新增元件 ID 不冲突', function () {
+      var old = SL.circuit.create('bulb', 100, 100);
+      var scene = { components: [old], wires: [] };
+      SL.circuit.syncIds(scene);
+      var fresh = SL.circuit.create('bulb', 200, 100);
+      return { ok: fresh.id !== old.id, detail: old.id + ' / ' + fresh.id };
+    });
+
+    var summary = document.getElementById('summary');
+    summary.textContent = (passed === total ? 'PASS ' : 'FAIL ') + passed + ' / ' + total;
+    summary.className = passed === total ? 'pass' : 'fail';
+    document.title = (passed === total ? 'PASS ' : 'FAIL ') + passed + '/' + total;
+    window.__testDone = true;
+  })();
+  </script>
+</body>
+</html>
