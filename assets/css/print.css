@@ -1,0 +1,53 @@
+/* ==========================================================
+   打印样式：只输出记录单与结论
+   ========================================================== */
+@media print {
+  @page { size: A4 portrait; margin: 16mm 14mm; }
+
+  html, body { background: #fff !important; }
+  body > * { display: none !important; }
+  body > .print-sheet { display: block !important; }
+
+  .print-sheet {
+    color: #111;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 12px;
+  }
+  .print-sheet h1 {
+    font-size: 20px;
+    text-align: center;
+    margin: 0 0 6px;
+    letter-spacing: .02em;
+  }
+  .print-meta {
+    text-align: center;
+    font-size: 11px;
+    color: #444;
+    margin-bottom: 16px;
+  }
+  .print-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 18px;
+    font-variant-numeric: tabular-nums;
+  }
+  .print-table th,
+  .print-table td {
+    border: 1px solid #999;
+    padding: 6px 8px;
+    text-align: left;
+    font-size: 11px;
+  }
+  .print-table th { background: #f0f0f0; font-weight: 700; }
+  .print-table tfoot td { background: #f7f7f7; font-weight: 700; }
+
+  .print-sheet h3 { font-size: 13px; margin: 14px 0 6px; }
+  .print-conclusions { margin: 0; padding-left: 20px; }
+  .print-conclusions li { margin-bottom: 6px; font-size: 11.5px; line-height: 1.7; }
+  .print-conclusions strong {
+    display: inline-block;
+    min-width: 90px;
+    border-bottom: 1px solid #999;
+    padding: 0 4px;
+  }
+}

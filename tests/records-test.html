@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>记录单自测</title>
+  <style>
+    body { font-family: ui-monospace, Consolas, monospace; background: #101820; color: #dbe6f0; padding: 24px; }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    .row { padding: 4px 0; font-size: 13px; }
+    .pass { color: #6ee7a8; }
+    .fail { color: #ff8080; }
+    .detail { color: #8aa0b6; margin-left: 10px; }
+    #summary { margin-top: 16px; font-size: 15px; font-weight: 700; }
+    #host { display: none; }
+  </style>
+</head>
+<body>
+  <h1>记录单自测（表格 / 平均值 / CSV / 打印）</h1>
+  <div id="out"></div>
+  <div id="summary"></div>
+  <div id="host"></div>
+
+  <script src="../assets/js/core/utils.js?v=12"></script>
+  <script src="../data/experiments.js?v=12"></script>
+  <script src="../assets/js/core/records.js?v=12"></script>
+  <script>
+  (function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var total = 0, passed = 0;
+
+    function test(name, fn) {
+      total += 1;
+      var ok = false, detail = '';
+      try {
+        var res = fn();
+        ok = res === true || (res && res.ok);
+        if (res && res.detail) detail = res.detail;
+      } catch (e) {
+        detail = '异常：' + e.message;
+      }
+      if (ok) passed += 1;
+      var row = document.createElement('div');
+      row.className = 'row ' + (ok ? 'pass' : 'fail');
+      row.innerHTML = (ok ? 'PASS ' : 'FAIL ') + total + '. ' + name +
+        (detail ? '<span class="detail">' + detail + '</span>' : '');
+      out.appendChild(row);
+    }
+
+    var lab = SL.data.labsById['ohm-r'];
+    var rows = [
+      { group: 1, voltage: 1.43, current: 0.143, resistance: 10.0 },
+      { group: 2, voltage: 1.8, current: 0.18, resistance: 10.1 },
+      { group: 3, voltage: 2.4, current: 0.243, resistance: 9.9 }
+    ];
+    SL.records.clear('ohm-r');
+    rows.forEach(function (r) { SL.records.add('ohm-r', r); });
+
+    test('写入与读取记录（含时间戳）', function () {
+      var list = SL.records.get('ohm-r');
+      return { ok: list.length === 3 && !!list[0]._time && list[0].group === 1, detail: 'rows=' + list.length + ' time=' + list[0]._time };
+    });
+
+    test('平均值计算', function () {
+      var avg = SL.records.average(lab, SL.records.get('ohm-r'));
+      return { ok: Math.abs(avg - 10.0) < 1e-9, detail: 'avg=' + avg };
+    });
+
+    test('表格渲染：行数、列数、平均值行', function () {
+      var host = document.getElementById('host');
+      SL.records.renderTable(host, lab, SL.records.get('ohm-r'));
+      var trs = host.querySelectorAll('tbody tr').length;
+      var ths = host.querySelectorAll('thead th').length;
+      var avgTds = host.querySelectorAll('tfoot td').length;
+      var avgLabel = host.querySelector('tfoot .avg-label');
+      var colspan = avgLabel ? avgLabel.getAttribute('colspan') : '';
+      var avgText = host.querySelector('.avg-value').textContent;
+      return {
+        ok: trs === 3 && ths === 5 && avgTds === 3 && colspan === '3' && avgText === '10.0',
+        detail: 'tbody=' + trs + ' th=' + ths + ' tfootTd=' + avgTds + ' colspan=' + colspan + ' avg=' + avgText
+      };
+    });
+
+    test('CSV：表头与数据列数一致，平均值落在电阻列', function () {
+      var captured = null;
+      var oldDownload = SL.download;
+      SL.download = function (name, content) { captured = { name: name, content: content }; };
+      SL.records.exportCSV(lab, SL.records.get('ohm-r'));
+      SL.download = oldDownload;
+      if (!captured) return { ok: false, detail: '未调用下载' };
+      var lines = captured.content.replace(/^\uFEFF/, '').split('\r\n');
+      var header = lines[3].split(',');
+      var first = lines[4].split(',');
+      var avg = lines[lines.length - 1].split(',');
+      var ok = header.length === 5 && first.length === 5 && avg.length === 5 &&
+        avg[0] === '平均值' && avg[3] === '10.0';
+      return { ok: ok, detail: 'name=' + captured.name + ' 列数 ' + header.length + '/' + first.length + '/' + avg.length + ' avg=' + avg.join('|') };
+    });
+
+    test('打印文档：隐藏无关 UI、表头与结论完整', function () {
+      var printed = false;
+      var oldPrint = window.print;
+      window.print = function () { printed = true; };
+      SL.records.print(lab, SL.records.get('ohm-r'), { r1: '10.0', r2: '保护电路', r3: '电流表会短路' });
+      window.print = oldPrint;
+      var sheet = document.querySelector('body > .print-sheet');
+      var ok = !!sheet && printed &&
+        sheet.querySelectorAll('.print-table tbody tr').length === 3 &&
+        sheet.querySelectorAll('.print-table thead th').length === 5 &&
+        sheet.querySelectorAll('.print-table tfoot td').length === 3 &&
+        sheet.querySelectorAll('.print-conclusions li').length === 3;
+      var detail = sheet ? ('rows=' + sheet.querySelectorAll('tbody tr').length + ' concl=' + sheet.querySelectorAll('.print-conclusions li').length + ' printed=' + printed) : '无 print-sheet';
+      if (sheet) sheet.remove();
+      document.body.classList.remove('printing');
+      var all = document.querySelectorAll('.record-table tbody tr').length;
+      return { ok: ok && all === 3, detail: detail + ' 屏幕表格未受影响=' + (all === 3) };
+    });
+
+    test('清空单实验记录', function () {
+      SL.records.clear('ohm-r');
+      return { ok: SL.records.get('ohm-r').length === 0 && SL.records.count('ohm-r') === 0 };
+    });
+
+    var summary = document.getElementById('summary');
+    summary.textContent = (passed === total ? 'PASS ' : 'FAIL ') + passed + ' / ' + total;
+    summary.className = passed === total ? 'pass' : 'fail';
+    document.title = (passed === total ? 'PASS ' : 'FAIL ') + passed + '/' + total;
+    window.__testDone = true;
+  })();
+  </script>
+</body>
+</html>

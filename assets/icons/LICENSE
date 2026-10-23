@@ -1,0 +1,67 @@
+# 图标素材来源与许可
+
+图标库：Tabler Icons — https://github.com/tabler/tabler-icons
+许可：MIT License（全文见下方）
+获取日期：2026-10-22
+获取方式：raw.githubusercontent.com/tabler/tabler-icons/main/icons/outline/<name>.svg
+版本说明：以下版本号取自各 SVG 文件头部的 version 字段。
+
+## 图标清单
+
+- `alert-triangle` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/alert-triangle.svg
+- `arrow-left` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/arrow-left.svg
+- `atom` — Tabler Icons v1.3 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/atom.svg
+- `chart-line` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/chart-line.svg
+- `check` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/check.svg
+- `circuit-ammeter` — Tabler Icons v1.77 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/circuit-ammeter.svg
+- `circuit-battery` — Tabler Icons v1.77 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/circuit-battery.svg
+- `circuit-bulb` — Tabler Icons v1.77 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/circuit-bulb.svg
+- `circuit-resistor` — Tabler Icons v1.77 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/circuit-resistor.svg
+- `circuit-voltmeter` — Tabler Icons v1.77 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/circuit-voltmeter.svg
+- `device-floppy` — Tabler Icons v1.2 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/device-floppy.svg
+- `dna` — Tabler Icons v1.39 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/dna.svg
+- `download` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/download.svg
+- `flask` — Tabler Icons v1.6 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/flask.svg
+- `help-circle` — Tabler Icons v2.10 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/help-circle.svg
+- `home` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/home.svg
+- `minus` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/minus.svg
+- `player-play` — Tabler Icons v1.28 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/player-play.svg
+- `plus` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/plus.svg
+- `printer` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/printer.svg
+- `rotate-clockwise` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/rotate-clockwise.svg
+- `settings` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/settings.svg
+- `trash` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/trash.svg
+- `volume-off` — Tabler Icons v1.67 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/volume-off.svg
+- `volume` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/volume.svg
+- `x` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/x.svg
+- `zoom-in` — Tabler Icons v1.0 — https://github.com/tabler/tabler-icons/blob/main/icons/outline/zoom-in.svg
+
+## 自绘素材（不在上表，无第三方版权）
+
+- 滑动变阻器、单刀开关、导线接头、电流方向箭头、灯泡光晕：由本项目按教材标准画法自绘。
+
+## MIT License 全文
+
+```text
+MIT License
+
+Copyright (c) 2020-2026 Paweł Kuna
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
