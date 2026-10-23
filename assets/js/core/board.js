@@ -268,6 +268,8 @@
     } else if (comp.type === 'rheostat') {
       var slider = Math.max(0, Math.min(1, p.slider == null ? 0.5 : p.slider));
       var knobX = -48 + slider * 96;
+      var info = SL.circuit.rheostatInfo(comp, this.scene);
+      var shown = info.wiring === 'incomplete' ? '未接入' : (info.active < 0.05 ? '≈0' : String(Math.round(info.active * 10) / 10)) + 'Ω';
       body =
         '<rect x="-52" y="-16" width="104" height="32" rx="6" class="comp-body"/>' +
         '<path d="M-44 0 H44" class="rheostat-track"/>' +
@@ -275,7 +277,7 @@
         '<line x1="' + knobX + '" y1="-24" x2="' + knobX + '" y2="-16" class="rheostat-stem"/>' +
         '<circle cx="' + knobX + '" cy="-24" r="8" class="rheostat-knob" data-slider="' + comp.id + '"/>' +
         '<path d="M' + (knobX - 5) + ' -29 L' + knobX + ' -35 L' + (knobX + 5) + ' -29" class="rheostat-arrow"/>' +
-        '<text x="0" y="34" class="comp-value">' + Math.round(slider * (p.max || 20)) + 'Ω</text>';
+        '<text x="0" y="34" class="comp-value">' + shown + '</text>';
     } else if (comp.type === 'ammeter' || comp.type === 'voltmeter') {
       var isA = comp.type === 'ammeter';
       var m = this.result && this.result.meters ? this.result.meters[comp.id] : null;

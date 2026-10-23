@@ -117,7 +117,7 @@
     var lab = SL.labs[labId];
     if (!lab) { SL.toast('实验不存在', 'warn'); return; }
     app.lab = lab;
-    app.mode = mode || 'guided';
+    app.mode = lab.meta.free || mode === 'free' ? 'free' : 'guided';
     app.rows = SL.records.get(labId);
     app.result = null;
     app.flags = {};
@@ -138,7 +138,7 @@
       app.point = saved.point || app.point;
     }
     if (saved && saved.scene && saved.scene.components && saved.scene.components.length) {
-      app.mode = mode || saved.mode || 'guided';
+      app.mode = lab.meta.free ? 'free' : mode || saved.mode || 'guided';
     }
 
     app.view = 'lab';
@@ -175,10 +175,11 @@
       '<button type="button" class="btn btn-ghost" id="lab-back">' + SL.icon('arrow-left', '', 17) + '返回大厅</button>' +
       '<div class="lab-heading"><span class="lab-tag">' + meta.tag + '</span><h1>' + meta.name + '</h1></div>' +
       '<div class="lab-top-actions">' +
-      '<div class="mode-switch" role="group" aria-label="教学模式">' +
-      '<button type="button" data-mode-btn="guided" class="' + (app.mode === 'guided' ? 'active' : '') + '">引导模式</button>' +
-      '<button type="button" data-mode-btn="free" class="' + (app.mode === 'free' ? 'active' : '') + '">自由探究</button>' +
-      '</div>' +
+      (meta.free ? '' :
+        '<div class="mode-switch" role="group" aria-label="教学模式">' +
+        '<button type="button" data-mode-btn="guided" class="' + (app.mode === 'guided' ? 'active' : '') + '">引导模式</button>' +
+        '<button type="button" data-mode-btn="free" class="' + (app.mode === 'free' ? 'active' : '') + '">自由探究</button>' +
+        '</div>') +
       '<button type="button" class="btn btn-icon btn-ghost" id="lab-undo" title="撤回（Ctrl+Z）" aria-label="撤回">' + SL.icon('arrow-left', '', 18) + '</button>' +
       '<button type="button" class="btn btn-icon btn-ghost" id="lab-redo" title="重做（Ctrl+Shift+Z）" aria-label="重做">' + SL.icon('arrow-left', 'icon-flip', 18) + '</button>' +
       '<button type="button" class="btn btn-soft" id="lab-beautify" title="自动整理元件位置，并理清重叠的导线">' + beautifyIcon() + '一键美化</button>' +
@@ -234,8 +235,8 @@
     renderInspector();
     sync();
     updateHistoryButtons();
-    if (app.mode === 'guided' && app.guideIndex > 0) {
-      SL.toast('已恢复上次进度：第 ' + Math.min(app.guideIndex + 1, lab.meta.steps.length) + ' 步', 'info');
+    if (app.mode === 'guided' && app.guideIndex > 0 && !meta.free && meta.steps.length) {
+      SL.toast('已恢复上次进度：第 ' + Math.min(app.guideIndex + 1, meta.steps.length) + ' 步', 'info');
     }
   }
 
@@ -517,8 +518,11 @@
     if (!host) return;
     var meta = app.lab.meta;
     if (app.mode === 'free') {
-      host.innerHTML = '<div class="panel-head"><h2>自由探究</h2></div>' +
-        '<div class="free-guide"><p>自由搭建任意电路，右侧仪表会实时显示读数。可以随时点击「示例电路」查看标准接法。</p>' +
+      var isSandbox = !!meta.free;
+      host.innerHTML = '<div class="panel-head"><h2>' + (isSandbox ? '全自由实验室' : '自由探究') + '</h2></div>' +
+        '<div class="free-guide"><p>' + (isSandbox
+          ? '空白画布，元件数量与参数都不限。随便搭、随便接，右侧仪表会实时显示读数。'
+          : '自由搭建任意电路，右侧仪表会实时显示读数。可以随时点击「示例电路」查看标准接法。') + '</p>' +
         '<ul class="free-list"><li>改变电池节数、电阻阻值或滑片位置，观察读数变化</li>' +
         '<li>故意断开一根导线或短接电源，看看会出现什么提示</li>' +
         '<li>记录多组数据后导出 CSV，比较规律</li></ul>' +
@@ -639,6 +643,12 @@
   }
 
   /* ---------- 元件属性 ---------- */
+  function rheostatNoteText(info) {
+    if (info.wiring === 'incomplete') return '未接入电路，请“一上一下”连接';
+    var activeText = info.active < 0.05 ? '≈0' : String(Math.round(info.active * 10) / 10);
+    return '接入电阻 ' + activeText + ' Ω / ' + info.max + ' Ω';
+  }
+
   function renderInspector() {
     var host = SL.$('#inspector');
     if (!host) return;
@@ -653,6 +663,9 @@
     if (comp.type === 'resistor') {
       if (comp.props.unknown) {
         html += '<span class="inspector-note">未知电阻 Rx（真实阻值不显示）</span>';
+      } else if (app.lab.meta.free) {
+        html += '<span class="inspector-label">阻值</span><input type="number" min="0.1" max="1000" step="0.1" value="' + Number(comp.props.resistance || 10) + '" id="resistance-input" class="slider-input">' +
+          '<span class="inspector-note">Ω（0.1–1000）</span>';
       } else {
         html += '<span class="inspector-label">阻值</span><div class="chip-group">' +
           [5, 10, 15, 20].map(function (r) {
@@ -666,8 +679,14 @@
         }).join('') + '</div><span class="inspector-note">' + SL.fmt((comp.props.cells || 2) * 1.5, 1) + ' V</span>';
     } else if (comp.type === 'rheostat') {
       var slider = comp.props.slider == null ? 0.5 : comp.props.slider;
+      var rinfo = SL.circuit.rheostatInfo(comp, app.board.getScene());
       html += '<span class="inspector-label">滑片</span><input type="range" min="0" max="1" step="0.01" value="' + slider + '" id="slider-input" class="slider-input">' +
-        '<span class="inspector-note">' + Math.round(slider * (comp.props.max || 20)) + ' Ω / ' + (comp.props.max || 20) + ' Ω</span>';
+        '<span class="inspector-note" id="rheostat-note">' + rheostatNoteText(rinfo) + '</span>' +
+        (rinfo.wiring === 'valid' ? '<span class="inspector-note">滑片移到' + (rinfo.maxAtSlider === 1 ? '最右端' : '最左端') + '时接入电阻最大</span>' : '');
+      if (app.lab.meta.free) {
+        html += '<span class="inspector-label">最大阻值</span><input type="number" min="1" max="500" step="1" value="' + Number(comp.props.max || 20) + '" id="rheostat-max-input" class="slider-input">' +
+          '<span class="inspector-note">Ω（1–500）</span>';
+      }
     } else if (comp.type === 'switch') {
       html += '<button type="button" class="btn btn-soft btn-sm" id="toggle-switch">' + (comp.props.closed ? '断开开关' : '闭合开关') + '</button>';
     } else if (comp.type === 'ammeter' || comp.type === 'voltmeter') {
@@ -707,8 +726,27 @@
     if (sliderInput) {
       sliderInput.addEventListener('input', function () {
         app.board.updateProps(comp.id, { slider: Number(sliderInput.value) }, true);
-        SL.$('.inspector-note', host).textContent = Math.round(Number(sliderInput.value) * (comp.props.max || 20)) + ' Ω / ' + (comp.props.max || 20) + ' Ω';
+        var note = SL.$('#rheostat-note', host);
+        if (note) note.textContent = rheostatNoteText(SL.circuit.rheostatInfo(comp, app.board.getScene()));
         scheduleSync(40);
+      });
+    }
+    var resistanceInput = SL.$('#resistance-input', host);
+    if (resistanceInput) {
+      resistanceInput.addEventListener('change', function () {
+        var value = Math.max(0.1, Math.min(1000, Number(resistanceInput.value) || 10));
+        app.board.updateProps(comp.id, { resistance: value }, true);
+        sync();
+        renderInspector();
+      });
+    }
+    var maxInput = SL.$('#rheostat-max-input', host);
+    if (maxInput) {
+      maxInput.addEventListener('change', function () {
+        var value = Math.max(1, Math.min(500, Number(maxInput.value) || 20));
+        app.board.updateProps(comp.id, { max: value }, true);
+        sync();
+        renderInspector();
       });
     }
     var toggle = SL.$('#toggle-switch', host);

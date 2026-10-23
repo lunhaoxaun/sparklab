@@ -167,8 +167,8 @@
           },
           {
             title: '滑片移到阻值最大端',
-            instruction: '闭合开关之前，先把滑动变阻器的滑片移到阻值最大端，以保护电路。',
-            hint: '拖动变阻器上方的滑片到最右端（阻值最大）。'
+            instruction: '闭合开关之前，先把滑动变阻器的滑片移到接入阻值最大的一端，以保护电路。',
+            hint: '接 A 柱时把滑片移到最右端，接 B 柱时移到最左端，此时接入电阻最大。'
           },
           {
             title: '测量三组数据',
@@ -296,6 +296,32 @@
             reference: '① 保护电路；② 改变定值电阻两端电压（或保持电压不变）。'
           }
         ]
+      },
+
+      {
+        id: 'sandbox',
+        subject: 'physics',
+        name: '全自由电学实验室',
+        short: '空白实验台：元件数量不限、参数可自由设定、任意接线，实时读数与真实计算。',
+        tag: '自由实验 · 不限步骤',
+        time: '不限时',
+        accent: '#7c5cff',
+        free: true,
+        equipment: [
+          { icon: 'circuit-battery', label: '电池组' },
+          { icon: 'circuit-bulb', label: '小灯泡' },
+          { icon: 'circuit-resistor', label: '定值电阻' },
+          { icon: 'settings', label: '滑动变阻器' }
+        ],
+        palette: ['battery', 'switch', 'bulb', 'resistor', 'rheostat', 'ammeter', 'voltmeter'],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'voltage', label: '电压 U/V', digits: 2 },
+          { key: 'current', label: '电流 I/A', digits: 3 },
+          { key: 'resistance', label: '电阻 R/Ω', digits: 1 }
+        ],
+        steps: [],
+        conclusions: []
       }
     ]
   };

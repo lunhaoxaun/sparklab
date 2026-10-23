@@ -18,7 +18,7 @@
   <div id="out"></div>
   <div id="summary"></div>
 
-  <script src="../assets/js/core/circuit.js"></script>
+  <script src="../assets/js/core/circuit.js?v=41"></script>
   <script>
   (function () {
     var SL = window.SparkLab;
@@ -223,7 +223,50 @@
       return { ok: ok, detail: 'wiring=' + info.wiring + ' I=' + i.toFixed(4) + ' 期望 ' + (3 / 21).toFixed(4) };
     });
 
-    /* 12. 灯泡功率比 */
+    /* 12. 滑动变阻器 B 柱接法：滑片右移阻值变小 */
+    test('滑动变阻器接 B 柱时接入电阻随滑片右移变小', function () {
+      var rheo = C('rheostat', 400, 400, { slider: 0.25, max: 20 });
+      var bat = C('battery', 200, 400, { cells: 2 });
+      var scene = {
+        components: [bat, rheo],
+        wires: [W(bat, 'pos', rheo, 'b'), W(rheo, 'c', bat, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.rheostats[rheo.id];
+      var i = Math.abs(r.batteries[bat.id].current);
+      var ok = info.wiring === 'valid' && near(info.active, 15, .01) && info.maxAtSlider === 0 && !info.atMax && near(i, 3 / 16, .005);
+      return { ok: ok, detail: 'R=' + info.active + 'Ω I=' + i.toFixed(4) + ' 最大端=' + info.maxAtSlider };
+    });
+
+    /* 13. 滑动变阻器 B 柱接法：滑片最左为阻值最大端 */
+    test('滑动变阻器接 B 柱时滑片最左为阻值最大端', function () {
+      var rheo = C('rheostat', 400, 400, { slider: 0, max: 20 });
+      var bat = C('battery', 200, 400, { cells: 2 });
+      var scene = {
+        components: [bat, rheo],
+        wires: [W(bat, 'pos', rheo, 'd'), W(rheo, 'b', bat, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.rheostats[rheo.id];
+      var ok = info.wiring === 'valid' && near(info.active, 20, .01) && info.atMax === true;
+      return { ok: ok, detail: 'R=' + info.active + 'Ω atMax=' + info.atMax };
+    });
+
+    /* 14. 滑动变阻器 A+B 固定为最大阻值 */
+    test('滑动变阻器只接 A+B 时接入电阻恒为最大', function () {
+      var rheo = C('rheostat', 400, 400, { slider: 0.2, max: 20 });
+      var bat = C('battery', 200, 400, { cells: 2 });
+      var scene = {
+        components: [bat, rheo],
+        wires: [W(bat, 'pos', rheo, 'a'), W(rheo, 'b', bat, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.rheostats[rheo.id];
+      var ok = info.wiring === 'fixed-max' && near(info.active, 20, .01);
+      return { ok: ok, detail: 'wiring=' + info.wiring + ' R=' + info.active };
+    });
+
+    /* 15. 灯泡功率比 */
     test('灯泡实际功率超过额定 1.5 倍可被识别', function () {
       var bat = C('battery', 300, 400, { cells: 4 });
       var l1 = C('bulb', 600, 400);
