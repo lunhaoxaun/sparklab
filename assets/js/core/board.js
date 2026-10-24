@@ -199,6 +199,14 @@
         else if (c.type === 'battery') label = '电池组';
         else if (c.type === 'switch') label = 'S';
         else if (c.type === 'rheostat') label = '变阻器';
+        else if (c.type === 'dcsupply') label = '学生电源';
+        else if (c.type === 'switch-spdt') label = 'S';
+        else if (c.type === 'resistance-box') label = '电阻箱';
+        else if (c.type === 'led') label = 'LED';
+        else if (c.type === 'motor') label = 'M';
+        else if (c.type === 'bell') label = '电铃';
+        else if (c.type === 'fuse') label = 'FU';
+        else if (c.type === 'electromagnet') label = '电磁铁';
       }
     }
     return label;
@@ -287,6 +295,88 @@
         '<circle cx="0" cy="0" r="26" class="meter-face' + (over ? ' over' : '') + '"/>' +
         '<text x="0" y="7" class="meter-letter">' + (isA ? 'A' : 'V') + '</text>' +
         '<text x="0" y="42" class="comp-value ' + (over ? 'danger' : '') + '">' + SL.fmt(val, isA ? 2 : 1) + (over ? ' ⚠' : '') + '</text>';
+    } else if (comp.type === 'dcsupply') {
+      var supV = Math.max(1.5, Math.min(12, Number(p.voltage) || 3));
+      var supInfo = this.result && this.result.supplies ? this.result.supplies[comp.id] : null;
+      var supShown = supInfo ? supInfo.voltage : supV;
+      body =
+        '<rect x="-44" y="-20" width="88" height="40" rx="8" class="comp-body"/>' +
+        '<line x1="-18" y1="-11" x2="-18" y2="11" class="battery-plate short"/>' +
+        '<line x1="-10" y1="-15" x2="-10" y2="15" class="battery-plate long"/>' +
+        '<text x="-28" y="5" class="comp-symbol-text">−</text>' +
+        '<text x="30" y="5" class="comp-symbol-text">+</text>' +
+        '<text x="7" y="5" class="comp-value">' + SL.fmt(supShown, 1) + 'V</text>';
+    } else if (comp.type === 'switch-spdt') {
+      var toC = p.to === 'c';
+      body =
+        '<rect x="-34" y="-16" width="70" height="30" rx="8" class="comp-body"/>' +
+        '<circle cx="-24" cy="4" r="3.5" class="contact"/>' +
+        '<circle cx="-8" cy="-7" r="3.5" class="contact"/>' +
+        '<circle cx="22" cy="4" r="3.5" class="contact"/>' +
+        (toC
+          ? '<line x1="-24" y1="4" x2="22" y2="4" class="switch-lever"/>'
+          : '<line x1="-24" y1="4" x2="-8" y2="-7" class="switch-lever"/>') +
+        '<text x="-8" y="-11" class="comp-value">b</text>' +
+        '<text x="24" y="-10" class="comp-value">c</text>';
+    } else if (comp.type === 'resistance-box') {
+      var digits = Array.isArray(p.digits) ? p.digits : [0, 0, 1, 0];
+      var boxTotal = 0;
+      var boxWeights = [1000, 100, 10, 1];
+      var digitMarkup = '';
+      for (var di = 0; di < 4; di++) {
+        var dv = Math.max(0, Math.min(9, Math.round(Number(digits[di]) || 0)));
+        boxTotal += dv * boxWeights[di];
+        var wx = -33 + di * 22;
+        digitMarkup += '<rect x="' + (wx - 9) + '" y="-11" width="18" height="22" rx="3" fill="#eef3fa" stroke="#bccadd" stroke-width="1"/>' +
+          '<text x="' + wx + '" y="5" class="comp-value">' + dv + '</text>';
+      }
+      body =
+        '<rect x="-44" y="-18" width="88" height="36" rx="6" class="comp-body"/>' +
+        digitMarkup +
+        '<text x="0" y="-24" class="comp-value">' + boxTotal + 'Ω</text>';
+    } else if (comp.type === 'led') {
+      var led = this.result && this.result.leds ? this.result.leds[comp.id] : null;
+      var ledOn = !!(led && led.on);
+      body =
+        (ledOn ? '<circle cx="0" cy="0" r="40" fill="url(#bulb-glow)" opacity="0.7"/>' : '') +
+        '<circle cx="0" cy="0" r="24" class="comp-body"/>' +
+        '<path d="M-12 -11 L10 0 L-12 11 Z" class="comp-body"/>' +
+        '<line x1="10" y1="-14" x2="10" y2="14" class="switch-lever"/>' +
+        (ledOn ? '<text x="0" y="42" class="comp-value">发光</text>' : '');
+    } else if (comp.type === 'motor') {
+      var motor = this.result && this.result.motors ? this.result.motors[comp.id] : null;
+      body =
+        '<circle cx="0" cy="0" r="26" class="comp-body"/>' +
+        '<text x="0" y="8" class="meter-letter">M</text>' +
+        (motor && motor.spinning ? '<path d="M-8 -34 Q0 -42 8 -34" class="switch-lever"/>' : '');
+    } else if (comp.type === 'bell') {
+      var bell = this.result && this.result.bells ? this.result.bells[comp.id] : null;
+      body =
+        '<path d="M-22 12 Q-22 -18 0 -18 Q22 -18 22 12 Z" class="comp-body"/>' +
+        '<line x1="-26" y1="14" x2="26" y2="14" class="switch-lever"/>' +
+        '<circle cx="0" cy="16" r="4" class="contact"/>' +
+        (bell && bell.ringing ? '<path d="M-32 -18 Q-38 -6 -32 6 M32 -18 Q38 -6 32 6" class="switch-lever"/>' : '');
+    } else if (comp.type === 'fuse') {
+      var fuse = this.result && this.result.fuses ? this.result.fuses[comp.id] : null;
+      var blown = !!(p.blown || (fuse && fuse.blown));
+      body =
+        '<rect x="-40" y="-12" width="80" height="24" rx="5" class="comp-body"/>' +
+        (blown
+          ? '<line x1="-30" y1="0" x2="-6" y2="0" class="switch-lever"/>' +
+            '<line x1="6" y1="0" x2="30" y2="0" class="switch-lever"/>' +
+            '<text x="0" y="4" class="comp-value danger">熔断</text>'
+          : '<line x1="-30" y1="0" x2="30" y2="0" class="switch-lever"/>') +
+        '<text x="0" y="-18" class="comp-value">' + (p.rating || 0.5) + 'A</text>';
+    } else if (comp.type === 'electromagnet') {
+      var mag = this.result && this.result.electromagnets ? this.result.electromagnets[comp.id] : null;
+      var magOn = !!(mag && mag.on);
+      var leftPole = !magOn ? 'N' : (mag.poleN === 'left' ? 'N' : 'S');
+      var rightPole = !magOn ? 'S' : (mag.poleN === 'left' ? 'S' : 'N');
+      body =
+        '<rect x="-24" y="-18" width="48" height="36" rx="4" class="comp-body"/>' +
+        '<path d="M-16 -18 C-22 -6 -22 6 -16 18 M-6 -18 C-12 -6 -12 6 -6 18 M4 -18 C-2 -6 -2 6 4 18 M14 -18 C8 -6 8 6 14 18" class="resistor-zigzag"/>' +
+        '<text x="-34" y="5" class="comp-value" opacity="' + (magOn ? '1' : '0.35') + '">' + leftPole + '</text>' +
+        '<text x="34" y="5" class="comp-value" opacity="' + (magOn ? '1' : '0.35') + '">' + rightPole + '</text>';
     }
     return '<g class="' + cls + '" data-comp="' + comp.id + '" transform="translate(' + x + ' ' + y + ') rotate(' + rot + ')">' + body + '</g>';
   };
@@ -335,6 +425,8 @@
       var pos = self.terminalPos(comp, SL.circuit.TYPES[comp.type].terminals[0].id);
       var labelY = (comp.type === 'bulb' ? comp.y + 48 : comp.type === 'ammeter' || comp.type === 'voltmeter' ? comp.y + 58 : comp.y + 34);
       if (comp.type === 'rheostat') labelY = comp.y + 50;
+      if (comp.type === 'motor') labelY = comp.y + 50;
+      if (comp.type === 'led') labelY = comp.y + 56;
       labelsMarkup += '<text class="comp-label" x="' + comp.x + '" y="' + labelY + '">' + label + '</text>';
     });
     this.gComps.innerHTML = compsMarkup;
@@ -357,6 +449,9 @@
     var maxCurrent = 0;
     Object.keys(this.result.batteries || {}).forEach(function (id) {
       maxCurrent = Math.max(maxCurrent, Math.abs(self.result.batteries[id].current || 0));
+    });
+    Object.keys(this.result.supplies || {}).forEach(function (id) {
+      maxCurrent = Math.max(maxCurrent, Math.abs(self.result.supplies[id].current || 0));
     });
     if (maxCurrent < 0.004) { this.gFlow.innerHTML = ''; return; }
     var duration = Math.max(0.7, Math.min(4, 1.6 / Math.max(0.05, maxCurrent)));
@@ -553,6 +648,19 @@
       if (comp && comp.type === 'switch' && !moved) {
         comp.props.closed = !comp.props.closed;
         SL.sound.play('click');
+        this.emitChange();
+        return;
+      }
+      if (comp && comp.type === 'switch-spdt' && !moved) {
+        comp.props.to = comp.props.to === 'c' ? 'b' : 'c';
+        SL.sound.play('click');
+        this.emitChange();
+        return;
+      }
+      if (comp && comp.type === 'fuse' && !moved && comp.props.blown) {
+        comp.props.blown = false;
+        SL.sound.play('success');
+        SL.toast('已更换保险丝', 'ok');
         this.emitChange();
         return;
       }

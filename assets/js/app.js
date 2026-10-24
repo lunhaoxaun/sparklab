@@ -689,6 +689,49 @@
       }
     } else if (comp.type === 'switch') {
       html += '<button type="button" class="btn btn-soft btn-sm" id="toggle-switch">' + (comp.props.closed ? '断开开关' : '闭合开关') + '</button>';
+    } else if (comp.type === 'dcsupply') {
+      html += '<span class="inspector-label">电压</span><input type="number" min="1.5" max="12" step="1.5" value="' + Number(comp.props.voltage || 3) + '" id="supply-voltage-input" class="slider-input">' +
+        '<span class="inspector-note">V（1.5–12，步进 1.5）</span>';
+    } else if (comp.type === 'switch-spdt') {
+      var spdtTo = comp.props.to === 'c' ? 'c' : 'b';
+      html += '<span class="inspector-label">触点</span><div class="chip-group">' +
+        ['b', 'c'].map(function (to) {
+          return '<button type="button" class="chip' + (spdtTo === to ? ' active' : '') + '" data-spdt="' + to + '">接 ' + to + '</button>';
+        }).join('') + '</div><span class="inspector-note">a 与所选触点接通，另一个触点断开</span>';
+    } else if (comp.type === 'resistance-box') {
+      var boxDigits = Array.isArray(comp.props.digits) ? comp.props.digits : [0, 0, 1, 0];
+      html += '<span class="inspector-label">旋钮</span>' +
+        boxDigits.map(function (d, i) {
+          return '<input type="number" min="0" max="9" step="1" value="' + Math.max(0, Math.min(9, Math.round(Number(d) || 0))) + '" data-digit="' + i + '" class="slider-input" style="width:46px">';
+        }).join('') +
+        '<span class="inspector-note">Ω（×1000 / ×100 / ×10 / ×1）</span>';
+    } else if (comp.type === 'fuse') {
+      var fuseRating = Number(comp.props.rating || 0.5);
+      html += '<span class="inspector-label">额定电流</span><div class="chip-group">' +
+        [0.3, 0.5, 1, 2].map(function (r) {
+          return '<button type="button" class="chip' + (fuseRating === r ? ' active' : '') + '" data-fuse-rating="' + r + '">' + r + 'A</button>';
+        }).join('') + '</div>' +
+        (comp.props.blown
+          ? '<span class="inspector-note" style="color:var(--danger)">已熔断</span><button type="button" class="btn btn-soft btn-sm" id="fuse-reset">更换保险丝</button>'
+          : '<span class="inspector-note">正常</span>');
+    } else if (comp.type === 'led') {
+      var ledInfo = app.result && app.result.leds ? app.result.leds[comp.id] : null;
+      html += '<span class="inspector-note">' + (ledInfo && ledInfo.on ? '发光（正向导通）' : '不发光（反向或电压不足）') + '</span>' +
+        (ledInfo ? '<span class="inspector-note">I = ' + SL.fmt(Math.abs(ledInfo.current), 3) + ' A</span>' : '');
+    } else if (comp.type === 'motor') {
+      var motorInfo = app.result && app.result.motors ? app.result.motors[comp.id] : null;
+      html += '<span class="inspector-note">' + (motorInfo && motorInfo.spinning ? '转动中' : '停转') + '</span>' +
+        (motorInfo ? '<span class="inspector-note">I = ' + SL.fmt(Math.abs(motorInfo.current), 3) + ' A · P = ' + SL.fmt(Math.abs(motorInfo.power), 2) + ' W</span>' : '');
+    } else if (comp.type === 'bell') {
+      var bellInfo = app.result && app.result.bells ? app.result.bells[comp.id] : null;
+      html += '<span class="inspector-note">' + (bellInfo && bellInfo.ringing ? '响铃中' : '静音') + '</span>' +
+        (bellInfo ? '<span class="inspector-note">I = ' + SL.fmt(Math.abs(bellInfo.current), 3) + ' A</span>' : '');
+    } else if (comp.type === 'electromagnet') {
+      var magInfo = app.result && app.result.electromagnets ? app.result.electromagnets[comp.id] : null;
+      html += '<span class="inspector-note">' + (magInfo && magInfo.on
+        ? '已通电，' + (magInfo.poleN === 'left' ? '左端为 N 极' : '右端为 N 极')
+        : '未通电') + '</span>' +
+        (magInfo ? '<span class="inspector-note">I = ' + SL.fmt(Math.abs(magInfo.current), 3) + ' A</span>' : '');
     } else if (comp.type === 'ammeter' || comp.type === 'voltmeter') {
       var opts = comp.type === 'ammeter' ? [0.6, 3] : [3, 15];
       html += '<span class="inspector-label">量程</span><div class="chip-group">' +
@@ -755,6 +798,50 @@
         app.board.updateProps(comp.id, { closed: !comp.props.closed }, true);
         sync();
         renderInspector();
+      });
+    }
+    var supplyInput = SL.$('#supply-voltage-input', host);
+    if (supplyInput) {
+      supplyInput.addEventListener('change', function () {
+        var value = Math.max(1.5, Math.min(12, Number(supplyInput.value) || 3));
+        app.board.updateProps(comp.id, { voltage: value }, true);
+        sync();
+        renderInspector();
+      });
+    }
+    SL.$$('[data-spdt]', host).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        app.board.updateProps(comp.id, { to: btn.getAttribute('data-spdt') }, true);
+        sync();
+        renderInspector();
+      });
+    });
+    SL.$$('[data-digit]', host).forEach(function (input) {
+      input.addEventListener('change', function () {
+        var next = (Array.isArray(comp.props.digits) ? comp.props.digits : [0, 0, 1, 0]).slice();
+        SL.$$('[data-digit]', host).forEach(function (el) {
+          var i = Number(el.getAttribute('data-digit'));
+          next[i] = Math.max(0, Math.min(9, Math.round(Number(el.value) || 0)));
+        });
+        app.board.updateProps(comp.id, { digits: next }, true);
+        sync();
+        renderInspector();
+      });
+    });
+    SL.$$('[data-fuse-rating]', host).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        app.board.updateProps(comp.id, { rating: Number(btn.getAttribute('data-fuse-rating')) }, true);
+        sync();
+        renderInspector();
+      });
+    });
+    var fuseReset = SL.$('#fuse-reset', host);
+    if (fuseReset) {
+      fuseReset.addEventListener('click', function () {
+        app.board.updateProps(comp.id, { blown: false }, true);
+        sync();
+        renderInspector();
+        SL.toast('已更换保险丝', 'ok');
       });
     }
     SL.$('#insp-rotate', host).addEventListener('click', function () { app.board.rotateSelected(); });

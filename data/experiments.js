@@ -308,12 +308,14 @@
         accent: '#7c5cff',
         free: true,
         equipment: [
-          { icon: 'circuit-battery', label: '电池组' },
-          { icon: 'circuit-bulb', label: '小灯泡' },
-          { icon: 'circuit-resistor', label: '定值电阻' },
-          { icon: 'settings', label: '滑动变阻器' }
+          { icon: 'circuit-battery', label: '电池组 / 学生电源' },
+          { icon: 'circuit-bulb', label: '小灯泡 / 发光二极管' },
+          { icon: 'circuit-resistor', label: '定值电阻 / 电阻箱' },
+          { icon: 'settings', label: '滑动变阻器 / 单刀双掷开关' },
+          { icon: 'player-play', label: '电动机' },
+          { icon: 'atom', label: '电磁铁 / 电铃 / 保险丝' }
         ],
-        palette: ['battery', 'switch', 'bulb', 'resistor', 'rheostat', 'ammeter', 'voltmeter'],
+        palette: ['battery', 'dcsupply', 'switch', 'switch-spdt', 'bulb', 'led', 'resistor', 'resistance-box', 'rheostat', 'ammeter', 'voltmeter', 'motor', 'bell', 'fuse', 'electromagnet'],
         columns: [
           { key: 'group', label: '组次' },
           { key: 'voltage', label: '电压 U/V', digits: 2 },
