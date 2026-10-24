@@ -18,7 +18,7 @@
   <div id="out"></div>
   <div id="summary"></div>
 
-  <script src="../assets/js/core/circuit.js?v=41"></script>
+  <script src="../assets/js/core/circuit.js?v=50"></script>
   <script>
   (function () {
     var SL = window.SparkLab;
@@ -290,6 +290,164 @@
       SL.circuit.syncIds(scene);
       var fresh = SL.circuit.create('bulb', 200, 100);
       return { ok: fresh.id !== old.id, detail: old.id + ' / ' + fresh.id };
+    });
+
+    /* ---------- 新增元件 ---------- */
+    /* 16. 学生电源：6V、内阻 0.5Ω，接 10Ω */
+    test('学生电源 6V + 10Ω：I≈0.571A', function () {
+      var sup = C('dcsupply', 300, 400, { voltage: 6 });
+      var res = C('resistor', 520, 400, { resistance: 10 });
+      var scene = {
+        components: [sup, res],
+        wires: [W(sup, 'pos', res, 'a'), W(res, 'b', sup, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.supplies[sup.id];
+      var i = info ? Math.abs(info.current) : 0;
+      var ok = !!info && near(i, 6 / 10.5, 0.002) && near(info.voltage, 6 - i * 0.5, 0.01);
+      return { ok: ok, detail: 'I=' + i.toFixed(4) + ' U端=' + (info ? info.voltage.toFixed(3) : '—') };
+    });
+
+    /* 17. 电阻箱：四位旋钮 [1,2,3,4] = 1234Ω */
+    test('电阻箱 [1,2,3,4] → 1234Ω', function () {
+      var sup = C('dcsupply', 300, 400, { voltage: 6 });
+      var box = C('resistance-box', 520, 400, { digits: [1, 2, 3, 4] });
+      var scene = {
+        components: [sup, box],
+        wires: [W(sup, 'pos', box, 'a'), W(box, 'b', sup, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.resistors[box.id];
+      var i = info ? Math.abs(info.current) : 0;
+      var R = i > 1e-9 ? Math.abs(info.voltage / info.current) : 0;
+      var ok = !!info && near(R, 1234, 1) && near(i, 6 / 1234.5, 1e-4);
+      return { ok: ok, detail: 'R=' + R.toFixed(1) + 'Ω I=' + i.toFixed(5) };
+    });
+
+    /* 18. 单刀双掷开关：to=b 时 a-b 通、a-c 断 */
+    test('单刀双掷开关 to=b：a-b 通、a-c 断', function () {
+      var sup = C('dcsupply', 200, 400, { voltage: 6 });
+      var spdt = C('switch-spdt', 400, 400, { to: 'b' });
+      var r1 = C('resistor', 620, 280, { resistance: 10 });
+      var r2 = C('resistor', 620, 520, { resistance: 10 });
+      var scene = {
+        components: [sup, spdt, r1, r2],
+        wires: [
+          W(sup, 'pos', spdt, 'a'),
+          W(spdt, 'b', r1, 'a'),
+          W(r1, 'b', sup, 'neg'),
+          W(spdt, 'c', r2, 'a'),
+          W(r2, 'b', sup, 'neg')
+        ]
+      };
+      var r = SL.circuit.solve(scene);
+      var i1 = Math.abs(r.components[r1.id].voltage / 10);
+      var i2 = Math.abs(r.components[r2.id].voltage / 10);
+      var ok = r.switches[spdt.id].closedTo === 'b' && i1 > 0.1 && i2 < 1e-6;
+      return { ok: ok, detail: 'closedTo=' + r.switches[spdt.id].closedTo + ' I(b)=' + i1.toFixed(3) + ' I(c)=' + i2.toExponential(1) };
+    });
+
+    /* 19. LED 正向导通：5V + 10Ω */
+    test('LED 正向导通（5V + 10Ω，I>0.05A）', function () {
+      var sup = C('dcsupply', 300, 400, { voltage: 5 });
+      var led = C('led', 480, 400);
+      var res = C('resistor', 660, 400, { resistance: 10 });
+      var scene = {
+        components: [sup, led, res],
+        wires: [W(sup, 'pos', led, 'anode'), W(led, 'cathode', res, 'a'), W(res, 'b', sup, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.leds[led.id];
+      var ok = !!info && info.on === true && info.current > 0.05 && info.voltage >= 1.8;
+      return { ok: ok, detail: 'on=' + (info && info.on) + ' I=' + (info ? info.current.toFixed(4) : '—') + ' U=' + (info ? info.voltage.toFixed(3) : '—') };
+    });
+
+    /* 20. LED 反向截止 */
+    test('LED 反向截止（on=false，I≈0）', function () {
+      var sup = C('dcsupply', 300, 400, { voltage: 5 });
+      var led = C('led', 480, 400);
+      var res = C('resistor', 660, 400, { resistance: 10 });
+      var scene = {
+        components: [sup, led, res],
+        wires: [W(sup, 'pos', led, 'cathode'), W(led, 'anode', res, 'a'), W(res, 'b', sup, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.leds[led.id];
+      var ok = !!info && info.on === false && Math.abs(info.current) < 1e-6;
+      return { ok: ok, detail: 'on=' + (info && info.on) + ' I=' + (info ? info.current.toExponential(2) : '—') };
+    });
+
+    /* 21. 保险丝：0.3A 额定，约 1A 电流下熔断并断路 */
+    test('保险丝 0.3A 在约 1A 电流下熔断并断路', function () {
+      var sup = C('dcsupply', 300, 400, { voltage: 6 });
+      var res = C('resistor', 660, 400, { resistance: 5 });
+      var fuse = C('fuse', 480, 400, { rating: 2 });
+      var scene = {
+        components: [sup, fuse, res],
+        wires: [W(sup, 'pos', fuse, 'a'), W(fuse, 'b', res, 'a'), W(res, 'b', sup, 'neg')]
+      };
+      var r1 = SL.circuit.solve(scene);
+      var before = Math.abs(r1.fuses[fuse.id].current);
+      fuse.props.rating = 0.3;
+      var r2 = SL.circuit.solve(scene);
+      var after = Math.abs(r2.fuses[fuse.id].current);
+      var warn = r2.warnings.some(function (w) { return w.type === 'fuse' && w.compId === fuse.id; });
+      var ok = near(before, 6 / 5.55, 0.02) && fuse.props.blown === true &&
+        r2.fuses[fuse.id].blown === true && after < 1e-6 && warn;
+      return { ok: ok, detail: '熔断前 I=' + before.toFixed(3) + 'A，熔断后 I=' + after.toExponential(1) + 'A，warning=' + warn };
+    });
+
+    /* 22. 电动机：基本电流、功率与转动状态 */
+    test('电动机 6V + 10Ω：转动', function () {
+      var sup = C('dcsupply', 300, 400, { voltage: 6 });
+      var motor = C('motor', 560, 400, { resistance: 10 });
+      var scene = {
+        components: [sup, motor],
+        wires: [W(sup, 'pos', motor, 'a'), W(motor, 'b', sup, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.motors[motor.id];
+      var i = Math.abs(info.current);
+      var ok = near(i, 6 / 10.5, 0.002) && info.spinning === true && near(Math.abs(info.power), 3.265, 0.02);
+      return { ok: ok, detail: 'I=' + i.toFixed(3) + ' P=' + info.power.toFixed(2) + ' 转动=' + info.spinning };
+    });
+
+    /* 23. 电铃：基本电流与响铃状态 */
+    test('电铃 6V + 20Ω：响铃', function () {
+      var sup = C('dcsupply', 300, 400, { voltage: 6 });
+      var bell = C('bell', 560, 400, { resistance: 20 });
+      var scene = {
+        components: [sup, bell],
+        wires: [W(sup, 'pos', bell, 'a'), W(bell, 'b', sup, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.bells[bell.id];
+      var i = Math.abs(info.current);
+      var ok = near(i, 6 / 20.5, 0.002) && info.ringing === true;
+      return { ok: ok, detail: 'I=' + i.toFixed(3) + ' 响铃=' + info.ringing };
+    });
+
+    /* 24. 电磁铁：电流方向决定 N 极位置 */
+    test('电磁铁 6V + 5Ω：通电与极性', function () {
+      function build(reverse) {
+        var sup = C('dcsupply', 300, 400, { voltage: 6 });
+        var mag = C('electromagnet', 560, 400, { resistance: 5 });
+        var scene = {
+          components: [sup, mag],
+          wires: reverse
+            ? [W(sup, 'pos', mag, 'b'), W(mag, 'a', sup, 'neg')]
+            : [W(sup, 'pos', mag, 'a'), W(mag, 'b', sup, 'neg')]
+        };
+        return { scene: scene, mag: mag };
+      }
+      var a = build(false);
+      var ra = SL.circuit.solve(a.scene);
+      var b = build(true);
+      var rb = SL.circuit.solve(b.scene);
+      var ia = Math.abs(ra.electromagnets[a.mag.id].current);
+      var ok = near(ia, 6 / 5.5, 0.003) && ra.electromagnets[a.mag.id].on === true &&
+        ra.electromagnets[a.mag.id].poleN === 'left' && rb.electromagnets[b.mag.id].poleN === 'right';
+      return { ok: ok, detail: 'I=' + ia.toFixed(3) + ' 正接N=' + ra.electromagnets[a.mag.id].poleN + ' 反接N=' + rb.electromagnets[b.mag.id].poleN };
     });
 
     var summary = document.getElementById('summary');

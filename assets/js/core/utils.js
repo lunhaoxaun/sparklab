@@ -4,7 +4,7 @@
   var SL = (window.SparkLab = window.SparkLab || {});
 
   /* 版本号：界面顶栏、首页页脚与「关于」中展示 */
-  SL.VERSION = '1.4.0';
+  SL.VERSION = '1.5.0';
   SL.VERSION_DATE = '2026-10-23';
 
   SL.$ = function (sel, root) { return (root || document).querySelector(sel); };
