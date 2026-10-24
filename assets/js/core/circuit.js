@@ -8,6 +8,12 @@
   var AMMETER_R = 0.01;
   var VOLTMETER_R = 1e6;
   var SWITCH_R = 1e-3;
+  var SUPPLY_R = 0.5;             // 学生电源内阻
+  var LED_R = 20;                 // LED 导通后的等效串联电阻
+  var LED_VF = 1.8;               // LED 正向压降
+  var LED_OFF_R = 1e9;            // LED 截止时的等效电阻
+  var FUSE_R = 0.05;              // 保险丝正常时的电阻
+  var FUSE_OPEN_R = 1e9;          // 保险丝熔断后的断路电阻
 
   var TYPES = {
     battery: {
@@ -49,8 +55,65 @@
       label: '电压表', icon: 'circuit-voltmeter', w: 80, h: 60,
       terminals: [{ id: 'plus', dx: -40, dy: 0, polarity: '+' }, { id: 'minus', dx: 40, dy: 0, polarity: '-' }],
       props: { range: 3 }
+    },
+    dcsupply: {
+      label: '学生电源', icon: 'circuit-battery', w: 96, h: 48,
+      terminals: [{ id: 'neg', dx: -48, dy: 0, polarity: '-' }, { id: 'pos', dx: 48, dy: 0, polarity: '+' }],
+      props: { voltage: 3 }
+    },
+    'switch-spdt': {
+      label: '单刀双掷开关', icon: 'settings', w: 96, h: 60,
+      terminals: [
+        { id: 'a', dx: -38, dy: 0 },
+        { id: 'b', dx: -10, dy: -26 },
+        { id: 'c', dx: 38, dy: 0 }
+      ],
+      props: { to: 'b' }
+    },
+    'resistance-box': {
+      label: '电阻箱', icon: 'circuit-resistor', w: 96, h: 40,
+      terminals: [{ id: 'a', dx: -46, dy: 0 }, { id: 'b', dx: 46, dy: 0 }],
+      props: { digits: [0, 0, 1, 0] }
+    },
+    led: {
+      label: '发光二极管', icon: 'circuit-bulb', w: 80, h: 60,
+      terminals: [{ id: 'anode', dx: -34, dy: 0 }, { id: 'cathode', dx: 34, dy: 0 }],
+      props: {}
+    },
+    motor: {
+      label: '电动机', icon: 'player-play', w: 96, h: 62,
+      terminals: [{ id: 'a', dx: -44, dy: 0 }, { id: 'b', dx: 44, dy: 0 }],
+      props: { resistance: 10 }
+    },
+    bell: {
+      label: '电铃', icon: 'volume', w: 96, h: 56,
+      terminals: [{ id: 'a', dx: -44, dy: 0 }, { id: 'b', dx: 44, dy: 0 }],
+      props: { resistance: 20 }
+    },
+    fuse: {
+      label: '保险丝', icon: 'alert-triangle', w: 92, h: 36,
+      terminals: [{ id: 'a', dx: -46, dy: 0 }, { id: 'b', dx: 46, dy: 0 }],
+      props: { rating: 0.5, blown: false }
+    },
+    electromagnet: {
+      label: '电磁铁', icon: 'atom', w: 96, h: 48,
+      terminals: [{ id: 'a', dx: -46, dy: 0 }, { id: 'b', dx: 46, dy: 0 }],
+      props: { resistance: 5 }
     }
   };
+
+  /* 电阻箱四位旋钮（×1000 / ×100 / ×10 / ×1）的接入电阻 */
+  function resistanceBoxValue(props) {
+    var digits = (props || {}).digits;
+    var weights = [1000, 100, 10, 1];
+    var total = 0;
+    for (var i = 0; i < 4; i++) {
+      var d = digits && digits[i] != null ? Math.round(Number(digits[i])) : 0;
+      if (isNaN(d)) d = 0;
+      total += Math.max(0, Math.min(9, d)) * weights[i];
+    }
+    return total;
+  }
 
   var seq = 0;
   function nextId(type) { seq += 1; return type + '-' + seq; }
@@ -67,13 +130,15 @@
   function create(type, x, y, props) {
     var def = TYPES[type];
     if (!def) throw new Error('未知元件类型：' + type);
+    var merged = Object.assign({}, def.props, props || {});
+    if (Array.isArray(merged.digits)) merged.digits = merged.digits.slice();
     var comp = {
       id: nextId(type),
       type: type,
       x: Math.round(x || 0),
       y: Math.round(y || 0),
       rotation: 0,
-      props: Object.assign({}, def.props, props || {})
+      props: merged
     };
     if (!comp.props.id) comp.props.id = comp.id;
     return comp;
@@ -203,7 +268,9 @@
     return x;
   }
 
-  function solve(scene) {
+  /* 单次求解；ledOn 记录本轮按“导通”处理的 LED */
+  function solvePass(scene, ledOn) {
+    ledOn = ledOn || {};
     var dsu = makeDsu();
     var terminals = [];
     var terminalNode = {};
@@ -225,6 +292,12 @@
       }
       if (comp.type === 'battery') {
         dsu.add('#BAT:' + comp.id);
+      }
+      if (comp.type === 'dcsupply') {
+        dsu.add('#SUP:' + comp.id);
+      }
+      if (comp.type === 'led') {
+        dsu.add('#LED:' + comp.id);
       }
     });
 
@@ -274,6 +347,32 @@
         addR(comp, comp.id + ':plus', comp.id + ':minus', AMMETER_R);
       } else if (comp.type === 'voltmeter') {
         addR(comp, comp.id + ':plus', comp.id + ':minus', VOLTMETER_R);
+      } else if (comp.type === 'dcsupply') {
+        var supplyE = Math.max(1.5, Math.min(12, Number(p.voltage) || 3));
+        var supplyInternal = '#SUP:' + comp.id;
+        addV(comp, supplyInternal, comp.id + ':neg', supplyE);
+        addR(comp, comp.id + ':pos', supplyInternal, SUPPLY_R);
+      } else if (comp.type === 'switch-spdt') {
+        var spdtTo = p.to === 'c' ? 'c' : 'b';
+        addR(comp, comp.id + ':a', comp.id + ':' + spdtTo, SWITCH_R);
+      } else if (comp.type === 'resistance-box') {
+        addR(comp, comp.id + ':a', comp.id + ':b', Math.max(0.001, resistanceBoxValue(p)));
+      } else if (comp.type === 'led') {
+        if (ledOn[comp.id]) {
+          var ledInternal = '#LED:' + comp.id;
+          addR(comp, comp.id + ':anode', ledInternal, LED_R);
+          addV(comp, ledInternal, comp.id + ':cathode', LED_VF);
+        } else {
+          addR(comp, comp.id + ':anode', comp.id + ':cathode', LED_OFF_R);
+        }
+      } else if (comp.type === 'motor') {
+        addR(comp, comp.id + ':a', comp.id + ':b', Math.max(0.01, p.resistance || 10));
+      } else if (comp.type === 'bell') {
+        addR(comp, comp.id + ':a', comp.id + ':b', Math.max(0.01, p.resistance || 20));
+      } else if (comp.type === 'fuse') {
+        addR(comp, comp.id + ':a', comp.id + ':b', p.blown ? FUSE_OPEN_R : FUSE_R);
+      } else if (comp.type === 'electromagnet') {
+        addR(comp, comp.id + ':a', comp.id + ':b', Math.max(0.01, p.resistance || 5));
       }
     });
 
@@ -375,6 +474,14 @@
       bulbs: {},
       batteries: {},
       meters: {},
+      supplies: {},
+      switches: {},
+      resistors: {},
+      leds: {},
+      motors: {},
+      bells: {},
+      fuses: {},
+      electromagnets: {},
       warnings: []
     };
 
@@ -430,6 +537,76 @@
         var ta = out.terminals[Object.keys(out.terminals)[0]];
         var tb = out.terminals[Object.keys(out.terminals)[1]];
         out.voltage = (ta ? ta.voltage : 0) - (tb ? tb.voltage : 0);
+      } else if (comp.type === 'dcsupply') {
+        var supInternal = nodeOf('#SUP:' + comp.id);
+        var supPos = nodeOf(comp.id + ':pos');
+        var supNeg = nodeOf(comp.id + ':neg');
+        var supE = Math.max(1.5, Math.min(12, Number((comp.props || {}).voltage) || 3));
+        var supCurrent = ((nodeV[supPos] || 0) - (nodeV[supInternal] || 0)) / SUPPLY_R;
+        out.current = supCurrent;
+        out.voltage = (nodeV[supPos] || 0) - (nodeV[supNeg] || 0);
+        out.emf = supE;
+        out.terminalVoltage = out.voltage;
+        result.supplies[comp.id] = { voltage: out.voltage, current: supCurrent };
+      } else if (comp.type === 'switch-spdt') {
+        var spdtClosedTo = (comp.props || {}).to === 'c' ? 'c' : 'b';
+        var spdtA = out.terminals.a ? out.terminals.a.voltage : 0;
+        var spdtB = out.terminals[spdtClosedTo] ? out.terminals[spdtClosedTo].voltage : 0;
+        out.voltage = spdtA - spdtB;
+        out.current = out.voltage / SWITCH_R;
+        result.switches[comp.id] = { closedTo: spdtClosedTo };
+      } else if (comp.type === 'resistance-box') {
+        var boxR = Math.max(0.001, resistanceBoxValue(comp.props || {}));
+        var boxV = (out.terminals.a ? out.terminals.a.voltage : 0) - (out.terminals.b ? out.terminals.b.voltage : 0);
+        out.voltage = boxV;
+        out.current = boxV / boxR;
+        result.resistors[comp.id] = out;
+      } else if (comp.type === 'led') {
+        var ledV = (out.terminals.anode ? out.terminals.anode.voltage : 0) - (out.terminals.cathode ? out.terminals.cathode.voltage : 0);
+        out.voltage = ledV;
+        if (ledOn[comp.id]) {
+          var ledNode = nodeOf('#LED:' + comp.id);
+          out.current = ((out.terminals.anode ? out.terminals.anode.voltage : 0) - (nodeV[ledNode] || 0)) / LED_R;
+        } else {
+          out.current = ledV / LED_OFF_R;
+        }
+        result.leds[comp.id] = { on: !!ledOn[comp.id], voltage: out.voltage, current: out.current };
+      } else if (comp.type === 'motor') {
+        var motorR = Math.max(0.01, (comp.props || {}).resistance || 10);
+        var motorV = (out.terminals.a ? out.terminals.a.voltage : 0) - (out.terminals.b ? out.terminals.b.voltage : 0);
+        out.voltage = motorV;
+        out.current = motorV / motorR;
+        out.power = motorV * out.current;
+        result.motors[comp.id] = {
+          current: out.current,
+          power: out.power,
+          spinning: Math.abs(out.current) > 0.02
+        };
+      } else if (comp.type === 'bell') {
+        var bellR = Math.max(0.01, (comp.props || {}).resistance || 20);
+        var bellV = (out.terminals.a ? out.terminals.a.voltage : 0) - (out.terminals.b ? out.terminals.b.voltage : 0);
+        out.voltage = bellV;
+        out.current = bellV / bellR;
+        result.bells[comp.id] = {
+          current: out.current,
+          ringing: Math.abs(out.current) > 0.015
+        };
+      } else if (comp.type === 'fuse') {
+        var fuseR = (comp.props || {}).blown ? FUSE_OPEN_R : FUSE_R;
+        var fuseV = (out.terminals.a ? out.terminals.a.voltage : 0) - (out.terminals.b ? out.terminals.b.voltage : 0);
+        out.voltage = fuseV;
+        out.current = fuseV / fuseR;
+        result.fuses[comp.id] = { current: out.current, blown: !!(comp.props || {}).blown };
+      } else if (comp.type === 'electromagnet') {
+        var magR = Math.max(0.01, (comp.props || {}).resistance || 5);
+        var magV = (out.terminals.a ? out.terminals.a.voltage : 0) - (out.terminals.b ? out.terminals.b.voltage : 0);
+        out.voltage = magV;
+        out.current = magV / magR;
+        result.electromagnets[comp.id] = {
+          current: out.current,
+          on: Math.abs(out.current) > 0.02,
+          poleN: out.current >= 0 ? 'left' : 'right'
+        };
       }
       result.components[comp.id] = out;
     });
@@ -485,10 +662,50 @@
     return result;
   }
 
+  /* LED 非线性迭代（最多两轮）+ 保险丝熔断判断 */
+  function solve(scene) {
+    var ledOn = {};
+    var result = solvePass(scene, ledOn);
+
+    var nextOn = {};
+    var ledChanged = false;
+    scene.components.forEach(function (comp) {
+      if (comp.type !== 'led') return;
+      var info = result.leds ? result.leds[comp.id] : null;
+      if (info && info.voltage >= LED_VF) {
+        nextOn[comp.id] = true;
+        ledChanged = true;
+      }
+    });
+    if (ledChanged) result = solvePass(scene, nextOn);
+
+    var tripped = [];
+    scene.components.forEach(function (comp) {
+      if (comp.type !== 'fuse' || comp.props.blown) return;
+      var info = result.fuses ? result.fuses[comp.id] : null;
+      if (!info) return;
+      var rating = Number(comp.props.rating);
+      if (!(rating > 0)) rating = 0.5;
+      if (Math.abs(info.current) > rating) {
+        comp.props.blown = true;
+        tripped.push(comp.id);
+      }
+    });
+    if (tripped.length) {
+      result = solvePass(scene, nextOn);
+      tripped.forEach(function (id) {
+        result.warnings.push({ type: 'fuse', compId: id, message: '保险丝熔断，请更换' });
+      });
+      result.warnCount = result.warnings.length;
+    }
+
+    return result;
+  }
+
   /* ---------- 拓扑分析 ---------- */
   function analyseTopology(scene, dsu, terminalNode, nodeOf) {
     var bulbIds = scene.components.filter(function (c) { return c.type === 'bulb'; }).map(function (c) { return c.id; });
-    var batteries = scene.components.filter(function (c) { return c.type === 'battery'; });
+    var batteries = scene.components.filter(function (c) { return c.type === 'battery' || c.type === 'dcsupply'; });
     var edges = [];
     var adj = {};
 
@@ -510,9 +727,12 @@
         return;
       }
       if (comp.type === 'bulb' && comp.props.burned) return;
-      if (comp.type === 'battery') return;
+      if (comp.type === 'battery' || comp.type === 'dcsupply') return;
+      if (comp.type === 'fuse' && comp.props.blown) return;
       var ts = TYPES[comp.type].terminals;
-      addEdge(comp.id, nodeOfKey(comp.id + ':' + ts[0].id), nodeOfKey(comp.id + ':' + ts[1].id));
+      var second = ts[1];
+      if (comp.type === 'switch-spdt' && comp.props.to === 'c') second = ts[2];
+      addEdge(comp.id, nodeOfKey(comp.id + ':' + ts[0].id), nodeOfKey(comp.id + ':' + second.id));
     });
 
     var paths = [];
