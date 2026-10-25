@@ -35,13 +35,14 @@
     this.view = { x: 0, y: 0, w: VIEW_W, h: VIEW_H };
     this.pointers = {};
     this.pinch = null;
+    this.skin = SL.skins ? SL.skins.current() : 'classic';
     this.mount();
   }
 
   Board.prototype.mount = function () {
     var self = this;
     var svg = svgEl('svg', {
-      class: 'board-svg', viewBox: '0 0 ' + VIEW_W + ' ' + VIEW_H,
+      class: 'board-svg skin-' + this.skin, viewBox: '0 0 ' + VIEW_W + ' ' + VIEW_H,
       preserveAspectRatio: 'xMidYMid meet', role: 'application',
       'aria-label': '电路实验台'
     });
@@ -87,6 +88,16 @@
 
     this.host.innerHTML = '';
     this.host.appendChild(svg);
+    this.host.classList.toggle('skin-nb', this.skin === 'nb');
+  };
+
+  /* 切换元件皮肤：classic 教材符号 / nb 拟真元件 */
+  Board.prototype.setSkin = function (id) {
+    if (!id || id === this.skin) return;
+    this.skin = id;
+    this.svg.setAttribute('class', 'board-svg skin-' + id);
+    this.host.classList.toggle('skin-nb', id === 'nb');
+    this.render();
   };
 
   Board.prototype.getScene = function () { return this.scene; };
@@ -237,8 +248,15 @@
   };
 
   Board.prototype.compMarkup = function (comp, label, selected) {
-    var cls = 'comp comp-' + comp.type + (selected ? ' selected' : '');
-    var x = comp.x, y = comp.y, rot = comp.rotation || 0;
+    var cls = 'comp comp-' + comp.type + (this.skin === 'nb' ? ' comp-nb' : '') + (selected ? ' selected' : '');
+    var body = this.skin === 'nb' && SL.skins
+      ? SL.skins.body(comp, this)
+      : this.classicBody(comp, label);
+    return '<g class="' + cls + '" data-comp="' + comp.id + '" transform="translate(' + comp.x + ' ' + comp.y + ') rotate(' + (comp.rotation || 0) + ')">' + body + '</g>';
+  };
+
+  /* 教材符号皮肤（默认）：用电路符号绘制元件 */
+  Board.prototype.classicBody = function (comp, label) {
     var body = '';
     var p = comp.props || {};
     if (comp.type === 'battery') {
@@ -378,7 +396,7 @@
         '<text x="-34" y="5" class="comp-value" opacity="' + (magOn ? '1' : '0.35') + '">' + leftPole + '</text>' +
         '<text x="34" y="5" class="comp-value" opacity="' + (magOn ? '1' : '0.35') + '">' + rightPole + '</text>';
     }
-    return '<g class="' + cls + '" data-comp="' + comp.id + '" transform="translate(' + x + ' ' + y + ') rotate(' + rot + ')">' + body + '</g>';
+    return body;
   };
 
   Board.prototype.terminalMarkup = function (comp) {
