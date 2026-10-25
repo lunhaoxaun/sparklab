@@ -57,6 +57,8 @@
   box-shadow: 0 2px 8px rgba(22, 35, 58, .10);
 }
 .mode-switch button:focus-visible { outline: none; box-shadow: var(--focus); }
+.skin-switch { background: rgba(31, 111, 178, .08); }
+.skin-switch button { padding: 0 11px; font-size: 12.5px; }
 
 .lab-body {
   display: grid;
@@ -144,6 +146,28 @@
   touch-action: none;
 }
 .board-svg { display: block; width: 100%; height: 100%; user-select: none; }
+
+/* ---------- 拟真元件皮肤（nb）：实验台做成浅木色台面 ---------- */
+.board-host.skin-nb {
+  background:
+    linear-gradient(rgba(120, 96, 62, .055) 1px, transparent 1px) 0 0 / 22px 22px,
+    linear-gradient(90deg, rgba(120, 96, 62, .055) 1px, transparent 1px) 0 0 / 22px 22px,
+    radial-gradient(820px 420px at 50% 0%, #fffdf8, #faf3e6 68%, #f4ead9);
+}
+.skin-nb .wire { stroke: #3d4650; stroke-width: 5; }
+.skin-nb .wire:hover { stroke: var(--primary); }
+.skin-nb .terminal-dot {
+  fill: #d8bd72;
+  stroke: #8a6a26;
+  stroke-width: 2;
+  r: 6;
+}
+.skin-nb .terminal:hover .terminal-dot { fill: #ffe6a3; stroke: var(--primary); r: 7.5; }
+.skin-nb .comp-label {
+  font-weight: 700;
+  fill: #4b3f2e;
+}
+.palette-thumb { display: block; width: 26px; height: 26px; }
 
 /* 导线 */
 .wire {
