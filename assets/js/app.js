@@ -18,6 +18,7 @@
     flags: {},
     hints: {},
     selectedComp: null,
+    skin: 'classic',
     syncTimer: null,
     keyHandler: null
   };
@@ -154,6 +155,11 @@
   function renderLab() {
     var lab = app.lab;
     var meta = lab.meta;
+    app.skin = SL.skins ? SL.skins.current() : 'classic';
+    var skinHtml = SL.skins ? '<div class="mode-switch skin-switch" role="group" aria-label="元件样式">' +
+      SL.skins.list.map(function (s) {
+        return '<button type="button" data-skin-btn="' + s.id + '" class="' + (app.skin === s.id ? 'active' : '') + '" title="' + s.label + '">' + s.label + '</button>';
+      }).join('') + '</div>' : '';
     var paletteHtml = lab.palette.map(function (type) {
       var def = SL.circuit.TYPES[type];
       return '<button type="button" class="palette-item" data-type="' + type + '">' +
@@ -180,6 +186,7 @@
         '<button type="button" data-mode-btn="guided" class="' + (app.mode === 'guided' ? 'active' : '') + '">引导模式</button>' +
         '<button type="button" data-mode-btn="free" class="' + (app.mode === 'free' ? 'active' : '') + '">自由探究</button>' +
         '</div>') +
+      skinHtml +
       '<button type="button" class="btn btn-icon btn-ghost" id="lab-undo" title="撤回（Ctrl+Z）" aria-label="撤回">' + SL.icon('arrow-left', '', 18) + '</button>' +
       '<button type="button" class="btn btn-icon btn-ghost" id="lab-redo" title="重做（Ctrl+Shift+Z）" aria-label="重做">' + SL.icon('arrow-left', 'icon-flip', 18) + '</button>' +
       '<button type="button" class="btn btn-soft" id="lab-beautify" title="自动整理元件位置，并理清重叠的导线">' + beautifyIcon() + '一键美化</button>' +
@@ -253,6 +260,8 @@
   }
 
   function paletteIcon(type) {
+    var thumb = SL.skins ? SL.skins.thumb(type) : '';
+    if (thumb) return thumb;
     if (type === 'switch') {
       return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">' +
         '<circle cx="6" cy="17" r="1.6"/><circle cx="18" cy="17" r="1.6"/><line x1="7" y1="16" x2="17" y2="8"/></svg>';
@@ -263,6 +272,14 @@
         '<line x1="12" y1="6" x2="12" y2="9"/><circle cx="12" cy="6" r="1.6"/></svg>';
     }
     return SL.icon(SL.circuit.TYPES[type].icon, '', 22);
+  }
+
+  /* 切换皮肤后同步元件库图标（拟真皮肤使用缩略图） */
+  function refreshPaletteIcons() {
+    SL.$$('.palette-item').forEach(function (btn) {
+      var host = btn.querySelector('.palette-icon');
+      if (host) host.innerHTML = paletteIcon(btn.getAttribute('data-type'));
+    });
   }
 
   function updateHistoryButtons() {
@@ -334,6 +351,22 @@
         renderGuide();
         saveProgress();
         SL.toast(mode === 'guided' ? '引导模式：按步骤完成探究' : '自由探究模式：任意搭建电路', 'info');
+      });
+    });
+
+    SL.$$('[data-skin-btn]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-skin-btn');
+        if (id === app.skin) return;
+        app.skin = id;
+        if (SL.skins) SL.skins.set(id);
+        if (app.board) app.board.setSkin(id);
+        SL.$$('[data-skin-btn]').forEach(function (b) {
+          b.classList.toggle('active', b.getAttribute('data-skin-btn') === id);
+        });
+        refreshPaletteIcons();
+        SL.sound.play('click');
+        SL.toast(id === 'nb' ? '已切换为拟真元件外观' : '已切换为教材电路符号', 'info');
       });
     });
 
