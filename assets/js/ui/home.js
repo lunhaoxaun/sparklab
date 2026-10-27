@@ -130,7 +130,7 @@
     about: function () {
       var body = '<p class="modal-text">星火电学实验室是一个面向初中物理教学的离线虚拟实验工具，全部计算与数据存储都在你的浏览器本地完成。</p>' +
         '<section class="about-block"><h3>版本</h3><p>当前版本 <strong>v' + SL.VERSION + '</strong>（' + SL.VERSION_DATE + '）</p>' +
-        '<p class="muted">v1.0.0 首个完整版 · v1.1.0 一键美化 · v1.2.0 撤回/重做 · v1.3.0 画布缩放与变阻器接线校验 · v1.4.0 全自由实验室与变阻器电阻判断修复 · v1.5.0 补齐初中电学常用元件 · v1.6.0 双套元件外观（教材符号 / 拟真元件）可切换</p></section>' +
+        '<p class="muted">v1.0.0 首个完整版 · v1.1.0 一键美化 · v1.2.0 撤回/重做 · v1.3.0 画布缩放与变阻器接线校验 · v1.4.0 全自由实验室与变阻器电阻判断修复 · v1.5.0 补齐初中电学常用元件 · v1.6.0 双套元件外观（教材符号 / 拟真元件）可切换 · v1.7.0 新增发电机、电磁继电器、扬声器、灵敏电流计</p></section>' +
         '<section class="about-block"><h3>图标素材</h3><p>界面与元件图标来自 <strong>Tabler Icons</strong>（MIT License），已下载并内联到本项目，运行时不访问网络。</p>' +
         '<p class="muted">https://github.com/tabler/tabler-icons</p></section>' +
         '<section class="about-block"><h3>自绘素材</h3><p>滑动变阻器、单刀开关、导线与电流动画由本项目按教材标准画法自绘。</p></section>' +

@@ -11,6 +11,12 @@
 
   function num(v, d) { return SL.fmt(v, d == null ? 2 : d); }
 
+  function signed(v, d) {
+    if (v > 1e-9) return '+' + SL.fmt(v, d);
+    if (v < -1e-9) return '−' + SL.fmt(-v, d);
+    return SL.fmt(0, d);
+  }
+
   /* ---------- 电池组 ---------- */
   function battery(comp) {
     var cells = Math.max(1, Math.min(4, Math.round((comp.props || {}).cells || 2)));
@@ -228,6 +234,94 @@
       '<text x="41" y="5" fill="' + (on ? '#2f6fb2' : '#8b9db0') + '" font-size="11" font-weight="700">' + right + '</text>';
   }
 
+  /* ---------- 手摇发电机 ---------- */
+  function generator(comp, board) {
+    var p = comp.props || {};
+    var info = board && board.result && board.result.generators ? board.result.generators[comp.id] : null;
+    var running = info ? info.emf > 0 : p.running !== false;
+    var emf = info ? info.emf : (p.running === false ? 0 : Math.max(1.5, Math.min(12, Number(p.voltage) || 3)));
+    var rotor =
+      '<circle cx="0" cy="0" r="13" fill="#8494a4" stroke="' + C.steelDark + '" stroke-width="1.2"/>' +
+      '<line x1="-11" y1="0" x2="11" y2="0" stroke="' + C.dark + '" stroke-width="2.4"/>' +
+      '<line x1="0" y1="-11" x2="0" y2="11" stroke="' + C.dark + '" stroke-width="2.4"/>' +
+      '<circle cx="0" cy="0" r="3.4" fill="' + C.shellTop + '" stroke="' + C.steelDark + '" stroke-width="1"/>' +
+      (running ? '<animateTransform attributeName="transform" type="rotate" additive="sum" from="0 0 0" to="360 0 0" dur="1.1s" repeatCount="indefinite"/>' : '');
+    return '<line x1="-48" y1="0" x2="-40" y2="0" stroke="#8b98a6" stroke-width="2.4"/>' +
+      '<line x1="40" y1="0" x2="48" y2="0" stroke="#8b98a6" stroke-width="2.4"/>' +
+      '<rect x="-40" y="-26" width="70" height="52" rx="8" fill="' + C.shell + '" stroke="' + C.edge + '" stroke-width="1.4"/>' +
+      '<rect x="-40" y="-26" width="70" height="12" rx="8" fill="' + C.shellTop + '"/>' +
+      '<g transform="translate(-8 2)">' + rotor + '</g>' +
+      '<circle cx="30" cy="2" r="11" fill="' + C.steel + '" stroke="' + C.steelDark + '" stroke-width="1.3"/>' +
+      '<circle cx="30" cy="2" r="4" fill="' + C.dark + '" opacity=".7"/>' +
+      '<path d="M-8 -16 Q10 -28 30 -9 M-8 20 Q10 32 30 13" fill="none" stroke="' + C.dark + '" stroke-width="1.6" opacity=".55"/>' +
+      '<line x1="30" y1="2" x2="39" y2="-9" stroke="' + C.steelDark + '" stroke-width="2.6" stroke-linecap="round"/>' +
+      '<circle cx="39" cy="-9" r="3.2" fill="' + C.red + '"/>' +
+      (running ? '<path d="M-20 -30 Q-14 -36 -8 -30" fill="none" stroke="' + C.red + '" stroke-width="2"/>' : '') +
+      '<text x="-6" y="42" class="comp-value">' + num(emf, 1) + 'V</text>';
+  }
+
+  /* ---------- 电磁继电器 ---------- */
+  function relay(comp, board) {
+    var info = board && board.result && board.result.relays ? board.result.relays[comp.id] : null;
+    var on = !!(info && info.energized);
+    var windings = '';
+    for (var i = 0; i < 4; i++) {
+      windings += '<ellipse cx="' + (-36 + i * 7) + '" cy="0" rx="3" ry="13" fill="none" stroke="#b5762f" stroke-width="1.8"/>';
+    }
+    return '<rect x="-48" y="-34" width="96" height="68" rx="7" fill="' + C.shell + '" stroke="' + C.edge + '" stroke-width="1.4"/>' +
+      '<rect x="-48" y="-34" width="96" height="12" rx="7" fill="' + C.shellTop + '"/>' +
+      '<line x1="-55" y1="22" x2="-44" y2="16" stroke="#8b98a6" stroke-width="2"/>' +
+      '<line x1="-55" y1="-22" x2="-44" y2="-16" stroke="#8b98a6" stroke-width="2"/>' +
+      '<rect x="-44" y="-16" width="26" height="32" rx="3" fill="' + C.steel + '" opacity=".35"/>' +
+      windings +
+      '<line x1="55" y1="26" x2="26" y2="26" stroke="#8b98a6" stroke-width="2"/>' +
+      '<line x1="55" y1="0" x2="44" y2="0" stroke="#8b98a6" stroke-width="2"/>' +
+      '<line x1="55" y1="-22" x2="44" y2="-22" stroke="#8b98a6" stroke-width="2"/>' +
+      '<circle cx="44" cy="0" r="4.2" fill="' + (on ? C.green : C.steel) + '" stroke="' + (on ? '#1e4a34' : C.steelDark) + '" stroke-width="1"/>' +
+      '<circle cx="44" cy="-22" r="4.2" fill="' + (on ? C.steel : C.green) + '" stroke="' + (on ? C.steelDark : '#1e4a34') + '" stroke-width="1"/>' +
+      '<circle cx="26" cy="26" r="5" fill="' + C.steelDark + '"/>' +
+      '<line x1="26" y1="26" x2="44" y2="' + (on ? 0 : -22) + '" stroke="' + C.dark + '" stroke-width="4" stroke-linecap="round"/>' +
+      '<text x="-12" y="31" class="comp-value">' + (on ? '吸合' : '释放') + '</text>';
+  }
+
+  /* ---------- 扬声器 ---------- */
+  function speaker(comp, board) {
+    var info = board && board.result && board.result.speakers ? board.result.speakers[comp.id] : null;
+    var active = !!(info && info.active);
+    return '<line x1="-44" y1="0" x2="-28" y2="0" stroke="#8b98a6" stroke-width="2.4"/>' +
+      '<line x1="32" y1="0" x2="44" y2="0" stroke="#8b98a6" stroke-width="2.4"/>' +
+      '<rect x="-28" y="-16" width="18" height="32" rx="3" fill="' + C.dark + '" stroke="#1b242d" stroke-width="1"/>' +
+      '<rect x="-26" y="-12" width="14" height="24" rx="2" fill="' + C.steel + '" opacity=".45"/>' +
+      '<path d="M-10 -24 L24 -12 L32 -10 L32 10 L24 12 L-10 24 Z" fill="' + C.steel + '" stroke="' + C.steelDark + '" stroke-width="1.3"/>' +
+      '<rect x="32" y="-12" width="5" height="24" rx="2" fill="' + C.steelDark + '"/>' +
+      (active
+        ? '<path d="M40 -12 Q48 0 40 12 M47 -19 Q58 0 47 19" fill="none" stroke="' + C.red + '" stroke-width="2.2"/>' +
+          '<text x="-2" y="42" class="comp-value">发声</text>'
+        : '<text x="-2" y="42" class="comp-value">无声</text>');
+  }
+
+  /* ---------- 灵敏电流计 ---------- */
+  function galvanometer(comp, board) {
+    var p = comp.props || {};
+    var range = Number(p.range) || 0.1;
+    var m = board && board.result && board.result.meters ? board.result.meters[comp.id] : null;
+    var value = m ? m.value : 0;
+    var over = !!(m && m.overRange);
+    var deg = Math.max(-1, Math.min(1, value / range)) * 55;
+    return '<rect x="-28" y="-28" width="56" height="56" rx="7" fill="#f4f7fb" stroke="' + (over ? C.red : '#96a6b8') + '" stroke-width="1.6"/>' +
+      '<path d="M-20 12 A21 21 0 0 1 20 12" fill="none" stroke="' + (over ? C.red : '#8fa3b8') + '" stroke-width="1.4"/>' +
+      '<line x1="-15.3" y1="-12.9" x2="-12.3" y2="-10.3" stroke="#35506b" stroke-width="1.2"/>' +
+      '<line x1="-8.5" y1="-18.1" x2="-6.8" y2="-14.5" stroke="#35506b" stroke-width="1.2"/>' +
+      '<line x1="0" y1="-20" x2="0" y2="-15.5" stroke="#35506b" stroke-width="1.6"/>' +
+      '<line x1="8.5" y1="-18.1" x2="6.8" y2="-14.5" stroke="#35506b" stroke-width="1.2"/>' +
+      '<line x1="15.3" y1="-12.9" x2="12.3" y2="-10.3" stroke="#35506b" stroke-width="1.2"/>' +
+      '<text x="0" y="-8" class="comp-value">0</text>' +
+      '<line x1="0" y1="14" x2="0" y2="-20" stroke="' + (over ? C.red : '#33414f') + '" stroke-width="1.8" transform="rotate(' + deg.toFixed(1) + ')"/>' +
+      '<circle cx="0" cy="14" r="3" fill="#33414f"/>' +
+      '<text x="0" y="24" class="comp-value">G</text>' +
+      '<text x="0" y="42" class="comp-value' + (over ? ' danger' : '') + '">' + signed(value, 3) + ' A</text>';
+  }
+
   var RENDER = {
     battery: battery,
     dcsupply: dcsupply,
@@ -243,7 +337,11 @@
     motor: motor,
     bell: bell,
     fuse: fuse,
-    electromagnet: electromagnet
+    electromagnet: electromagnet,
+    generator: generator,
+    relay: relay,
+    speaker: speaker,
+    galvanometer: galvanometer
   };
 
   var listeners = [];

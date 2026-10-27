@@ -229,6 +229,7 @@
       onInspect: function (compId) { app.selectedComp = compId; renderInspector(); },
       onSlider: function () { scheduleSync(40); }
     });
+    if (SL.skins) app.board.setSkin(SL.skins.current());
 
     if (savedScene()) {
       app.board.setScene(savedScene());
@@ -765,6 +766,33 @@
         ? '已通电，' + (magInfo.poleN === 'left' ? '左端为 N 极' : '右端为 N 极')
         : '未通电') + '</span>' +
         (magInfo ? '<span class="inspector-note">I = ' + SL.fmt(Math.abs(magInfo.current), 3) + ' A</span>' : '');
+    } else if (comp.type === 'generator') {
+      var genRunning = comp.props.running !== false;
+      var genVoltage = Math.max(1.5, Math.min(12, Number(comp.props.voltage) || 3));
+      var genInfo = app.result && app.result.generators ? app.result.generators[comp.id] : null;
+      html += '<span class="inspector-label">电压</span><input type="range" min="1.5" max="12" step="0.5" value="' + genVoltage + '" id="generator-voltage-input" class="slider-input">' +
+        '<span class="inspector-note" id="generator-voltage-note">' + SL.fmt(genVoltage, 1) + ' V（1.5–12）</span>' +
+        '<button type="button" class="btn btn-soft btn-sm" id="generator-toggle">' + (genRunning ? '停止' : '摇动') + '</button>' +
+        '<span class="inspector-note">' + (genRunning ? '摇动中，发电电压 ' + SL.fmt(genInfo ? genInfo.emf : genVoltage, 1) + ' V' : '已停止，输出 0 V') + '</span>' +
+        (genInfo ? '<span class="inspector-note">I = ' + SL.fmt(Math.abs(genInfo.current), 3) + ' A</span>' : '');
+    } else if (comp.type === 'relay') {
+      var relayInfo = app.result && app.result.relays ? app.result.relays[comp.id] : null;
+      html += '<span class="inspector-note">' + (relayInfo && relayInfo.energized ? '已吸合：com–no 导通' : '已释放：com–nc 导通') + '</span>' +
+        (relayInfo ? '<span class="inspector-note">线圈电流 I = ' + SL.fmt(Math.abs(relayInfo.coilCurrent), 3) + ' A</span>' : '');
+    } else if (comp.type === 'speaker') {
+      var speakerInfo = app.result && app.result.speakers ? app.result.speakers[comp.id] : null;
+      html += '<span class="inspector-note">' + (speakerInfo && speakerInfo.active ? '发声（纸盆振动中）' : '无声') + '</span>' +
+        (speakerInfo ? '<span class="inspector-note">I = ' + SL.fmt(Math.abs(speakerInfo.current), 3) + ' A · P = ' + SL.fmt(Math.abs(speakerInfo.power), 2) + ' W</span>' : '') +
+        '<span class="inspector-note">音圈电阻 8 Ω</span>';
+    } else if (comp.type === 'galvanometer') {
+      var galInfo = app.result && app.result.meters ? app.result.meters[comp.id] : null;
+      var galRange = Number(comp.props.range) || 0.1;
+      var galText = galInfo
+        ? (galInfo.value > 1e-9 ? '+' : galInfo.value < -1e-9 ? '−' : '') + SL.fmt(Math.abs(galInfo.value), 3)
+        : '—';
+      html += '<span class="inspector-note' + (galInfo && galInfo.overRange ? ' danger' : '') + '">读数 ' + galText + ' A（量程 ±' + galRange + ' A）</span>' +
+        '<span class="inspector-note">电流从 + 接线柱流入时读数为正</span>' +
+        (galInfo && galInfo.overRange ? '<span class="inspector-note" style="color:var(--danger)">已超量程</span>' : '');
     } else if (comp.type === 'ammeter' || comp.type === 'voltmeter') {
       var opts = comp.type === 'ammeter' ? [0.6, 3] : [3, 15];
       html += '<span class="inspector-label">量程</span><div class="chip-group">' +
@@ -838,6 +866,28 @@
       supplyInput.addEventListener('change', function () {
         var value = Math.max(1.5, Math.min(12, Number(supplyInput.value) || 3));
         app.board.updateProps(comp.id, { voltage: value }, true);
+        sync();
+        renderInspector();
+      });
+    }
+    var genVoltageInput = SL.$('#generator-voltage-input', host);
+    if (genVoltageInput) {
+      genVoltageInput.addEventListener('input', function () {
+        var value = Math.max(1.5, Math.min(12, Number(genVoltageInput.value) || 3));
+        app.board.updateProps(comp.id, { voltage: value }, true);
+        var note = SL.$('#generator-voltage-note', host);
+        if (note) note.textContent = SL.fmt(value, 1) + ' V（1.5–12）';
+        scheduleSync(40);
+      });
+      genVoltageInput.addEventListener('change', function () {
+        sync();
+        renderInspector();
+      });
+    }
+    var genToggle = SL.$('#generator-toggle', host);
+    if (genToggle) {
+      genToggle.addEventListener('click', function () {
+        app.board.updateProps(comp.id, { running: comp.props.running === false }, true);
         sync();
         renderInspector();
       });

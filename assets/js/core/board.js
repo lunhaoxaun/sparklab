@@ -6,6 +6,13 @@
   var VIEW_W = 1200;
   var VIEW_H = 760;
 
+  /* 带符号的读数：正数前加 +，负数用 −，用于灵敏电流计 */
+  function signed(v, digits) {
+    if (v > 1e-9) return '+' + SL.fmt(v, digits);
+    if (v < -1e-9) return '−' + SL.fmt(-v, digits);
+    return SL.fmt(0, digits);
+  }
+
   function svgEl(tag, attrs) {
     var node = document.createElementNS(NS, tag);
     if (attrs) {
@@ -35,7 +42,7 @@
     this.view = { x: 0, y: 0, w: VIEW_W, h: VIEW_H };
     this.pointers = {};
     this.pinch = null;
-    this.skin = SL.skins ? SL.skins.current() : 'classic';
+    this.skin = 'classic';
     this.mount();
   }
 
@@ -218,6 +225,10 @@
         else if (c.type === 'bell') label = '电铃';
         else if (c.type === 'fuse') label = 'FU';
         else if (c.type === 'electromagnet') label = '电磁铁';
+        else if (c.type === 'generator') label = '发电机';
+        else if (c.type === 'relay') label = '继电器';
+        else if (c.type === 'speaker') label = '扬声器';
+        else if (c.type === 'galvanometer') label = '灵敏电流计';
       }
     }
     return label;
@@ -395,6 +406,61 @@
         '<path d="M-16 -18 C-22 -6 -22 6 -16 18 M-6 -18 C-12 -6 -12 6 -6 18 M4 -18 C-2 -6 -2 6 4 18 M14 -18 C8 -6 8 6 14 18" class="resistor-zigzag"/>' +
         '<text x="-34" y="5" class="comp-value" opacity="' + (magOn ? '1' : '0.35') + '">' + leftPole + '</text>' +
         '<text x="34" y="5" class="comp-value" opacity="' + (magOn ? '1' : '0.35') + '">' + rightPole + '</text>';
+    } else if (comp.type === 'generator') {
+      var gen = this.result && this.result.generators ? this.result.generators[comp.id] : null;
+      var genEmf = gen ? gen.emf : (p.running === false ? 0 : Math.max(1.5, Math.min(12, Number(p.voltage) || 3)));
+      body =
+        '<line x1="-48" y1="0" x2="-26" y2="0" class="switch-lever"/>' +
+        '<line x1="26" y1="0" x2="48" y2="0" class="switch-lever"/>' +
+        '<circle cx="0" cy="0" r="26" class="comp-body"/>' +
+        '<text x="0" y="8" class="meter-letter">G</text>' +
+        (genEmf > 0 ? '<path d="M-8 -34 Q0 -42 8 -34" class="switch-lever"/>' : '') +
+        '<text x="0" y="42" class="comp-value">' + SL.fmt(genEmf, 1) + 'V</text>';
+    } else if (comp.type === 'relay') {
+      var relayInfo = this.result && this.result.relays ? this.result.relays[comp.id] : null;
+      var relayOn = !!(relayInfo && relayInfo.energized);
+      body =
+        '<rect x="-48" y="-34" width="96" height="68" rx="8" class="comp-body"/>' +
+        '<line x1="-55" y1="22" x2="-40" y2="14" class="switch-lever"/>' +
+        '<line x1="-55" y1="-22" x2="-40" y2="-14" class="switch-lever"/>' +
+        '<path d="M-38 -14 C-42 -5 -42 5 -38 14 M-32 -14 C-36 -5 -36 5 -32 14 M-26 -14 C-30 -5 -30 5 -26 14" class="resistor-zigzag"/>' +
+        '<line x1="55" y1="26" x2="26" y2="26" class="switch-lever"/>' +
+        '<line x1="55" y1="0" x2="44" y2="0" class="switch-lever"/>' +
+        '<line x1="55" y1="-22" x2="44" y2="-22" class="switch-lever"/>' +
+        '<circle cx="26" cy="26" r="3.5" class="contact"/>' +
+        '<circle cx="44" cy="0" r="3.5" class="contact"/>' +
+        '<circle cx="44" cy="-22" r="3.5" class="contact"/>' +
+        '<line x1="26" y1="26" x2="44" y2="' + (relayOn ? 0 : -22) + '" class="switch-lever"/>' +
+        '<text x="-12" y="31" class="comp-value">' + (relayOn ? '吸合' : '释放') + '</text>';
+    } else if (comp.type === 'speaker') {
+      var speaker = this.result && this.result.speakers ? this.result.speakers[comp.id] : null;
+      var speaking = !!(speaker && speaker.active);
+      body =
+        '<line x1="-44" y1="0" x2="-24" y2="0" class="switch-lever"/>' +
+        '<rect x="-24" y="-14" width="18" height="28" rx="3" class="comp-body"/>' +
+        '<path d="M-6 -24 L20 -12 L20 12 L-6 24 Z" class="comp-body"/>' +
+        '<line x1="20" y1="0" x2="44" y2="0" class="switch-lever"/>' +
+        (speaking ? '<path d="M30 -13 Q37 -6 30 0 M36 -19 Q45 -9 36 2" fill="none" class="switch-lever"/>' : '') +
+        (speaking ? '<text x="0" y="42" class="comp-value">发声</text>' : '');
+    } else if (comp.type === 'galvanometer') {
+      var gal = this.result && this.result.meters ? this.result.meters[comp.id] : null;
+      var galRange = Number(p.range) || 0.1;
+      var galVal = gal ? gal.value : 0;
+      var galOver = !!(gal && gal.overRange);
+      var galDeg = Math.max(-1, Math.min(1, galVal / galRange)) * 55;
+      body =
+        '<circle cx="0" cy="0" r="26" class="meter-face' + (galOver ? ' over' : '') + '"/>' +
+        '<path d="M-20 12 A21 21 0 0 1 20 12" fill="none" stroke="' + (galOver ? '#c0392b' : '#8fa3b8') + '" stroke-width="1.4"/>' +
+        '<line x1="-15.3" y1="-12.9" x2="-12.3" y2="-10.3" stroke="#35506b" stroke-width="1.2"/>' +
+        '<line x1="-8.5" y1="-18.1" x2="-6.8" y2="-14.5" stroke="#35506b" stroke-width="1.2"/>' +
+        '<line x1="0" y1="-20" x2="0" y2="-15.5" stroke="#35506b" stroke-width="1.6"/>' +
+        '<line x1="8.5" y1="-18.1" x2="6.8" y2="-14.5" stroke="#35506b" stroke-width="1.2"/>' +
+        '<line x1="15.3" y1="-12.9" x2="12.3" y2="-10.3" stroke="#35506b" stroke-width="1.2"/>' +
+        '<text x="0" y="-8" class="comp-value">0</text>' +
+        '<line x1="0" y1="16" x2="0" y2="-20" stroke="' + (galOver ? '#c0392b' : '#33414f') + '" stroke-width="1.8" transform="rotate(' + galDeg.toFixed(1) + ')"/>' +
+        '<circle cx="0" cy="16" r="3" fill="#33414f"/>' +
+        '<text x="0" y="26" class="comp-value">G</text>' +
+        '<text x="0" y="42" class="comp-value' + (galOver ? ' danger' : '') + '">' + signed(galVal, 3) + ' A</text>';
     }
     return body;
   };
@@ -445,6 +511,10 @@
       if (comp.type === 'rheostat') labelY = comp.y + 50;
       if (comp.type === 'motor') labelY = comp.y + 50;
       if (comp.type === 'led') labelY = comp.y + 56;
+      if (comp.type === 'generator') labelY = comp.y + 54;
+      if (comp.type === 'relay') labelY = comp.y + 54;
+      if (comp.type === 'speaker') labelY = comp.y + 48;
+      if (comp.type === 'galvanometer') labelY = comp.y + 58;
       labelsMarkup += '<text class="comp-label" x="' + comp.x + '" y="' + labelY + '">' + label + '</text>';
     });
     this.gComps.innerHTML = compsMarkup;
@@ -470,6 +540,9 @@
     });
     Object.keys(this.result.supplies || {}).forEach(function (id) {
       maxCurrent = Math.max(maxCurrent, Math.abs(self.result.supplies[id].current || 0));
+    });
+    Object.keys(this.result.generators || {}).forEach(function (id) {
+      maxCurrent = Math.max(maxCurrent, Math.abs(self.result.generators[id].current || 0));
     });
     if (maxCurrent < 0.004) { this.gFlow.innerHTML = ''; return; }
     var duration = Math.max(0.7, Math.min(4, 1.6 / Math.max(0.05, maxCurrent)));
@@ -671,6 +744,12 @@
       }
       if (comp && comp.type === 'switch-spdt' && !moved) {
         comp.props.to = comp.props.to === 'c' ? 'b' : 'c';
+        SL.sound.play('click');
+        this.emitChange();
+        return;
+      }
+      if (comp && comp.type === 'generator' && !moved) {
+        comp.props.running = comp.props.running === false;
         SL.sound.play('click');
         this.emitChange();
         return;
