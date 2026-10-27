@@ -18,7 +18,7 @@
   <div id="out"></div>
   <div id="summary"></div>
 
-  <script src="../assets/js/core/circuit.js?v=51"></script>
+  <script src="../assets/js/core/circuit.js?v=52"></script>
   <script>
   (function () {
     var SL = window.SparkLab;
@@ -448,6 +448,122 @@
       var ok = near(ia, 6 / 5.5, 0.003) && ra.electromagnets[a.mag.id].on === true &&
         ra.electromagnets[a.mag.id].poleN === 'left' && rb.electromagnets[b.mag.id].poleN === 'right';
       return { ok: ok, detail: 'I=' + ia.toFixed(3) + ' 正接N=' + ra.electromagnets[a.mag.id].poleN + ' 反接N=' + rb.electromagnets[b.mag.id].poleN };
+    });
+
+    /* 25. 手摇发电机：6V、内阻 0.8Ω，接 10Ω */
+    test('发电机 6V + 10Ω：I≈0.556A', function () {
+      var gen = C('generator', 300, 400, { voltage: 6, running: true });
+      var res = C('resistor', 520, 400, { resistance: 10 });
+      var scene = {
+        components: [gen, res],
+        wires: [W(gen, 'pos', res, 'a'), W(res, 'b', gen, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.generators[gen.id];
+      var i = info ? Math.abs(info.current) : 0;
+      var ok = !!info && near(info.emf, 6, 1e-6) && near(i, 6 / 10.8, 0.003);
+      return { ok: ok, detail: 'emf=' + (info && info.emf) + ' I=' + i.toFixed(4) + ' 期望 ' + (6 / 10.8).toFixed(4) };
+    });
+
+    /* 26. 手摇发电机停止：电动势 0，电路无电流 */
+    test('发电机停止摇动：输出 0V、I≈0', function () {
+      var gen = C('generator', 300, 400, { voltage: 6, running: false });
+      var res = C('resistor', 520, 400, { resistance: 10 });
+      var scene = {
+        components: [gen, res],
+        wires: [W(gen, 'pos', res, 'a'), W(res, 'b', gen, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.generators[gen.id];
+      var i = info ? Math.abs(info.current) : 0;
+      var ok = !!info && info.emf === 0 && i < 1e-6;
+      return { ok: ok, detail: 'emf=' + (info && info.emf) + ' I=' + i.toExponential(2) };
+    });
+
+    /* 27. 电磁继电器吸合：线圈电流 ≥0.02A，com–no 导通 */
+    test('继电器吸合：com–no 导通', function () {
+      var sup = C('dcsupply', 300, 400, { voltage: 6 });
+      var relay = C('relay', 520, 400);
+      var load = C('bulb', 720, 400);
+      var scene = {
+        components: [sup, relay, load],
+        wires: [
+          W(sup, 'pos', relay, 'coilA'),
+          W(relay, 'coilB', sup, 'neg'),
+          W(sup, 'pos', relay, 'com'),
+          W(relay, 'no', load, 'a'),
+          W(load, 'b', sup, 'neg')
+        ]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.relays[relay.id];
+      var iLoad = Math.abs(r.bulbs[load.id].current);
+      var ok = !!info && info.energized === true && Math.abs(info.coilCurrent) >= 0.02 && iLoad > 0.1;
+      return { ok: ok, detail: '吸合=' + (info && info.energized) + ' I线圈=' + (info ? Math.abs(info.coilCurrent).toFixed(3) : '—') + ' I负载=' + iLoad.toFixed(3) };
+    });
+
+    /* 28. 电磁继电器释放：线圈电流 <0.02A，com–nc 导通 */
+    test('继电器释放：com–nc 导通', function () {
+      var sup = C('dcsupply', 300, 400, { voltage: 6 });
+      var relay = C('relay', 520, 400);
+      var coilR = C('resistor', 520, 260, { resistance: 1000 });
+      var load = C('bulb', 720, 400);
+      var scene = {
+        components: [sup, relay, coilR, load],
+        wires: [
+          W(sup, 'pos', relay, 'coilA'),
+          W(relay, 'coilB', coilR, 'a'),
+          W(coilR, 'b', sup, 'neg'),
+          W(sup, 'pos', relay, 'com'),
+          W(relay, 'nc', load, 'a'),
+          W(load, 'b', sup, 'neg')
+        ]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.relays[relay.id];
+      var iLoad = Math.abs(r.bulbs[load.id].current);
+      var ok = !!info && info.energized === false && Math.abs(info.coilCurrent) < 0.02 && iLoad > 0.1;
+      return { ok: ok, detail: '吸合=' + (info && info.energized) + ' I线圈=' + (info ? Math.abs(info.coilCurrent).toFixed(4) : '—') + ' I负载=' + iLoad.toFixed(3) };
+    });
+
+    /* 29. 扬声器：8Ω，电流与功率 */
+    test('扬声器 6V + 8Ω：发声', function () {
+      var sup = C('dcsupply', 300, 400, { voltage: 6 });
+      var spk = C('speaker', 520, 400);
+      var scene = {
+        components: [sup, spk],
+        wires: [W(sup, 'pos', spk, 'a'), W(spk, 'b', sup, 'neg')]
+      };
+      var r = SL.circuit.solve(scene);
+      var info = r.speakers[spk.id];
+      var i = info ? Math.abs(info.current) : 0;
+      var ok = !!info && near(i, 6 / 8.5, 0.005) && info.active === true && near(Math.abs(info.power), 3.986, 0.05);
+      return { ok: ok, detail: 'I=' + i.toFixed(3) + ' P=' + (info ? Math.abs(info.power).toFixed(2) : '—') + ' 发声=' + (info && info.active) };
+    });
+
+    /* 30. 灵敏电流计：正负读数与超量程标记 */
+    test('灵敏电流计：正负读数 / 超量程', function () {
+      var sup = C('dcsupply', 300, 400, { voltage: 6 });
+      var gal = C('galvanometer', 520, 400, { range: 0.1 });
+      var res = C('resistor', 720, 400, { resistance: 100 });
+      var forward = {
+        components: [sup, gal, res],
+        wires: [W(sup, 'pos', gal, 'plus'), W(gal, 'minus', res, 'a'), W(res, 'b', sup, 'neg')]
+      };
+      var rf = SL.circuit.solve(forward);
+      var mf = rf.meters[gal.id];
+      var reverse = {
+        components: [sup, gal, res],
+        wires: [W(sup, 'pos', gal, 'minus'), W(gal, 'plus', res, 'a'), W(res, 'b', sup, 'neg')]
+      };
+      var rr = SL.circuit.solve(reverse);
+      var mr = rr.meters[gal.id];
+      gal.props.range = 0.05;
+      var ro = SL.circuit.solve(forward);
+      var mo = ro.meters[gal.id];
+      var ok = !!mf && !!mr && near(mf.value, 6 / 101, 1e-3) && mr.value < 0 && mf.overRange === false &&
+        mo.overRange === true && ro.warnings.some(function (w) { return w.type === 'overRange' && w.compId === gal.id; });
+      return { ok: ok, detail: '正=' + (mf ? mf.value.toFixed(4) : '—') + ' 反=' + (mr ? mr.value.toFixed(4) : '—') + ' 超量程=' + (mo && mo.overRange) };
     });
 
     var summary = document.getElementById('summary');

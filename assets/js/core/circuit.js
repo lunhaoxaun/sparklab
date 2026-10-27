@@ -14,6 +14,12 @@
   var LED_OFF_R = 1e9;            // LED 截止时的等效电阻
   var FUSE_R = 0.05;              // 保险丝正常时的电阻
   var FUSE_OPEN_R = 1e9;          // 保险丝熔断后的断路电阻
+  var GENERATOR_R = 0.8;          // 手摇发电机内阻
+  var RELAY_COIL_R = 5;           // 电磁继电器线圈电阻
+  var RELAY_CONTACT_R = 0.01;     // 继电器触点闭合时的电阻
+  var RELAY_PULL_A = 0.02;        // 继电器吸合所需的线圈电流
+  var SPEAKER_R = 8;              // 扬声器音圈电阻
+  var GALVANOMETER_R = 0.5;       // 灵敏电流计内阻
 
   var TYPES = {
     battery: {
@@ -99,6 +105,38 @@
       label: '电磁铁', icon: 'atom', w: 96, h: 48,
       terminals: [{ id: 'a', dx: -46, dy: 0 }, { id: 'b', dx: 46, dy: 0 }],
       props: { resistance: 5 }
+    },
+    generator: {
+      label: '手摇发电机', icon: 'player-play', w: 96, h: 62,
+      terminals: [
+        { id: 'neg', dx: -48, dy: 0, polarity: '-' },
+        { id: 'pos', dx: 48, dy: 0, polarity: '+' }
+      ],
+      props: { voltage: 3, running: true }
+    },
+    relay: {
+      label: '电磁继电器', icon: 'atom', w: 110, h: 72,
+      terminals: [
+        { id: 'coilA', dx: -55, dy: 22 },
+        { id: 'coilB', dx: -55, dy: -22 },
+        { id: 'com', dx: 55, dy: 26 },
+        { id: 'no', dx: 55, dy: 0 },
+        { id: 'nc', dx: 55, dy: -22 }
+      ],
+      props: {}
+    },
+    speaker: {
+      label: '扬声器', icon: 'volume', w: 96, h: 62,
+      terminals: [{ id: 'a', dx: -44, dy: 0 }, { id: 'b', dx: 44, dy: 0 }],
+      props: {}
+    },
+    galvanometer: {
+      label: '灵敏电流计', icon: 'circuit-ammeter', w: 80, h: 60,
+      terminals: [
+        { id: 'plus', dx: -40, dy: 0, polarity: '+' },
+        { id: 'minus', dx: 40, dy: 0, polarity: '-' }
+      ],
+      props: { range: 0.1 }
     }
   };
 
@@ -268,9 +306,10 @@
     return x;
   }
 
-  /* 单次求解；ledOn 记录本轮按“导通”处理的 LED */
-  function solvePass(scene, ledOn) {
+  /* 单次求解；ledOn 记录本轮按“导通”处理的 LED，relayOn 记录本轮吸合的继电器 */
+  function solvePass(scene, ledOn, relayOn) {
     ledOn = ledOn || {};
+    relayOn = relayOn || {};
     var dsu = makeDsu();
     var terminals = [];
     var terminalNode = {};
@@ -298,6 +337,9 @@
       }
       if (comp.type === 'led') {
         dsu.add('#LED:' + comp.id);
+      }
+      if (comp.type === 'generator') {
+        dsu.add('#GEN:' + comp.id);
       }
     });
 
@@ -373,6 +415,24 @@
         addR(comp, comp.id + ':a', comp.id + ':b', p.blown ? FUSE_OPEN_R : FUSE_R);
       } else if (comp.type === 'electromagnet') {
         addR(comp, comp.id + ':a', comp.id + ':b', Math.max(0.01, p.resistance || 5));
+      } else if (comp.type === 'generator') {
+        var genE = Math.max(1.5, Math.min(12, Number(p.voltage) || 3));
+        var genInternal = '#GEN:' + comp.id;
+        if (p.running === false) {
+          /* 停止摇动：电动势为零，只剩内阻 */
+          addR(comp, comp.id + ':pos', comp.id + ':neg', GENERATOR_R);
+        } else {
+          addV(comp, genInternal, comp.id + ':neg', genE);
+          addR(comp, comp.id + ':pos', genInternal, GENERATOR_R);
+        }
+      } else if (comp.type === 'relay') {
+        addR(comp, comp.id + ':coilA', comp.id + ':coilB', RELAY_COIL_R);
+        if (relayOn[comp.id]) addR(comp, comp.id + ':com', comp.id + ':no', RELAY_CONTACT_R);
+        else addR(comp, comp.id + ':com', comp.id + ':nc', RELAY_CONTACT_R);
+      } else if (comp.type === 'speaker') {
+        addR(comp, comp.id + ':a', comp.id + ':b', SPEAKER_R);
+      } else if (comp.type === 'galvanometer') {
+        addR(comp, comp.id + ':plus', comp.id + ':minus', GALVANOMETER_R);
       }
     });
 
@@ -482,6 +542,9 @@
       bells: {},
       fuses: {},
       electromagnets: {},
+      generators: {},
+      relays: {},
+      speakers: {},
       warnings: []
     };
 
@@ -607,6 +670,54 @@
           on: Math.abs(out.current) > 0.02,
           poleN: out.current >= 0 ? 'left' : 'right'
         };
+      } else if (comp.type === 'generator') {
+        var genProps = comp.props || {};
+        var genRunning = genProps.running !== false;
+        var genEmf = genRunning ? Math.max(1.5, Math.min(12, Number(genProps.voltage) || 3)) : 0;
+        var genVPos = out.terminals.pos ? out.terminals.pos.voltage : 0;
+        var genVNeg = out.terminals.neg ? out.terminals.neg.voltage : 0;
+        var genCurrent;
+        if (genRunning) {
+          var genNode = nodeOf('#GEN:' + comp.id);
+          genCurrent = (genVPos - (nodeV[genNode] || 0)) / GENERATOR_R;
+        } else {
+          genCurrent = (genVPos - genVNeg) / GENERATOR_R;
+        }
+        out.voltage = genVPos - genVNeg;
+        out.emf = genEmf;
+        out.terminalVoltage = out.voltage;
+        out.current = genCurrent;
+        result.generators[comp.id] = { emf: genEmf, current: genCurrent };
+      } else if (comp.type === 'relay') {
+        var coilV = (out.terminals.coilA ? out.terminals.coilA.voltage : 0) -
+          (out.terminals.coilB ? out.terminals.coilB.voltage : 0);
+        var coilI = coilV / RELAY_COIL_R;
+        out.voltage = coilV;
+        out.current = coilI;
+        result.relays[comp.id] = { energized: !!relayOn[comp.id], coilCurrent: coilI };
+      } else if (comp.type === 'speaker') {
+        var spV = (out.terminals.a ? out.terminals.a.voltage : 0) -
+          (out.terminals.b ? out.terminals.b.voltage : 0);
+        var spI = spV / SPEAKER_R;
+        out.voltage = spV;
+        out.current = spI;
+        out.power = spV * spI;
+        result.speakers[comp.id] = {
+          active: Math.abs(spI) > 0.02,
+          current: spI,
+          power: spV * spI
+        };
+      } else if (comp.type === 'galvanometer') {
+        var galV = (out.terminals.plus ? out.terminals.plus.voltage : 0) -
+          (out.terminals.minus ? out.terminals.minus.voltage : 0);
+        var galI = galV / GALVANOMETER_R;
+        out.voltage = galV;
+        out.current = galI;
+        result.meters[comp.id] = {
+          kind: 'G',
+          value: galI,
+          range: Number((comp.props || {}).range) || 0.1
+        };
       }
       result.components[comp.id] = out;
     });
@@ -617,11 +728,16 @@
       var comp = compById[id];
       var range = (comp.props || {}).range || m.range;
       m.range = range;
-      m.reversed = m.value < -1e-6;
+      /* 灵敏电流计为双向刻度，负值表示电流从 minus 流入，不算接反 */
+      m.reversed = m.kind === 'G' ? false : m.value < -1e-6;
       m.overRange = Math.abs(m.value) > range * 1.001;
       m.display = Math.abs(m.value);
-      if (m.overRange) result.warnings.push({ type: 'overRange', compId: id, message: (m.kind === 'A' ? '电流表' : '电压表') + '超量程，请更换大量程' });
-      if (m.reversed) result.warnings.push({ type: 'reverse', compId: id, message: (m.kind === 'A' ? '电流表' : '电压表') + '指针反偏，正负接线柱接反了' });
+      if (m.kind === 'G') {
+        if (m.overRange) result.warnings.push({ type: 'overRange', compId: id, message: '灵敏电流计超过量程（±' + range + ' A），请减小电流' });
+      } else {
+        if (m.overRange) result.warnings.push({ type: 'overRange', compId: id, message: (m.kind === 'A' ? '电流表' : '电压表') + '超量程，请更换大量程' });
+        if (m.reversed) result.warnings.push({ type: 'reverse', compId: id, message: (m.kind === 'A' ? '电流表' : '电压表') + '指针反偏，正负接线柱接反了' });
+      }
     });
 
     /* 断路判断：开关已闭合但电源没有电流 */
@@ -651,7 +767,7 @@
     });
 
     /* 拓扑：串并联识别与电流路径 */
-    var topo = analyseTopology(scene, dsu, terminalNode, nodeOf);
+    var topo = analyseTopology(scene, dsu, terminalNode, nodeOf, relayOn);
     result.sceneType = topo.scene;
     result.paths = topo.paths;
     result.bulbIds = topo.bulbIds;
@@ -662,10 +778,11 @@
     return result;
   }
 
-  /* LED 非线性迭代（最多两轮）+ 保险丝熔断判断 */
+  /* LED 非线性迭代（最多两轮）+ 继电器吸合迭代（最多三轮）+ 保险丝熔断判断 */
   function solve(scene) {
     var ledOn = {};
-    var result = solvePass(scene, ledOn);
+    var relayOn = {};
+    var result = solvePass(scene, ledOn, relayOn);
 
     var nextOn = {};
     var ledChanged = false;
@@ -677,7 +794,23 @@
         ledChanged = true;
       }
     });
-    if (ledChanged) result = solvePass(scene, nextOn);
+    if (ledChanged) result = solvePass(scene, nextOn, relayOn);
+    ledOn = nextOn;
+
+    /* 继电器：上一轮吸合状态 → 求解 → 按线圈电流判断 → 再求解，最多三轮 */
+    for (var round = 0; round < 3; round++) {
+      var nextRelay = {};
+      var relayChanged = false;
+      scene.components.forEach(function (comp) {
+        if (comp.type !== 'relay') return;
+        var info = result.relays ? result.relays[comp.id] : null;
+        if (info && Math.abs(info.coilCurrent) >= RELAY_PULL_A) nextRelay[comp.id] = true;
+        if (!!nextRelay[comp.id] !== !!relayOn[comp.id]) relayChanged = true;
+      });
+      if (!relayChanged) break;
+      relayOn = nextRelay;
+      result = solvePass(scene, ledOn, relayOn);
+    }
 
     var tripped = [];
     scene.components.forEach(function (comp) {
@@ -692,7 +825,7 @@
       }
     });
     if (tripped.length) {
-      result = solvePass(scene, nextOn);
+      result = solvePass(scene, ledOn, relayOn);
       tripped.forEach(function (id) {
         result.warnings.push({ type: 'fuse', compId: id, message: '保险丝熔断，请更换' });
       });
@@ -703,9 +836,12 @@
   }
 
   /* ---------- 拓扑分析 ---------- */
-  function analyseTopology(scene, dsu, terminalNode, nodeOf) {
+  function analyseTopology(scene, dsu, terminalNode, nodeOf, relayOn) {
+    relayOn = relayOn || {};
     var bulbIds = scene.components.filter(function (c) { return c.type === 'bulb'; }).map(function (c) { return c.id; });
-    var batteries = scene.components.filter(function (c) { return c.type === 'battery' || c.type === 'dcsupply'; });
+    var batteries = scene.components.filter(function (c) {
+      return c.type === 'battery' || c.type === 'dcsupply' || c.type === 'generator';
+    });
     var edges = [];
     var adj = {};
 
@@ -726,8 +862,13 @@
         addEdge(comp.id, nodeOfKey(comp.id + ':b'), sNode);
         return;
       }
+      if (comp.type === 'relay') {
+        addEdge(comp.id, nodeOfKey(comp.id + ':coilA'), nodeOfKey(comp.id + ':coilB'));
+        addEdge(comp.id, nodeOfKey(comp.id + ':com'), nodeOfKey(comp.id + ':' + (relayOn[comp.id] ? 'no' : 'nc')));
+        return;
+      }
       if (comp.type === 'bulb' && comp.props.burned) return;
-      if (comp.type === 'battery' || comp.type === 'dcsupply') return;
+      if (comp.type === 'battery' || comp.type === 'dcsupply' || comp.type === 'generator') return;
       if (comp.type === 'fuse' && comp.props.blown) return;
       var ts = TYPES[comp.type].terminals;
       var second = ts[1];

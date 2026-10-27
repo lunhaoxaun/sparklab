@@ -315,7 +315,7 @@
           { icon: 'player-play', label: '电动机' },
           { icon: 'atom', label: '电磁铁 / 电铃 / 保险丝' }
         ],
-        palette: ['battery', 'dcsupply', 'switch', 'switch-spdt', 'bulb', 'led', 'resistor', 'resistance-box', 'rheostat', 'ammeter', 'voltmeter', 'motor', 'bell', 'fuse', 'electromagnet'],
+        palette: ['battery', 'dcsupply', 'switch', 'switch-spdt', 'bulb', 'led', 'resistor', 'resistance-box', 'rheostat', 'ammeter', 'voltmeter', 'motor', 'generator', 'relay', 'speaker', 'galvanometer', 'bell', 'fuse', 'electromagnet'],
         columns: [
           { key: 'group', label: '组次' },
           { key: 'voltage', label: '电压 U/V', digits: 2 },

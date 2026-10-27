@@ -26,14 +26,14 @@
   <div id="meters-host"></div>
   <div id="records-host"></div>
 
-  <script src="../assets/js/core/utils.js?v=51"></script>
-  <script src="../data/experiments.js?v=51"></script>
-  <script src="../assets/js/core/circuit.js?v=51"></script>
-  <script src="../assets/js/core/skins.js?v=51"></script>
-  <script src="../assets/js/core/board.js?v=51"></script>
-  <script src="../assets/js/core/meters.js?v=51"></script>
-  <script src="../assets/js/core/records.js?v=51"></script>
-  <script src="../assets/js/labs/lab-ohm-r.js?v=51"></script>
+  <script src="../assets/js/core/utils.js?v=52"></script>
+  <script src="../data/experiments.js?v=52"></script>
+  <script src="../assets/js/core/circuit.js?v=52"></script>
+  <script src="../assets/js/core/skins.js?v=52"></script>
+  <script src="../assets/js/core/board.js?v=52"></script>
+  <script src="../assets/js/core/meters.js?v=52"></script>
+  <script src="../assets/js/core/records.js?v=52"></script>
+  <script src="../assets/js/labs/lab-ohm-r.js?v=52"></script>
   <script>
   (function () {
     var SL = window.SparkLab;
@@ -473,6 +473,56 @@
           var svgClass = board.svg.getAttribute('class') || '';
           var body = document.querySelector('#board-host g.comp-switch .comp-body');
           return { ok: classicComps === 0 && svgClass.indexOf('skin-classic') !== -1 && !!body, detail: '拟真残留=' + classicComps + ' 开关符号=' + !!body };
+        });
+
+        /* ---------- 新增元件：发电机 / 继电器 / 扬声器 / 灵敏电流计 ---------- */
+        var freshTypes = ['generator', 'relay', 'speaker', 'galvanometer'];
+        var freshComps = freshTypes.map(function (t, i) {
+          return SL.circuit.create(t, 220 + i * 230, 300);
+        });
+        board.setScene({ components: freshComps, wires: [] });
+        solve();
+
+        test('两套皮肤都能渲染 4 种新元件', function () {
+          board.setSkin('classic');
+          board.render();
+          var classicOk = freshTypes.every(function (t) {
+            var g = document.querySelector('#board-host g.comp-' + t);
+            return !!g && g.innerHTML.length > 40;
+          });
+          board.setSkin('nb');
+          board.render();
+          var nbOk = freshTypes.every(function (t) {
+            var g = document.querySelector('#board-host g.comp-' + t + '.comp-nb');
+            return !!g && g.innerHTML.length > 40;
+          });
+          return { ok: classicOk && nbOk, detail: 'classic=' + classicOk + ' nb=' + nbOk };
+        });
+
+        var genNow = board.getScene().components.filter(function (c) { return c.type === 'generator'; })[0];
+        var genEl = document.querySelector('#board-host g.comp-generator');
+        var origGenCap = board.svg.setPointerCapture;
+        board.svg.setPointerCapture = function () {};
+        var gr = genEl.getBoundingClientRect();
+        var gp = {
+          bubbles: true, cancelable: true, pointerId: 21, isPrimary: true, pointerType: 'mouse',
+          clientX: gr.left + gr.width / 2, clientY: gr.top + gr.height / 2
+        };
+        genEl.dispatchEvent(new PointerEvent('pointerdown', gp));
+        genEl.dispatchEvent(new PointerEvent('pointerup', gp));
+        board.svg.setPointerCapture = origGenCap;
+        board.pointers = {};
+        board.render();
+
+        test('新元件面板/交互钩子存在（元件库 + 皮肤绘制 + 发电机点击）', function () {
+          var palette = SL.data.labsById['sandbox'].palette;
+          var inPalette = freshTypes.every(function (t) { return palette.indexOf(t) !== -1; });
+          var thumbs = freshTypes.every(function (t) {
+            var comp = { id: 'thumb-' + t, type: t, props: SL.circuit.TYPES[t].props };
+            return SL.skins.body(comp, { result: null, scene: { components: [], wires: [] } }).length > 40;
+          });
+          var toggled = genNow && genNow.props.running === false;
+          return { ok: inPalette && thumbs && !!toggled, detail: 'palette=' + inPalette + ' thumb=' + thumbs + ' 点击停止=' + !!toggled };
         });
 
         SL.records.clear('ohm-r');
