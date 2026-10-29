@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>记录单公式自测</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+  <style>
+    body { font-family: var(--font); background: #eef2f9; color: var(--ink); padding: 20px; }
+    h1 { font-size: 16px; margin: 0 0 10px; }
+    #out { font: 12.5px/1.75 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
+    .pass { color: #1a7a4f; }
+    .fail { color: #c0392b; font-weight: 700; }
+    #summary { margin-top: 14px; font-size: 15px; font-weight: 700; }
+    #host { position: absolute; left: -9999px; top: 0; width: 420px; }
+  </style>
+</head>
+<body>
+  <h1>记录单公式自测（公式引擎 · 计算列 · 汇总行 · CSV）</h1>
+  <div id="out">运行中…</div>
+  <div id="summary"></div>
+  <div id="host"></div>
+
+  <script src="../assets/js/core/utils.js"></script>
+  <script src="../assets/js/core/formula.js"></script>
+  <script src="../assets/js/core/records.js"></script>
+  <script>
+  (function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var lines = [];
+    var pass = 0, fail = 0;
+
+    function ok(name, cond, detail) {
+      if (cond) { pass += 1; lines.push('PASS  ' + name + (detail ? '  [' + detail + ']' : '')); }
+      else { fail += 1; lines.push('FAIL  ' + name + (detail ? '  [' + detail + ']' : '')); }
+    }
+    function near(a, b, tol) { return Math.abs(a - b) <= (tol == null ? 1e-9 : tol); }
+    function flush() {
+      out.innerHTML = lines.map(function (l) {
+        return '<span class="' + (l.indexOf('PASS') === 0 ? 'pass' : 'fail') + '">' + l + '</span>';
+      }).join('\n') + '\n\n合计：' + pass + ' 通过 / ' + fail + ' 失败';
+      document.title = fail ? 'FAIL ' + fail : 'PASS ' + pass + '/' + (pass + fail);
+      window.__testDone = true;
+    }
+
+    var F = SL.formula;
+    var cols = [
+      { key: 'u', label: '电压 U/V', digits: 2 },
+      { key: 'i', label: '电流 I/A', digits: 3 },
+      { key: 'r', label: '电阻 R/Ω', digits: 1 }
+    ];
+    var rows = [
+      { u: 1.5, i: 0.15, r: 10 },
+      { u: 2.0, i: 0.20, r: 10 },
+      { u: 2.5, i: 0.25, r: 20 }
+    ];
+    function ev(src, fill) { return F.evaluate(src, cols, rows, fill); }
+    function val(src, fill) { var r = ev(src, fill); return r.ok ? r.value : r.error; }
+
+    function run() {
+      /* ---------- 1. 列字母 ---------- */
+      ok('列字母 A / Z / AA', F.colLetter(0) === 'A' && F.colLetter(25) === 'Z' && F.colLetter(26) === 'AA',
+        F.colLetter(0) + F.colLetter(25) + F.colLetter(26));
+      ok('列字母反解 colIndex', F.colIndex('A') === 0 && F.colIndex('C') === 2 && F.colIndex('AA') === 26,
+        String(F.colIndex('AA')));
+
+      /* ---------- 2. 汇总函数 ---------- */
+      ok('SUM 区域求和', near(val('=SUM(A1:A3)'), 6), String(val('=SUM(A1:A3)')));
+      ok('AVERAGE 求平均', near(val('=AVERAGE(B1:B3)'), 0.2, 1e-9), String(val('=AVERAGE(B1:B3)')));
+      ok('AVG 是 AVERAGE 的别名', near(val('=AVG(B1:B3)'), 0.2, 1e-9), String(val('=AVG(B1:B3)')));
+      ok('MAX 与 MIN', near(val('=MAX(C1:C3)'), 20) && near(val('=MIN(C1:C3)'), 10),
+        val('=MAX(C1:C3)') + ' / ' + val('=MIN(C1:C3)'));
+      ok('极差 = MAX - MIN', near(val('=MAX(C1:C3)-MIN(C1:C3)'), 10), String(val('=MAX(C1:C3)-MIN(C1:C3)')));
+      ok('COUNT 只数数字，忽略空值', near(val('=COUNT(A1:C3)'), 9), String(val('=COUNT(A1:C3)')));
+      ok('MEDIAN 中位数', near(val('=MEDIAN(A1:A3)'), 2), String(val('=MEDIAN(A1:A3)')));
+      ok('STDEV 样本标准差', near(val('=STDEV(A1:A3)'), 0.5, 1e-9), String(val('=STDEV(A1:A3)')));
+      ok('SUMIF 条件求和', near(val('=SUMIF(A1:A3,">1.6",B1:B3)'), 0.45, 1e-9), String(val('=SUMIF(A1:A3,">1.6",B1:B3)')));
+      ok('COUNTIF 条件计数', near(val('=COUNTIF(A1:A3,">1.6")'), 2), String(val('=COUNTIF(A1:A3,">1.6")')));
+
+      /* ---------- 3. 运算与函数 ---------- */
+      ok('四则与括号优先级', near(val('=(1+2)*3'), 9), String(val('=(1+2)*3')));
+      ok('幂运算 ^', near(val('=2^3'), 8), String(val('=2^3')));
+      ok('百分号 %', near(val('=50%'), 0.5), String(val('=50%')));
+      ok('ROUND 四舍五入', near(val('=ROUND(A1/B1,1)'), 10), String(val('=ROUND(A1/B1,1)')));
+      ok('ROUND 负数', near(val('=-1.25*1'), -1.25) && near(val('=ROUND(-1.25,1)'), -1.3), String(val('=ROUND(-1.25,1)')));
+      ok('比较运算返回 1/0', near(val('=A2>1.6'), 1) && near(val('=A1>1.6'), 0), val('=A2>1.6') + '/' + val('=A1>1.6'));
+      ok('IF 返回文字', val('=IF(A2>1.6,"偏大","正常")') === '偏大', String(val('=IF(A2>1.6,"偏大","正常")')));
+      ok('IF 只算被选中的分支（不触发除零）', near(val('=IF(A1>0,1,1/0)'), 1), String(val('=IF(A1>0,1,1/0)')));
+
+      /* ---------- 4. 引用与填充 ---------- */
+      ok('单元格引用', near(val('=A2'), 2), String(val('=A2')));
+      ok('空单元格按 0 处理', near(val('=A9'), 0), String(val('=A9')));
+      ok('区域首值（区域当单值用）', near(val('=B1:B3'), 0.15), String(val('=B1:B3')));
+      ok('计算列按行填充：第 2 行 =C2*2', near(val('=C1*2', 2), 20), String(val('=C1*2', 2)));
+      ok('计算列按行填充：第 3 行 =A1+B1', near(val('=A1+B1', 3), 2.75), String(val('=A1+B1', 3)));
+      ok('$ 绝对引用写法同样可用', near(val('=$A$1*2'), 3), String(val('=$A$1*2')));
+
+      /* ---------- 5. 错误处理 ---------- */
+      ok('除以 0 报 #DIV/0!', ev('=1/0').error === '#DIV/0!', ev('=1/0').error);
+      ok('未知函数报 #NAME?', ev('=FOO(1)').error === '#NAME?', ev('=FOO(1)').error);
+      ok('括号不闭合报 #SYNTAX!', ev('=1+').error === '#SYNTAX!', ev('=1+').error);
+      ok('超出列范围报 #REF!', ev('=D1').error === '#REF!', ev('=D1').error);
+
+      /* ---------- 6. 记录单：计算列与汇总行 ---------- */
+      var lab = { name: '公式自测', columns: cols, averageField: 'i' };
+      var id = 'formula-test-lab';
+      SL.records.clear(id);
+      rows.forEach(function (r) { SL.records.add(id, r); });
+      var data = SL.records.get(id);
+
+      var calc = {
+        cols: [{ id: 'k1', label: '比值', formula: '=ROUND(A1/B1,2)', digits: 2 }],
+        rows: [
+          { id: 'r1', label: '平均电流', formula: '=AVERAGE(B1:B3)', col: 'i' },
+          { id: 'r2', label: '极差', formula: '=MAX(A1:A3)-MIN(A1:A3)', col: 'r' }
+        ]
+      };
+      SL.records.calc.set(id, calc);
+      var saved = SL.records.calc.get(id);
+      ok('公式配置可存取', saved.cols.length === 1 && saved.rows.length === 2,
+        saved.cols.length + ' 列 / ' + saved.rows.length + ' 行');
+
+      var host = document.getElementById('host');
+      var deletedRow = null, deletedCol = null, edited = null;
+      SL.records.renderTable(host, lab, data, {
+        calc: calc,
+        onDelete: function () {},
+        onDeleteCalc: function (cid) {
+          if (cid === 'k1') deletedCol = cid; else deletedRow = cid;
+        },
+        onEditCalc: function (cid) { edited = cid; }
+      });
+
+      var ths = host.querySelectorAll('thead th');
+      ok('计算列并入表头（3 列 + 计算列 + 时间 + 删除）', ths.length === 6, String(ths.length));
+      ok('表头带 A1 风格列字母', /A/.test(ths[0].textContent) && /D/.test(ths[3].textContent),
+        ths[0].textContent + ' / ' + ths[3].textContent);
+
+      var tds = host.querySelectorAll('tbody tr:first-child td');
+      ok('计算列按行算出结果', tds[3].textContent.trim() === '10.00', tds[3].textContent);
+      ok('计算列带标记类', tds[3].className.indexOf('cell-calc') >= 0, tds[3].className);
+
+      var foot = host.querySelectorAll('tfoot tr');
+      ok('表尾有平均值行 + 2 条公式行', foot.length === 3, String(foot.length));
+      var avgLabel = host.querySelector('tfoot .avg-label');
+      ok('平均值行仍然存在且数值正确', avgLabel && host.querySelector('.avg-value').textContent === '0.200',
+        host.querySelector('.avg-value') ? host.querySelector('.avg-value').textContent : 'none');
+      ok('汇总行数值正确（平均电流 0.200）', foot[1].querySelector('.calc-value').textContent === '0.200',
+        foot[1].querySelector('.calc-value').textContent);
+      ok('汇总行标签是自定义名称', foot[1].querySelector('.calc-label').textContent.indexOf('平均电流') === 0,
+        foot[1].querySelector('.calc-label').textContent);
+      ok('汇总行数值落在目标列（极差 → 电阻列 C，标签跨 2 列）', foot[2].cells.length === 5 &&
+        foot[2].querySelector('.calc-value').textContent === '1.0',
+        foot[2].cells.length + ' 格 / ' + foot[2].querySelector('.calc-value').textContent);
+
+      host.querySelector('[data-calc-del="k1"]').click();
+      ok('计算列表头有删除按钮并回传 id', deletedCol === 'k1', String(deletedCol));
+      foot[1].querySelector('.calc-del').click();
+      ok('汇总行有删除按钮并回传 id', deletedRow === 'r1', String(deletedRow));
+      foot[1].querySelector('.calc-label').click();
+      ok('点击汇总行标签进入编辑', edited === 'r1', String(edited));
+
+      /* 错误公式：整列显示错误码 */
+      var badCalc = { cols: [{ id: 'bad', label: '坏的', formula: '=A1/B1', digits: 2 }], rows: [] };
+      var badRows = [{ u: 1, i: 0, r: 0 }];
+      SL.records.renderTable(host, lab, badRows, { calc: badCalc });
+      var badCell = host.querySelector('td.cell-calc');
+      ok('计算列出错时显示 #DIV/0! 并标红', badCell.textContent === '#DIV/0!' && badCell.className.indexOf('is-error') >= 0,
+        badCell.textContent);
+
+      /* ---------- 7. CSV 导出 ---------- */
+      var captured = null;
+      var oldDownload = SL.download;
+      SL.download = function (name, content) { captured = { name: name, content: content }; };
+      SL.records.exportCSV(lab, data, calc);
+      SL.download = oldDownload;
+      var lines2 = captured ? captured.content.replace(/^\uFEFF/, '').split('\r\n') : [];
+      ok('CSV 表头包含计算列', lines2[3] && lines2[3].indexOf('"比值"') >= 0, lines2[3]);
+      ok('CSV 数据行包含计算结果', lines2[4] && lines2[4].split(',')[3] === '10.00', lines2[4]);
+      ok('CSV 末尾包含公式行', lines2[lines2.length - 1].indexOf('极差') === 0 && lines2[lines2.length - 2].indexOf('平均电流') === 0,
+        lines2[lines2.length - 2] + ' || ' + lines2[lines2.length - 1]);
+
+      /* ---------- 8. 配置清洗 ---------- */
+      var dirty = { rows: [], cols: [] };
+      for (var i2 = 0; i2 < 20; i2++) dirty.cols.push({ id: 'c' + i2, label: 'x', formula: '=1+1', digits: 2 });
+      SL.records.calc.set(id, dirty);
+      ok('计算列最多保留 4 个', SL.records.calc.get(id).cols.length === 4, String(SL.records.calc.get(id).cols.length));
+      SL.records.calc.clear(id);
+      ok('清空后取回空配置', SL.records.calc.get(id).cols.length === 0);
+
+      SL.records.clear(id);
+      flush();
+    }
+
+    if (document.readyState === 'complete') run();
+    else window.addEventListener('load', run);
+  })();
+  </script>
+</body>
+</html>

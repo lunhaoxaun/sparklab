@@ -4,7 +4,7 @@
   var SL = (window.SparkLab = window.SparkLab || {});
 
   /* 版本号：界面顶栏、首页页脚与「关于」中展示 */
-  SL.VERSION = '2.3.0';
+  SL.VERSION = '2.4.0';
   SL.VERSION_DATE = '2026-10-29';
   SL.BRAND = '星火物理实验室';
 
@@ -76,7 +76,8 @@
   SL.KEYS = {
     records: 'sparklab:v1:records',
     progress: 'sparklab:v1:progress',
-    settings: 'sparklab:v1:settings'
+    settings: 'sparklab:v1:settings',
+    calc: 'sparklab:v1:calc'
   };
 
   SL.storage = (function () {

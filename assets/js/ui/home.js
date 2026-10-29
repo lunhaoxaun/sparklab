@@ -160,9 +160,15 @@
         '<li>点击量程按钮可以切换 0–0.6A / 0–3A、0–3V / 0–15V。</li>' +
         '<li>读数稳定后点击「记录当前数据」，数据会写进记录单，最新一行会闪一下。</li>' +
         '<li>记录单每行右侧的 × 可以删掉录错的那一条，其余数据不受影响。</li>' +
-        '<li>记录单可导出 CSV（Excel 打开）或打印。</li></ol></section>' +
+        '<li>记录单上方是公式栏，可以像 Excel 一样算平均值、求和、极差等；结果可导出 CSV 或打印。</li></ol></section>' +
         '</div>' +
         '<section class="help-tip"><h3>实验台右上角的工具条</h3><p>「网格」显示或隐藏参考网格，「数值 / 标注」显示或隐藏画布上的读数与文字标注，「矢量」开关力的箭头（力学实验），「0.5× / 1× / 2×」调整自动演示速度，「全屏」把实验台放大到整个屏幕，适合投影上课。这些开关会被记住，下次打开实验仍是上次的设置。</p></section>' +
+        '<section class="help-tip"><h3>记录单里的公式（像 Excel 一样）</h3>' +
+        '<p>表格上方的 <strong>ƒx</strong> 公式栏支持单元格引用和常用函数。列用字母表示（A、B、C…，表头左侧的小标签就是），行号从第 1 条记录算起，所以 <code>=C1/C2</code> 指的是「C 列第 1 行 ÷ C 列第 2 行」。</p>' +
+        '<p><strong>汇总行</strong>：对整个区域算一个值，例如 <code>=AVERAGE(C1:C5)</code>、<code>=SUM(D1:D5)</code>、<code>=MAX(A1:A5)-MIN(A1:A5)</code>，结果显示在所选列的下方。<strong>计算列</strong>：给每条记录各算一个值，例如 <code>=ROUND(B1/C1,1)</code>，会按行自动填充成新的一列。</p>' +
+        '<p>可用函数：SUM、AVERAGE（AVG）、MAX、MIN、COUNT、COUNTA、MEDIAN、STDEV、ROUND、ROUNDUP、ROUNDDOWN、ABS、SQRT、POWER、MOD、INT、IF、IFERROR、COUNTIF、SUMIF、AND、OR、NOT、PI；支持 + − × ÷ ^ % 与 &gt; &lt; = 比较。点「平均 / 求和 / 最大 / 最小 / 极差 / 计数 / 标准差」这些按钮可以一键填好公式；点表格里的公式行可以改，× 可以删。</p></section>' +
+        '<section class="help-tip"><h3>把器材拖进实验台 · 移动视野</h3>' +
+        '<p>左栏器材可以直接<strong>拖</strong>到实验台，松手就落在鼠标位置；也可以单击，元件会自动出现在当前视野里最空的地方——放大或平移过画布也不用担心它跑到屏幕外。按住画布<strong>空白处拖动</strong>可以平移视野（中键、<kbd>Alt</kbd>+拖动同样可以），双指操作是缩放 + 平移。拖元件时靠近其他元件会出现橙色虚线，自动对齐。</p></section>' +
         '<section class="help-tip"><h3>安全与提示</h3><p>电学实验会检测电源短路、断路、电表反接、超量程、灯泡烧坏和滑动变阻器错误接法，并在画布下方给出提示。出现短路时请先断开开关。力学、热学、光学实验没有危险操作，可以随意改变参数。</p></section>' +
         '<section class="help-tip"><h3>力学 / 热学 / 光学怎么玩</h3><p>左栏是实验参数：拖动滑块或点按钮，画面和右侧读数会立刻重算。画面里的物体大多可以直接拖动——杠杆上的钩码、滑轮组的钩码、烧杯里的物块都能用鼠标或手指拉，松开即生效。有「播放」按钮的实验可以自动演示一段过程（如匀速提升、持续加热）。每个板块末尾还有一个<strong>自由实验室</strong>：几套装置放在一起，参数全部开放、没有步骤，适合开放探究或考前自己验证想法。</p></section>' +
         '<section class="help-tip"><h3>快捷键</h3><p><kbd>Ctrl</kbd>+<kbd>=</kbd> 放大　<kbd>Ctrl</kbd>+<kbd>-</kbd> 缩小　<kbd>Ctrl</kbd>+滚轮、双指捏合也可缩放　<kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤回　<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 重做　<kbd>Ctrl</kbd>+<kbd>D</kbd> 复制元件　<kbd>Esc</kbd> 取消连线　<kbd>Delete</kbd> 删除选中　<kbd>R</kbd> 旋转元件　<kbd>Shift</kbd>+方向键 精细移动</p></section>' +

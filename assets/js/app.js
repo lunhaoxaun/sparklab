@@ -28,6 +28,8 @@
     viewOpts: { grid: true, values: true, vectors: true },
     simSpeed: 1,
     highlightRow: -1,
+    calcMode: 'row',
+    calcEditing: null,
     syncTimer: null,
     keyHandler: null
   };
@@ -230,8 +232,8 @@
       skinHtml +
       '<button type="button" class="btn btn-icon btn-ghost" id="lab-undo" title="撤回（Ctrl+Z）" aria-label="撤回">' + SL.icon('arrow-left', '', 18) + '</button>' +
       '<button type="button" class="btn btn-icon btn-ghost" id="lab-redo" title="重做（Ctrl+Shift+Z）" aria-label="重做">' + SL.icon('arrow-left', 'icon-flip', 18) + '</button>' +
-      '<button type="button" class="btn btn-soft" id="lab-beautify" title="自动整理元件位置，并理清重叠的导线">' + beautifyIcon() + '一键美化</button>' +
-      '<button type="button" class="btn btn-soft" id="lab-example">' + SL.icon('settings', '', 16) + '示例电路</button>' +
+      '<button type="button" class="btn btn-soft" id="lab-beautify" title="自动整理元件位置，并理清重叠的导线">' + beautifyIcon() + '<span class="btn-label">一键美化</span></button>' +
+      '<button type="button" class="btn btn-soft" id="lab-example" title="载入标准示例电路">' + SL.icon('settings', '', 16) + '<span class="btn-label">示例电路</span></button>' +
       '<button type="button" class="btn btn-ghost" id="lab-reset">重置</button>' +
       '</div></div>' +
 
@@ -249,9 +251,11 @@
       '</div><p class="palette-tip">拖动器材到实验台，或单击直接添加<br>点击两个接线柱完成连线</p></aside>' +
 
       '<section class="stage">' +
+      stageHeadHtml({ sim: false, note: '拖动器材到画布 · 按住空白处平移视野' }) +
+      '<div class="stage-canvas">' +
       '<div class="inspector" id="inspector" hidden></div>' +
-      stageToolsHtml({ sim: false }) +
       '<div class="board-host" id="board-host"></div>' +
+      '</div>' +
       '<div class="stage-bar"><div class="warnings" id="stage-warnings"></div>' +
       '<div class="stage-actions">' + pointHtml +
       '<button type="button" class="btn btn-primary" id="record-btn">' + SL.icon('chart-line', '', 17) + '记录当前数据</button>' +
@@ -259,15 +263,9 @@
 
       '<aside class="side">' +
       '<section class="panel"><div class="panel-head"><h2>仪表读数</h2></div><div class="meters-host" id="meters-host"></div></section>' +
+      recordsPanelHtml() +
       '<section class="panel panel-extra" id="extra-panel"' + (lab.renderExtra ? '' : ' hidden') + '><div class="panel-head"><h2>图像</h2></div><div id="extra-host"></div></section>' +
       '<section class="panel panel-guide" id="guide-panel"></section>' +
-      '<section class="panel panel-records"><div class="panel-head"><h2>实验记录单</h2><span class="panel-badge" id="record-count"></span></div>' +
-      '<div id="records-host"></div>' +
-      '<div class="record-actions">' +
-      '<button type="button" class="btn btn-ghost btn-sm" id="export-btn">' + SL.icon('download', '', 15) + '导出 CSV</button>' +
-      '<button type="button" class="btn btn-ghost btn-sm" id="print-btn">' + SL.icon('printer', '', 15) + '打印</button>' +
-      '<button type="button" class="btn btn-ghost btn-sm btn-danger-ghost" id="clear-btn">' + SL.icon('trash', '', 15) + '清空</button>' +
-      '</div></section>' +
       '</aside></div></div>';
 
     app.board = new SL.Board(SL.$('#board-host'), {
@@ -342,24 +340,20 @@
       '<p class="palette-tip">拖动画面中的物体也能改变参数；<br>数值会随参数实时重算。</p></aside>' +
 
       '<section class="stage sim-stage-wrap">' +
-      stageToolsHtml({ sim: true, animated: animated }) +
+      stageHeadHtml({ sim: true, animated: animated, note: '拖动画面中的物体也能改参数' }) +
+      '<div class="stage-canvas">' +
       '<div class="board-host sim-stage-host" id="board-host"></div>' +
+      '</div>' +
       '<div class="stage-bar"><div class="warnings" id="stage-warnings"></div>' +
       '<div class="stage-actions"><button type="button" class="btn btn-primary" id="record-btn">' +
       SL.icon('chart-line', '', 17) + '记录当前数据</button></div></div></section>' +
 
       '<aside class="side">' +
       '<section class="panel"><div class="panel-head"><h2>实时读数</h2></div><div class="readouts-host" id="meters-host"></div></section>' +
+      recordsPanelHtml() +
       '<section class="panel panel-extra" id="extra-panel"' + (lab.renderExtra ? '' : ' hidden') +
       '><div class="panel-head"><h2>图像</h2></div><div id="extra-host"></div></section>' +
       '<section class="panel panel-guide" id="guide-panel"></section>' +
-      '<section class="panel panel-records"><div class="panel-head"><h2>实验记录单</h2><span class="panel-badge" id="record-count"></span></div>' +
-      '<div id="records-host"></div>' +
-      '<div class="record-actions">' +
-      '<button type="button" class="btn btn-ghost btn-sm" id="export-btn">' + SL.icon('download', '', 15) + '导出 CSV</button>' +
-      '<button type="button" class="btn btn-ghost btn-sm" id="print-btn">' + SL.icon('printer', '', 15) + '打印</button>' +
-      '<button type="button" class="btn btn-ghost btn-sm btn-danger-ghost" id="clear-btn">' + SL.icon('trash', '', 15) + '清空</button>' +
-      '</div></section>' +
       '</aside></div></div>';
 
     app.stage = SL.sim.Stage(SL.$('#board-host'), {
@@ -408,24 +402,7 @@
 
   function bindSimEvents() {
     SL.$('#lab-back').addEventListener('click', leaveLab);
-    SL.$('#record-btn').addEventListener('click', recordNow);
-    SL.$('#export-btn').addEventListener('click', function () {
-      SL.records.exportCSV(app.lab.meta, app.rows);
-    });
-    SL.$('#print-btn').addEventListener('click', function () {
-      SL.records.print(app.lab.meta, app.rows, app.answers);
-    });
-    SL.$('#clear-btn').addEventListener('click', function () {
-      if (!app.rows.length) { SL.toast('记录单已经是空的', 'info'); return; }
-      SL.confirm('清空后会删除这台设备上保存的 ' + app.rows.length + ' 条数据，确定吗？', function () {
-        SL.records.clear(app.lab.id);
-        app.rows = [];
-        renderRecords();
-        if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows, app.simValues);
-        evaluateChecks();
-        SL.toast('记录已清空', 'ok');
-      }, { okText: '清空' });
-    });
+    bindRecordActions();
 
     SL.$$('[data-mode-btn]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -576,6 +553,74 @@
     return '<button type="button" class="palette-card" data-type="' + type + '" data-name="' + SL.escape(def.label) + '">' +
       '<span class="palette-thumb">' + paletteIcon(type) + '</span>' +
       '<span class="palette-name">' + def.label + '</span></button>';
+  }
+
+  /* ---------- 工作区标题栏 + 工具条 ---------- */
+  function stageHeadHtml(opts) {
+    opts = opts || {};
+    return '<div class="stage-head">' +
+      '<div class="stage-head-main">' +
+      '<span class="stage-dot" aria-hidden="true"></span>' +
+      '<h2 class="stage-title">' + (opts.sim ? '仿真工作区' : '电路工作区') + '</h2>' +
+      '<span class="stage-sub">' + (opts.note || '') + '</span>' +
+      '</div>' +
+      stageToolsHtml(opts) +
+      '</div>';
+  }
+
+  /* ---------- 记录单：表格 + 公式栏 ---------- */
+  function calcColumnList() {
+    var cols = (app.lab && app.lab.meta.columns) || [];
+    var out = [];
+    cols.forEach(function (col, i) {
+      /* 第一列通常是组次 / 装置名，不适合做数值汇总 */
+      if (i === 0 && cols.length > 1) return;
+      out.push({ index: i, key: col.key, label: SL.formula.colLetter(i) + ' · ' + col.label });
+    });
+    return out;
+  }
+
+  function calcBarHtml() {
+    var opts = calcColumnList();
+    var quick = [['AVERAGE', '平均'], ['SUM', '求和'], ['MAX', '最大'], ['MIN', '最小'],
+      ['MAX-MIN', '极差'], ['COUNT', '计数'], ['STDEV', '标准差']];
+    return '<div class="calc-bar" id="calc-bar">' +
+      '<div class="calc-head">' +
+      '<div class="calc-mode" role="group" aria-label="计算类型">' +
+      '<button type="button" data-calc-mode="row" class="is-on" title="在表格底部加一行汇总（对整列求值）">汇总行</button>' +
+      '<button type="button" data-calc-mode="col" title="对每条记录分别计算，新增一列">计算列</button>' +
+      '</div>' +
+      '<span class="calc-fx" title="公式栏">ƒx</span>' +
+      '</div>' +
+      '<div class="calc-field">' +
+      '<input type="text" class="calc-name" id="calc-name" placeholder="名称" title="给这项计算起个名字，留空会自动按函数命名" maxlength="24" autocomplete="off" aria-label="计算项名称">' +
+      '<input type="text" class="calc-formula" id="calc-formula" placeholder="=AVERAGE(C1:C3)" spellcheck="false" autocomplete="off" aria-label="计算公式">' +
+      '</div>' +
+      '<div class="calc-field calc-field-2">' +
+      '<select class="calc-col" id="calc-col" aria-label="结果放在哪一列">' +
+      opts.map(function (o) { return '<option value="' + o.key + '">' + SL.escape(o.label) + '</option>'; }).join('') +
+      '</select>' +
+      '<button type="button" class="btn btn-primary btn-sm" id="calc-add">添加</button>' +
+      '</div>' +
+      '<div class="calc-quick" id="calc-quick">' +
+      quick.map(function (q) {
+        return '<button type="button" class="calc-chip" data-quick="' + q[0] + '">' + q[1] + '</button>';
+      }).join('') +
+      '</div>' +
+      '<p class="calc-preview" id="calc-preview">用 A1 方式引用单元格，如 <code>=C1/C2</code>、<code>=AVERAGE(C1:C3)</code></p>' +
+      '</div>';
+  }
+
+  function recordsPanelHtml() {
+    return '<section class="panel panel-records"><div class="panel-head"><h2>实验记录单</h2>' +
+      '<span class="panel-badge" id="record-count"></span></div>' +
+      calcBarHtml() +
+      '<div id="records-host"></div>' +
+      '<div class="record-actions">' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="export-btn">' + SL.icon('download', '', 15) + '导出 CSV</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="print-btn">' + SL.icon('printer', '', 15) + '打印</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm btn-danger-ghost" id="clear-btn">' + SL.icon('trash', '', 15) + '清空</button>' +
+      '</div></section>';
   }
 
   /* ---------- 实验台浮动工具条 ---------- */
@@ -784,22 +829,7 @@
     bindStageTools();
     applyViewOpts();
 
-    SL.$('#record-btn').addEventListener('click', recordNow);
-    SL.$('#export-btn').addEventListener('click', function () {
-      SL.records.exportCSV(app.lab.meta, app.rows);
-    });
-    SL.$('#print-btn').addEventListener('click', function () {
-      SL.records.print(app.lab.meta, app.rows, app.answers);
-    });
-    SL.$('#clear-btn').addEventListener('click', function () {
-      SL.confirm('确定清空本实验的全部记录数据？此操作不可撤销。', function () {
-        SL.records.clear(app.lab.id);
-        app.rows = [];
-        renderRecords();
-        evaluateChecks();
-        SL.toast('记录已清空', 'ok');
-      }, { okText: '清空记录' });
-    });
+    bindRecordActions();
 
     var pointSelect = SL.$('#point-select');
     if (pointSelect) {
@@ -810,23 +840,10 @@
     }
   }
 
+  /* 点击器材库时的落点：交给画布在「当前视野」里挑一个空位 */
   function freeSpot() {
-    var scene = app.board.getScene();
-    var candidates = [];
-    for (var row = 0; row < 3; row++) {
-      for (var col = 0; col < 4; col++) {
-        candidates.push({ x: 220 + col * 260, y: 200 + row * 180 });
-      }
-    }
-    candidates.push({ x: 600, y: 380 });
-    for (var i = 0; i < candidates.length; i++) {
-      var p = candidates[i];
-      var clear = scene.components.every(function (c) {
-        return Math.abs(c.x - p.x) > 120 || Math.abs(c.y - p.y) > 110;
-      });
-      if (clear) return p;
-    }
-    return { x: 300 + Math.round(Math.random() * 600), y: 160 + Math.round(Math.random() * 400) };
+    if (app.board && app.board.spotInView) return app.board.spotInView();
+    return { x: 600, y: 380 };
   }
 
   /* 新元件的初始参数：按元件类型给一套「马上能用」的值 */
@@ -846,6 +863,8 @@
   function addFromPalette(type) {
     var spot = freeSpot();
     var comp = app.board.addComponent(type, spot.x, spot.y, defaultProps(type));
+    /* 兜底：万一落点仍在视野外（极端缩放/平移），把视野平移过去 */
+    if (app.board.ensureVisible) app.board.ensureVisible(comp);
     app.selectedComp = comp.id;
     renderInspector();
     sync();
@@ -1184,11 +1203,20 @@
     SL.records.renderTable(host, app.lab.meta, app.rows, {
       highlight: app.highlightRow,
       onDelete: deleteRow,
-      compact: true
+      onDeleteCalc: deleteCalcItem,
+      onEditCalc: editCalcItem,
+      compact: true,
+      calc: currentCalc()
     });
     app.highlightRow = -1;
     var badge = SL.$('#record-count');
-    if (badge) badge.textContent = app.rows.length + ' 条';
+    if (badge) badge.textContent = app.rows.length + ' 条' + calcBadge();
+  }
+
+  function calcBadge() {
+    var calc = currentCalc();
+    var n = calc.rows.length + calc.cols.length;
+    return n ? ' · ƒx' + n : '';
   }
 
   function deleteRow(index) {
@@ -1201,6 +1229,250 @@
     evaluateChecks();
     if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows, app.simValues);
     SL.toast('已删除第 ' + (index + 1) + ' 条记录', 'ok');
+  }
+
+  /* ---------- 记录单公式（汇总行 / 计算列） ---------- */
+  function currentCalc() {
+    return app.lab ? SL.records.calc.get(app.lab.id) : { rows: [], cols: [] };
+  }
+
+  function saveCalc(calc) {
+    SL.records.calc.set(app.lab.id, calc);
+    renderRecords();
+  }
+
+  function newCalcId() {
+    return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  }
+
+  function calcTargetKey() {
+    var sel = SL.$('#calc-col');
+    if (sel && sel.value) return sel.value;
+    var list = calcColumnList();
+    return list.length ? list[list.length - 1].key : '';
+  }
+
+  function calcRange() {
+    var key = calcTargetKey();
+    var cols = app.lab.meta.columns || [];
+    var idx = -1;
+    cols.forEach(function (c, i) { if (c.key === key) idx = i; });
+    if (idx < 0) idx = cols.length - 1;
+    var letter = SL.formula.colLetter(idx);
+    var n = Math.max(1, app.rows.length);
+    return letter + '1:' + letter + n;
+  }
+
+  var CALC_LABELS = {
+    SUM: '求和', AVERAGE: '平均值', AVG: '平均值', MAX: '最大值', MIN: '最小值',
+    COUNT: '计数', MEDIAN: '中位数', STDEV: '标准差'
+  };
+
+  function autoCalcLabel(src) {
+    if (/^=\s*MAX\s*\(.*\)\s*-\s*MIN\s*\(/i.test(src)) return '极差';
+    var m = /^=\s*([A-Za-z]+)\s*\(/.exec(src);
+    return (m && CALC_LABELS[m[1].toUpperCase()]) || '计算';
+  }
+
+  function calcHint(text) {
+    var out = SL.$('#calc-preview');
+    if (!out) return;
+    out.classList.remove('is-error');
+    out.innerHTML = text;
+  }
+
+  function updateCalcPreview() {
+    var input = SL.$('#calc-formula');
+    if (!input) return;
+    var src = input.value.trim();
+    if (!src) {
+      calcHint('用 A1 方式引用单元格，如 <code>=C1/C2</code>、<code>=AVERAGE(C1:C3)</code>');
+      return;
+    }
+    if (!app.rows.length) {
+      calcHint('先记录一组数据，公式才有数据可以计算');
+      return;
+    }
+    var fillRow = app.calcMode === 'col' ? 1 : 0;
+    var res = SL.formula.evaluate(src, app.lab.meta.columns || [], app.rows, fillRow);
+    var out = SL.$('#calc-preview');
+    if (!res.ok) {
+      out.classList.add('is-error');
+      out.innerHTML = '<b class="calc-err">' + SL.escape(res.error) + '</b> 公式无法计算，检查引用范围与括号';
+      return;
+    }
+    var text = res.numeric === false ? res.value : SL.fmt(res.value, 2);
+    out.classList.remove('is-error');
+    out.innerHTML = '<span class="calc-ok">= ' + SL.escape(String(text)) + '</span>' +
+      (app.calcMode === 'col'
+        ? '（第 1 条记录的结果，整列按行自动填充）'
+        : '（全部 ' + app.rows.length + ' 条记录）');
+  }
+
+  function resetCalcForm() {
+    app.calcEditing = null;
+    var input = SL.$('#calc-formula');
+    var name = SL.$('#calc-name');
+    var btn = SL.$('#calc-add');
+    if (input) input.value = '';
+    if (name) name.value = '';
+    if (btn) btn.textContent = '添加';
+    updateCalcPreview();
+  }
+
+  function addCalcItem() {
+    var input = SL.$('#calc-formula');
+    var nameInput = SL.$('#calc-name');
+    if (!input) return;
+    var src = input.value.trim();
+    if (!src) {
+      SL.toast('先写一个公式，例如 =AVERAGE(C1:C3)', 'warn');
+      input.focus();
+      return;
+    }
+    if (src.charAt(0) !== '=') src = '=' + src;
+    if (!app.rows.length) {
+      SL.toast('还没有记录，先记录一组数据', 'warn');
+      return;
+    }
+    var fillRow = app.calcMode === 'col' ? 1 : 0;
+    var res = SL.formula.evaluate(src, app.lab.meta.columns || [], app.rows, fillRow);
+    if (!res.ok) {
+      SL.toast('公式有误：' + res.error, 'warn');
+      return;
+    }
+    var label = (nameInput && nameInput.value.trim()) || autoCalcLabel(src);
+    var calc = currentCalc();
+
+    if (app.calcEditing) {
+      var hit = null;
+      calc.rows.forEach(function (r) { if (r.id === app.calcEditing) hit = r; });
+      if (hit) {
+        hit.formula = src;
+        hit.label = label;
+        hit.col = calcTargetKey();
+        saveCalc(calc);
+        resetCalcForm();
+        SL.toast('已更新「' + label + '」', 'ok');
+        return;
+      }
+    }
+
+    if (app.calcMode === 'col') {
+      if (calc.cols.length >= 4) { SL.toast('计算列最多 4 个', 'warn'); return; }
+      calc.cols.push({ id: newCalcId(), label: label, formula: src, digits: 2 });
+    } else {
+      if (calc.rows.length >= 6) { SL.toast('汇总行最多 6 行', 'warn'); return; }
+      calc.rows.push({ id: newCalcId(), label: label, formula: src, col: calcTargetKey() });
+    }
+    saveCalc(calc);
+    resetCalcForm();
+    SL.sound.play('record');
+    SL.toast('已添加「' + label + '」', 'ok');
+  }
+
+  function deleteCalcItem(id) {
+    var calc = currentCalc();
+    calc.rows = calc.rows.filter(function (r) { return r.id !== id; });
+    calc.cols = calc.cols.filter(function (c) { return c.id !== id; });
+    saveCalc(calc);
+    if (app.calcEditing === id) resetCalcForm();
+    SL.toast('已删除这个计算', 'ok');
+  }
+
+  function editCalcItem(id) {
+    var calc = currentCalc();
+    var item = null;
+    calc.rows.forEach(function (r) { if (r.id === id) item = r; });
+    if (!item) return;
+    if (app.calcMode !== 'row') setCalcMode('row');
+    var name = SL.$('#calc-name');
+    var input = SL.$('#calc-formula');
+    if (name) name.value = item.label;
+    if (input) input.value = item.formula;
+    var sel = SL.$('#calc-col');
+    if (sel && item.col) sel.value = item.col;
+    app.calcEditing = id;
+    var btn = SL.$('#calc-add');
+    if (btn) btn.textContent = '更新';
+    updateCalcPreview();
+    if (input) input.focus();
+  }
+
+  function setCalcMode(mode) {
+    app.calcMode = mode;
+    SL.$$('[data-calc-mode]').forEach(function (b) {
+      b.classList.toggle('is-on', b.getAttribute('data-calc-mode') === mode);
+    });
+    var sel = SL.$('#calc-col');
+    if (sel) sel.disabled = mode === 'col';
+    updateCalcPreview();
+  }
+
+  function bindRecordActions() {
+    var recordBtn = SL.$('#record-btn');
+    if (recordBtn) recordBtn.addEventListener('click', recordNow);
+
+    var exportBtn = SL.$('#export-btn');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', function () {
+        SL.records.exportCSV(app.lab.meta, app.rows, currentCalc());
+      });
+    }
+    var printBtn = SL.$('#print-btn');
+    if (printBtn) {
+      printBtn.addEventListener('click', function () {
+        SL.records.print(app.lab.meta, app.rows, app.answers, currentCalc());
+      });
+    }
+    var clearBtn = SL.$('#clear-btn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        if (!app.rows.length) { SL.toast('记录单已经是空的', 'info'); return; }
+        SL.confirm('清空后会删除这台设备上保存的 ' + app.rows.length + ' 条数据（公式保留），确定吗？', function () {
+          SL.records.clear(app.lab.id);
+          app.rows = [];
+          renderRecords();
+          evaluateChecks();
+          if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows, app.simValues);
+          SL.toast('记录已清空', 'ok');
+        }, { okText: '清空记录' });
+      });
+    }
+
+    /* 公式栏 */
+    SL.$$('[data-calc-mode]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        setCalcMode(btn.getAttribute('data-calc-mode'));
+        SL.sound.play('click');
+      });
+    });
+    var input = SL.$('#calc-formula');
+    if (input) {
+      input.addEventListener('input', updateCalcPreview);
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); addCalcItem(); }
+      });
+    }
+    var addBtn = SL.$('#calc-add');
+    if (addBtn) addBtn.addEventListener('click', addCalcItem);
+    SL.$$('#calc-quick [data-quick]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var code = btn.getAttribute('data-quick');
+        var range = calcRange();
+        var src = code === 'MAX-MIN'
+          ? '=MAX(' + range + ')-MIN(' + range + ')'
+          : '=' + code + '(' + range + ')';
+        var nameInput = SL.$('#calc-name');
+        if (nameInput && !nameInput.value.trim()) nameInput.value = autoCalcLabel(src);
+        if (input) {
+          input.value = src;
+          input.focus();
+        }
+        updateCalcPreview();
+      });
+    });
+    setCalcMode(app.calcMode || 'row');
   }
 
   /* ---------- 元件属性 ---------- */

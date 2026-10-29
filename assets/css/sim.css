@@ -70,8 +70,8 @@
   min-height: 32px;
   padding: 0 3px;
   border-radius: 9px;
-  border: 1px solid var(--line);
-  background: #fbfdff;
+  border: 1px solid rgba(122, 146, 180, .26);
+  background: rgba(255, 255, 255, .8);
   color: var(--muted);
   font-size: 11.5px;
   font-weight: 600;
@@ -85,7 +85,7 @@
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
-  box-shadow: 0 3px 10px rgba(31, 111, 178, .25);
+  box-shadow: 0 6px 16px -8px rgba(42, 99, 232, .8);
 }
 .ctrl-btn-row button:focus-visible { outline: none; box-shadow: var(--focus); }
 
@@ -100,12 +100,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(560px 280px at 50% 0%, #fbfdff 0%, #f2f6fb 70%, #eaf0f7 100%);
+  background: radial-gradient(680px 340px at 50% 0%, #ffffff 0%, #f7faff 68%, #eff4fb 100%);
 }
 .sim-canvas { width: 100%; height: auto; max-height: 68vh; display: block; overflow: visible; }
 /* 参考网格与图层显隐（对应实验台工具条上的「网格 / 标注 / 矢量」） */
-.sim-grid line { stroke: rgba(31, 111, 178, .055); stroke-width: 1; }
+.sim-grid line { stroke: rgba(42, 99, 232, .06); stroke-width: 1; }
 .sim-canvas.hide-grid .sim-grid,
 .sim-canvas.hide-grid .level-guide,
 .sim-canvas.hide-grid .level-label { display: none; }
@@ -209,12 +208,14 @@
   gap: 4px 10px;
   padding: 7px 10px;
   border-radius: 9px;
-  background: #f7fafd;
-  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .62);
+  border: 1px solid rgba(255, 255, 255, .88);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9);
 }
-.readout-accent { background: var(--primary-soft); border-color: #cfe2f4; }
+.readout-accent { background: rgba(42, 99, 232, .09); border-color: rgba(42, 99, 232, .18); }
 .readout-label { font-size: 12px; color: var(--muted); }
 .readout-value {
+  font-family: var(--mono);
   font-size: 15px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -231,7 +232,7 @@
 .plot-head span { font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .plot-head em { font-size: 11px; color: var(--muted); font-style: normal; }
 .plot { width: 100%; height: auto; display: block; }
-.plot-grid { stroke: #e7edf5; stroke-width: 1; }
+.plot-grid { stroke: rgba(122, 146, 180, .2); stroke-width: 1; }
 .plot-axis { stroke: #b9c6d6; stroke-width: 1.4; }
 .plot-tick { fill: #93a2b5; font-size: 9.5px; }
 .plot-label { fill: #7d8b9d; font-size: 10.5px; }
@@ -258,8 +259,8 @@
   color: var(--muted);
   padding: 6px 9px;
   border-radius: 8px;
-  background: #f7fafd;
-  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .58);
+  border: 1px solid rgba(255, 255, 255, .86);
 }
 .torque-row b { color: var(--primary-dark); font-variant-numeric: tabular-nums; }
 .torque-row i { color: #b6c4d4; font-style: normal; }
@@ -269,12 +270,12 @@
 .eta-group-head { font-size: 11px; font-weight: 700; color: var(--primary-dark); letter-spacing: .04em; }
 .eta-row { display: grid; grid-template-columns: 64px 1fr 46px; align-items: center; gap: 7px; }
 .eta-label { font-size: 11px; color: var(--muted); }
-.eta-track { height: 7px; border-radius: 999px; background: #e9eff7; overflow: hidden; }
+.eta-track { height: 7px; border-radius: 999px; background: rgba(122, 146, 180, .18); overflow: hidden; }
 .eta-track i {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #1f6fb2, #16a3a3);
+  background: linear-gradient(90deg, #2a63e8, #0f9f9a);
 }
 .eta-value { font-size: 11px; font-weight: 700; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
 
@@ -287,19 +288,15 @@
   gap: 10px;
   padding: 46px 20px;
   border-radius: 16px;
-  border: 1px dashed var(--line-strong);
-  background: rgba(255, 255, 255, .6);
+  border: 1px dashed rgba(122, 146, 180, .38);
+  background: rgba(255, 255, 255, .55);
   color: var(--muted);
   text-align: center;
 }
 .hall-empty p { margin: 0; font-size: 13.5px; line-height: 1.7; }
 
 /* ---------- 窄屏 ---------- */
-@media (max-width: 1180px) {
-  .lab-body { grid-template-columns: 190px minmax(0, 1fr) 320px; }
-}
 @media (max-width: 900px) {
-  .lab-body { grid-template-columns: 1fr; }
   .sim-palette { position: static; }
   .ctrl-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px 16px; }
   .sim-play { max-width: 280px; }

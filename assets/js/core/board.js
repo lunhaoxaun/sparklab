@@ -13,6 +13,11 @@
     return SL.fmt(0, digits);
   }
 
+  function clamp(v, lo, hi, fallback) {
+    if (hi < lo) return fallback == null ? (lo + hi) / 2 : fallback;
+    return Math.max(lo, Math.min(hi, v));
+  }
+
   function svgEl(tag, attrs) {
     var node = document.createElementNS(NS, tag);
     if (attrs) {
@@ -908,12 +913,77 @@
     return comp;
   };
 
-  /* 按屏幕落点放置元件（器材库拖拽用），落点换算成世界坐标并夹在画布内 */
+  /* 按屏幕落点放置元件（器材库拖拽用），落点换算成世界坐标并夹在当前视野内 */
   Board.prototype.placeAt = function (type, clientX, clientY, props) {
     var p = this.svgPoint({ clientX: clientX, clientY: clientY });
-    var x = Math.max(60, Math.min(VIEW_W - 60, Math.round(p.x / 10) * 10));
-    var y = Math.max(60, Math.min(VIEW_H - 70, Math.round(p.y / 10) * 10));
-    return this.addComponent(type, x, y, props);
+    var v = this.view;
+    var x = clamp(p.x, v.x + 60, v.x + v.w - 60, v.x + v.w / 2);
+    var y = clamp(p.y, v.y + 55, v.y + v.h - 60, v.y + v.h / 2);
+    return this.addComponent(type, Math.round(x / 10) * 10, Math.round(y / 10) * 10, props);
+  };
+
+  /* 视野矩形（世界坐标） */
+  Board.prototype.viewRect = function () {
+    return { x: this.view.x, y: this.view.y, w: this.view.w, h: this.view.h };
+  };
+
+  /* 在当前视野内挑一个离已有元件最远的空位——点击器材库时用，保证新元件一定看得见 */
+  Board.prototype.spotInView = function () {
+    var v = this.view;
+    var comps = this.scene.components || [];
+    var padX = Math.min(v.w * 0.2, 130);
+    var padY = Math.min(v.h * 0.2, 110);
+    var left = v.x + padX;
+    var right = v.x + v.w - padX;
+    var top = v.y + padY;
+    var bottom = v.y + v.h - padY;
+    var cx = v.x + v.w / 2;
+    var cy = v.y + v.h / 2;
+    if (right <= left) { left = cx; right = cx; }
+    if (bottom <= top) { top = cy; bottom = cy; }
+
+    var stepX = Math.max(34, (right - left) / 7);
+    var stepY = Math.max(30, (bottom - top) / 6);
+    var best = { x: cx, y: cy };
+    var bestScore = -Infinity;
+
+    for (var y = top; y <= bottom + 0.5; y += stepY) {
+      for (var x = left; x <= right + 0.5; x += stepX) {
+        var minD = 1e9;
+        for (var i = 0; i < comps.length; i++) {
+          var dx = comps[i].x - x;
+          var dy = comps[i].y - y;
+          var d = Math.sqrt(dx * dx + dy * dy);
+          if (d < minD) minD = d;
+        }
+        var centerD = Math.sqrt(Math.pow(x - cx, 2) + Math.pow(y - cy, 2));
+        var score = (minD === 1e9 ? 10000 : minD) - centerD * 0.35;
+        if (score > bestScore) { bestScore = score; best = { x: x, y: y }; }
+      }
+    }
+    return {
+      x: Math.round(clamp(best.x, v.x + 60, v.x + v.w - 60, cx) / 10) * 10,
+      y: Math.round(clamp(best.y, v.y + 55, v.y + v.h - 60, cy) / 10) * 10
+    };
+  };
+
+  /* 元件不在视野内时，最小幅度地平移视野把它带进来 */
+  Board.prototype.ensureVisible = function (comp) {
+    if (!comp) return false;
+    var def = (SL.circuit.TYPES && SL.circuit.TYPES[comp.type]) || { w: 100, h: 60 };
+    var turned = (comp.rotation || 0) % 180 !== 0;
+    var halfW = (turned ? def.h : def.w) / 2 + 26;
+    var halfH = (turned ? def.w : def.h) / 2 + 26;
+    var v = this.view;
+    var x = v.x;
+    var y = v.y;
+    if (comp.x - halfW < v.x) x = comp.x - halfW;
+    else if (comp.x + halfW > v.x + v.w) x = comp.x + halfW - v.w;
+    if (comp.y - halfH < v.y) y = comp.y - halfH;
+    else if (comp.y + halfH > v.y + v.h) y = comp.y + halfH - v.h;
+    if (Math.abs(x - v.x) < 0.5 && Math.abs(y - v.y) < 0.5) return false;
+    this.setView(x, y, v.w, v.h);
+    return true;
   };
 
   /* 复制选中元件：属性与朝向一起复制，偏移 40px 避免完全重叠 */

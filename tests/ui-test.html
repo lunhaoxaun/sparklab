@@ -16,7 +16,7 @@
   </style>
 </head>
 <body>
-  <h1 style="font-size:16px">星火物理实验室 · 实验台交互自测（v2.3.0）</h1>
+  <h1 style="font-size:16px">星火物理实验室 · 实验台交互自测（v2.4.0）</h1>
   <div id="out">运行中…</div>
   <header class="topbar" id="topbar"></header>
   <main class="view-root" id="view-root"></main>
@@ -29,6 +29,7 @@
   <script src="../assets/js/core/skins.js"></script>
   <script src="../assets/js/core/board.js"></script>
   <script src="../assets/js/core/meters.js"></script>
+  <script src="../assets/js/core/formula.js"></script>
   <script src="../assets/js/core/records.js"></script>
   <script src="../assets/js/sims/mech.js"></script>
   <script src="../assets/js/labs/lab-series.js"></script>
@@ -142,7 +143,85 @@
     ok('「适应」按元件范围重新计算视图', board.view.w > 0 && Math.abs(board.view.w - w0) > 1,
       w0.toFixed(0) + ' → ' + board.view.w.toFixed(0));
 
-    /* ---------- 4. 记录单：删单行、最新行高亮 ---------- */
+    /* ---------- 4. 视野内放置：点一下器材就必须看得见 ---------- */
+    var views = [[0, 0, 1200, 760], [380, 240, 520, 340], [860, 460, 620, 400]];
+    var allInside = views.every(function (v) {
+      var b = App.state.board;
+      b.setScene({ components: [], wires: [] });
+      b.setView(v[0], v[1], v[2], v[3]);
+      var spot = b.spotInView();
+      var c = b.addComponent('bulb', spot.x, spot.y, {});
+      var r = b.viewRect();
+      return c.x > r.x && c.x < r.x + r.w && c.y > r.y && c.y < r.y + r.h;
+    });
+    ok('三种缩放/平移状态下 spotInView 都落在视野内', allInside);
+
+    var board2 = App.state.board;
+    board2.setScene({ components: [], wires: [] });
+    board2.setView(500, 300, 420, 280);
+    SL.$('.palette-card[data-type="bulb"]').click();
+    var added = board2.getScene().components.slice(-1)[0];
+    var vr = board2.viewRect();
+    ok('点击器材卡添加的元件必定在视野内',
+      !!added && added.x > vr.x && added.x < vr.x + vr.w && added.y > vr.y && added.y < vr.y + vr.h,
+      added ? added.x + ',' + added.y + ' 视野 ' + vr.x + ',' + vr.y + ' ' + vr.w + '×' + vr.h : 'none');
+
+    var farComp = board2.addComponent('bulb', 5000, 5000, {});
+    var moved = board2.ensureVisible(farComp);
+    var vr2 = board2.viewRect();
+    ok('ensureVisible 会把视野外的元件平移进来',
+      moved && farComp.x <= vr2.x + vr2.w && farComp.y <= vr2.y + vr2.h,
+      JSON.stringify(vr2));
+
+    var panBefore = board2.viewRect();
+    board2.pan = { x: 100, y: 100, view: { x: panBefore.x, y: panBefore.y }, empty: true, moved: false };
+    board2.onMove({ clientX: 260, clientY: 190, pointerId: 99 });
+    ok('画布平移只改变视野、不改变元件坐标',
+      board2.viewRect().x < panBefore.x && farComp.x === 5000,
+      panBefore.x.toFixed(0) + ' → ' + board2.viewRect().x.toFixed(0));
+    board2.pan = null;
+
+    /* ---------- 5. 记录单公式栏 ---------- */
+    var sandboxId = 'sandbox';
+    SL.records.clear(sandboxId);
+    SL.records.calc.clear(sandboxId);
+    SL.records.add(sandboxId, { group: 1, voltage: 1.5, current: 0.15, resistance: 10 });
+    SL.records.add(sandboxId, { group: 2, voltage: 2.0, current: 0.20, resistance: 10 });
+    App.openLab('sandbox', 'free');
+
+    var fInput = document.getElementById('calc-formula');
+    ok('记录单带公式栏（输入框 + 添加）', !!fInput && !!document.getElementById('calc-add'));
+
+    document.querySelector('#calc-quick [data-quick="AVERAGE"]').click();
+    ok('快捷按钮自动生成区域公式', /^=AVERAGE\(B1:B2\)$/.test(fInput.value), fInput.value);
+
+    document.getElementById('calc-add').click();
+    var footCalc = document.querySelectorAll('.record-table tfoot tr.foot-calc');
+    ok('添加后表格底部出现汇总行', footCalc.length === 1,
+      footCalc.length ? footCalc[0].textContent : 'none');
+
+    document.querySelector('[data-calc-mode="col"]').click();
+    document.getElementById('calc-name').value = '比值';
+    fInput.value = '=ROUND(B1/C1,1)';
+    fInput.dispatchEvent(new Event('input'));
+    ok('公式输入时实时预览结果',
+      (document.getElementById('calc-preview').textContent || '').indexOf('10') >= 0,
+      document.getElementById('calc-preview').textContent);
+    document.getElementById('calc-add').click();
+    var calcTh = document.querySelector('.record-table th.th-calc');
+    ok('计算列出现在表头', !!calcTh && calcTh.textContent.indexOf('比值') >= 0,
+      calcTh ? calcTh.textContent : 'none');
+
+    calcTh.querySelector('.th-del').click();
+    ok('表头 × 可删除计算列', !document.querySelector('.record-table th.th-calc'));
+
+    document.querySelector('.record-table .calc-del').click();
+    ok('表尾 × 可删除汇总行', document.querySelectorAll('.foot-calc').length === 0);
+
+    SL.records.calc.clear(sandboxId);
+    SL.records.clear(sandboxId);
+
+    /* ---------- 6. 记录单：删单行、最新行高亮 ---------- */
     SL.records.clear('ui-test-lab');
     SL.records.add('ui-test-lab', { k: 1 });
     SL.records.add('ui-test-lab', { k: 2 });
@@ -165,7 +244,7 @@
       JSON.stringify(SL.records.get('ui-test-lab')));
     SL.records.clear('ui-test-lab');
 
-    /* ---------- 5. 仿真台工具条：矢量开关 + 倍速 ---------- */
+    /* ---------- 7. 仿真台工具条：矢量开关 + 倍速 ---------- */
     App.openLab('pulley', 'guided');
     var simTools = document.getElementById('stage-tools');
     ok('仿真台工具条含网格/标注/矢量', simTools.textContent.indexOf('矢量') !== -1,
