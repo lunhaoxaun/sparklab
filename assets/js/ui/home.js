@@ -24,7 +24,7 @@
       return '<span class="equip-chip">' + SL.icon(item.icon, '', 16) + item.label + '</span>';
     }).join('');
     var progressBlock = prog.free
-      ? '<div class="lab-progress"><div class="progress-info"><span>自由搭建 · 元件数量不限</span>' +
+      ? '<div class="lab-progress"><div class="progress-info"><span>' + (lab.freeNote || '自由探究 · 参数不限') + '</span>' +
         '<span class="record-count">' + SL.icon('chart-line', '', 14) + ' 记录 ' + count + ' 条</span></div></div>'
       : '<div class="lab-progress"><div class="progress-info"><span>引导进度 ' + prog.done + '/' + prog.total + '</span>' +
         '<span class="record-count">' + SL.icon('chart-line', '', 14) + ' 记录 ' + count + ' 条</span></div>' +
@@ -49,7 +49,7 @@
 
   var SUBJECT_INTRO = {
     electricity: '三个教材实验与全自由实验室共用同一套电路仿真引擎，接线、读数、记录都与真实实验一致。',
-    mechanics: '用真实数值算力矩、机械效率与浮力：拖动钩码、下放物块，读数随参数实时变化。',
+    mechanics: '用真实数值算力矩、机械效率与浮力：拖动钩码、下放物块，读数随参数实时变化；末尾的自由实验室可以把三套装置放在一起随意试。',
     thermal: '从同一热源给物质加热，实时画出温度–时间图像，观察熔点、沸点与比热容的差别。',
     optics: '在光具座上拖动光源与透镜，按反射、折射定律逐条追迹光线，成像规律一目了然。'
   };
@@ -160,7 +160,7 @@
         '<li>记录单可导出 CSV（Excel 打开）或打印。</li></ol></section>' +
         '</div>' +
         '<section class="help-tip"><h3>安全与提示</h3><p>电学实验会检测电源短路、断路、电表反接、超量程、灯泡烧坏和滑动变阻器错误接法，并在画布下方给出提示。出现短路时请先断开开关。力学、热学、光学实验没有危险操作，可以随意改变参数。</p></section>' +
-        '<section class="help-tip"><h3>力学 / 热学 / 光学怎么玩</h3><p>左栏是实验参数：拖动滑块或点按钮，画面和右侧读数会立刻重算。画面里的物体大多可以直接拖动——杠杆上的钩码、滑轮组的钩码、烧杯里的物块都能用鼠标或手指拉，松开即生效。有「播放」按钮的实验可以自动演示一段过程（如匀速提升、持续加热）。</p></section>' +
+        '<section class="help-tip"><h3>力学 / 热学 / 光学怎么玩</h3><p>左栏是实验参数：拖动滑块或点按钮，画面和右侧读数会立刻重算。画面里的物体大多可以直接拖动——杠杆上的钩码、滑轮组的钩码、烧杯里的物块都能用鼠标或手指拉，松开即生效。有「播放」按钮的实验可以自动演示一段过程（如匀速提升、持续加热）。每个板块末尾还有一个<strong>自由实验室</strong>：几套装置放在一起，参数全部开放、没有步骤，适合开放探究或考前自己验证想法。</p></section>' +
         '<section class="help-tip"><h3>快捷键</h3><p><kbd>Ctrl</kbd>+<kbd>=</kbd> 放大　<kbd>Ctrl</kbd>+<kbd>-</kbd> 缩小　<kbd>Ctrl</kbd>+滚轮、双指捏合也可缩放　<kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤回　<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 重做　<kbd>Esc</kbd> 取消连线　<kbd>Delete</kbd> 删除选中　<kbd>R</kbd> 旋转元件</p></section>' +
         (SL.canDownloadOffline()
           ? '<section class="help-tip help-offline"><h3>教室断网怎么办</h3>' +
@@ -175,7 +175,7 @@
     about: function () {
       var body = '<p class="modal-text">' + SL.BRAND + '是一个面向初中物理教学的离线虚拟实验工具，覆盖电学、力学、热学、光学四大板块，全部计算与数据存储都在你的浏览器本地完成。</p>' +
         '<section class="about-block"><h3>版本</h3><p>当前版本 <strong>v' + SL.VERSION + '</strong>（' + SL.VERSION_DATE + '）</p>' +
-        '<p class="muted">v1.0.0 首个完整版 · v1.1.0 一键美化 · v1.2.0 撤回/重做 · v1.3.0 画布缩放与变阻器接线校验 · v1.4.0 全自由实验室与变阻器电阻判断修复 · v1.5.0 补齐初中电学常用元件 · v1.6.0 双套元件外观可切换 · v1.7.0 新增发电机、继电器、扬声器、灵敏电流计 · v1.8.0 在线版增加离线包下载入口 · v2.1.0 引入仿真引擎、学科墙扩展到力学/热学/光学，新增杠杆平衡、滑轮组机械效率、浮力探究三个力学实验</p></section>' +
+        '<p class="muted">v1.0.0 首个完整版 · v1.1.0 一键美化 · v1.2.0 撤回/重做 · v1.3.0 画布缩放与变阻器接线校验 · v1.4.0 全自由实验室与变阻器电阻判断修复 · v1.5.0 补齐初中电学常用元件 · v1.6.0 双套元件外观可切换 · v1.7.0 新增发电机、继电器、扬声器、灵敏电流计 · v1.8.0 在线版增加离线包下载入口 · v2.1.0 引入仿真引擎、学科墙扩展到力学/热学/光学，新增杠杆平衡、滑轮组机械效率、浮力探究三个力学实验 · v2.2.0 新增力学自由实验室：三套装置合一、参数全开</p></section>' +
         '<section class="about-block"><h3>图标素材</h3><p>界面与元件图标来自 <strong>Tabler Icons</strong>（MIT License），已下载并内联到本项目，运行时不访问网络。</p>' +
         '<p class="muted">https://github.com/tabler/tabler-icons</p></section>' +
         '<section class="about-block"><h3>自绘素材</h3><p>滑动变阻器、单刀开关、导线与电流动画由本项目按教材标准画法自绘；力学、热学、光学实验的舞台图形（杠杆、滑轮、烧杯、测力计、光路等）同样为自绘。</p></section>' +

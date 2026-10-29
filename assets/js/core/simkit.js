@@ -144,7 +144,10 @@
     }
 
     function render() {
-      host.innerHTML = schema.map(function (def) {
+      /* def.when(values) 为假时不渲染该控件：自由实验室用它按装置切换参数面板 */
+      host.innerHTML = schema.filter(function (def) {
+        return !def.when || def.when(values);
+      }).map(function (def) {
         var value = values[def.key];
         if (def.type === 'select') {
           return '<label class="ctrl ctrl-select" data-key="' + def.key + '">' +
@@ -196,7 +199,11 @@
           var key = btn.getAttribute('data-ctrl-btn');
           SL.$$('[data-ctrl-btn="' + key + '"]', host).forEach(function (b) { b.classList.remove('active'); });
           btn.classList.add('active');
-          emit(key, btn.getAttribute('data-value'));
+          /* 取回 schema 里的原始值，避免数值型选项被读成字符串（连点两次后高亮/计算都会错） */
+          var def = schema.filter(function (d) { return d.key === key; })[0];
+          var raw = btn.getAttribute('data-value');
+          var hit = def && (def.options || []).filter(function (o) { return String(o.value) === raw; })[0];
+          emit(key, hit ? hit.value : raw);
         });
       });
     }

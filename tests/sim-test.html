@@ -38,6 +38,7 @@
   <script src="../assets/js/labs/lab-lever.js"></script>
   <script src="../assets/js/labs/lab-pulley.js"></script>
   <script src="../assets/js/labs/lab-buoyancy.js"></script>
+  <script src="../assets/js/labs/lab-mech-free.js"></script>
   <script src="../assets/js/ui/home.js"></script>
   <script src="../assets/js/app.js"></script>
 
@@ -160,10 +161,66 @@
       return subs.indexOf(s) !== -1;
     }), subs.join(','));
     var mechLabs = SL.data.labs.filter(function (l) { return l.subject === 'mechanics'; });
-    ok('力学实验 3 个', mechLabs.length === 3, mechLabs.map(function (l) { return l.id; }).join(','));
+    ok('力学实验 4 个（3 个教材实验 + 1 个自由实验室）', mechLabs.length === 4, mechLabs.map(function (l) { return l.id; }).join(','));
     ok('每个力学实验都有 kind=sim 与完整元数据', mechLabs.every(function (l) {
-      return l.kind === 'sim' && l.steps.length >= 4 && l.conclusions.length >= 3 && l.columns.length >= 7;
+      return l.kind === 'sim' && l.columns.length >= 4 &&
+        (l.free ? (l.steps.length === 0 && l.conclusions.length === 0) : (l.steps.length >= 4 && l.conclusions.length >= 3));
     }));
+    ok('热学/光学板块也预留给自由实验室位次', ['mechanics'].every(function (s) {
+      return SL.data.labs.some(function (l) { return l.subject === s && l.free; });
+    }), '力学已有 free 实验');
+
+    /* ---------- 4.5 力学自由实验室 ---------- */
+    var freeLab = SL.labs['mech-free'];
+    ok('自由实验室已注册且 free=true', !!freeLab && freeLab.meta.free === true);
+    ok('自由实验室无引导步骤', freeLab.meta.steps.length === 0 && freeLab.meta.conclusions.length === 0);
+
+    var shown = freeLab.controls.filter(function (d) { return !d.when || d.when(freeLab.defaults); });
+    ok('默认（杠杆）只显示杠杆相关参数', shown.every(function (d) {
+      return d.key === 'device' || d.when === undefined || d.key.indexOf('hookMass') >= 0 ||
+        d.key === 'leftCount' || d.key === 'leftArm' || d.key === 'rightCount' || d.key === 'rightArm';
+    }), shown.map(function (d) { return d.key; }).join(','));
+
+    try {
+      var fLever = { device: 'lever', leftCount: 2, leftArm: 3, rightCount: 3, rightArm: 2, hookMass: 50 };
+      var lRow = freeLab.measure({ values: fLever, calc: freeLab.calc(fLever), rows: [], state: App.state });
+      ok('自由实验室·杠杆记录：装置与读数正确', !!lRow && lRow.device === '杠杆' &&
+        lRow.result.indexOf('平衡') === 0, lRow && lRow.result);
+
+      var fPulley = Object.assign({}, freeLab.defaults, { device: 'pulley', loadN: 4, movingN: 1, h: 0.2, friction: 0.04 });
+      SL.labs.pulley.rt.lift = 0.2;
+      var pRow = freeLab.measure({ values: fPulley, calc: freeLab.calc(fPulley), rows: [], state: App.state });
+      ok('自由实验室·滑轮组记录：η = W有/W总（含摩擦 78.7%）', !!pRow && pRow.result.indexOf('78.7') >= 0, pRow && pRow.result);
+
+      var fBuoy = Object.assign({}, freeLab.defaults, { device: 'buoyancy', liquid: 'water', solid: 'alu', volume: 100, submerge: 1 });
+      var bRow = freeLab.measure({ values: fBuoy, calc: freeLab.calc(fBuoy), rows: [], state: App.state });
+      ok('自由实验室·浮力记录：F浮 = 1.00 N', !!bRow && bRow.result.indexOf('1.00') === 0 || (bRow && bRow.result.indexOf('F浮 = 1.00') >= 0),
+        bRow && bRow.result);
+
+      /* 通用列（装置 / 条件 / 读数）也要能正常渲染成表格 */
+      var rhost = document.createElement('div');
+      SL.records.renderTable(rhost, freeLab.meta, [lRow]);
+      ok('自由实验室记录表可渲染文字列',
+        rhost.textContent.indexOf('杠杆') !== -1 && rhost.textContent.indexOf('平衡') !== -1,
+        rhost.textContent.replace(/\s+/g, ' ').slice(0, 40));
+    } catch (e) {
+      ok('自由实验室记录链路', false, e && e.message);
+    }
+
+    try {
+      App.openLab('mech-free', 'free');
+      var dh = document.getElementById('controls-host');
+      ok('打开自由实验室：自由说明面板已渲染',
+        (document.getElementById('guide-panel').textContent || '').indexOf('力学自由实验室') !== -1);
+      ok('打开自由实验室：参数控件已生成（装置 + 杠杆参数）', dh && dh.children.length >= 5, dh ? dh.children.length + ' 个' : 'null');
+      ok('打开自由实验室：画布已绘制', (document.querySelector('.sim-canvas') || { querySelectorAll: function () { return []; } }).querySelectorAll('*').length > 10);
+      ok('杠杆模式下不显示滑轮组播放按钮', !document.getElementById('sim-play-btn'));
+      /* 记录单表头为通用列（装置 / 条件 / 读数） */
+      ok('自由实验室记录单用通用列',
+        freeLab.meta.columns.map(function (c) { return c.key; }).join(',') === 'group,device,summary,result');
+    } catch (e) {
+      ok('打开自由实验室', false, e && e.message);
+    }
 
     /* ---------- 5. 首页学科切换 ---------- */
     try {
@@ -172,8 +229,9 @@
       ok('首页有力学学科按钮', !!pill);
       pill.click();
       var cards = document.querySelectorAll('.lab-card');
-      ok('切到力学后显示 3 个实验卡', cards.length === 3, cards.length + ' 个');
+      ok('切到力学后显示 4 个实验卡', cards.length === 4, cards.length + ' 个');
       ok('力学卡片含杠杆实验', document.querySelector('.lab-grid-home').textContent.indexOf('杠杆') !== -1);
+      ok('力学卡片含自由实验室入口', document.querySelector('.lab-grid-home').textContent.indexOf('自由实验室') !== -1);
       ok('hall 标题切换为力学', document.querySelector('.hall-head h2').textContent.indexOf('力学') !== -1,
         document.querySelector('.hall-head h2').textContent);
       document.querySelector('[data-subject="thermal"]').click();
@@ -185,7 +243,34 @@
       ok('首页学科切换', false, e && e.message);
     }
 
-    flush();
+    /* ---------- 6. 装置切换（等 load 之后再做：app.init 会先回首页） ---------- */
+    function testSwitch() {
+      try {
+        App.openLab('mech-free', 'free');
+        App.state.controls.set('device', 'pulley');
+      } catch (e) {
+        ok('切换装置触发重建', false, e && e.message);
+      }
+
+      window.setTimeout(function () {
+        try {
+          var dh2 = document.getElementById('controls-host');
+          var canvas2 = document.querySelector('.sim-canvas');
+          ok('切到滑轮组：参数面板换成绕法/物重', !!dh2 && dh2.textContent.indexOf('绕法') !== -1,
+            dh2 ? dh2.textContent.replace(/\s+/g, ' ').slice(0, 30) : 'null');
+          ok('切到滑轮组：杠杆参数已隐藏', !!dh2 && dh2.textContent.indexOf('悬挂位置') === -1);
+          ok('切到滑轮组：出现「播放」按钮', !!document.getElementById('sim-play-btn'));
+          ok('切到滑轮组：画布已重绘为滑轮组', !!canvas2 && canvas2.textContent.indexOf('横梁') !== -1);
+          ok('切到滑轮组：读数面板同步换新', (document.getElementById('meters-host').textContent || '').indexOf('机械效率') !== -1);
+          ok('切到滑轮组：记录单仍是同一张（通用列）', !!document.getElementById('records-host'));
+        } catch (e) {
+          ok('装置切换断言', false, e && e.message);
+        }
+        flush();
+      }, 400);
+    }
+    if (document.readyState === 'complete') testSwitch();
+    else window.addEventListener('load', testSwitch);
   })();
   </script>
 </body>

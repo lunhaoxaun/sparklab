@@ -29,6 +29,7 @@
   <script src="../assets/js/labs/lab-lever.js"></script>
   <script src="../assets/js/labs/lab-pulley.js"></script>
   <script src="../assets/js/labs/lab-buoyancy.js"></script>
+  <script src="../assets/js/labs/lab-mech-free.js"></script>
   <script src="../assets/js/ui/home.js"></script>
   <script src="../assets/js/app.js"></script>
   <script>
@@ -42,6 +43,7 @@
         SL.storage.remove(SL.KEYS.progress);
         SL.settings.set('sound', false);
         SL.app.openLab(lab, mode);
+        if (q.get('device')) SL.app.state.controls.set('device', q.get('device'));
         if (q.get('sub')) SL.app.state.controls.set('submerge', parseFloat(q.get('sub')));
         if (q.get('n')) SL.app.state.controls.set('segments', parseFloat(q.get('n')));
         if (q.get('lift')) {

@@ -304,7 +304,8 @@
       '<button type="button" data-mode-btn="free" class="' + (app.mode === 'free' ? 'active' : '') + '">自由探究</button>' +
       '</div>';
 
-    var playHtml = lab.animated
+    var animated = typeof lab.animated === 'function' ? !!lab.animated(app.simValues) : !!lab.animated;
+    var playHtml = animated
       ? '<div class="sim-play"><button type="button" class="btn btn-soft btn-sm" id="sim-play-btn">' +
         SL.icon('player-play', '', 16) + '<span>播放</span></button>' +
         '<button type="button" class="btn btn-ghost btn-sm" id="sim-reset-btn">复位</button></div>'
@@ -346,10 +347,16 @@
     app.stage = SL.sim.Stage(SL.$('#board-host'), {
       w: lab.canvas.w, h: lab.canvas.h, label: meta.name
     });
-    app.controls = SL.sim.Controls(SL.$('#controls-host'), lab.controls, app.simValues, function () {
+    app.controls = SL.sim.Controls(SL.$('#controls-host'), lab.controls, app.simValues, function (key) {
+      /* 装置/模式类参数会改变整套控件与画布，直接重建界面（延后一拍，避免销毁正在派发事件的节点） */
+      if ((lab.rebuildOn || []).indexOf(key) >= 0) {
+        saveProgress();
+        window.setTimeout(function () { if (app.lab === lab) renderSimLab(); }, 0);
+        return;
+      }
       simSync();
     });
-    if (lab.animated) {
+    if (animated) {
       app.clock = SL.sim.Clock({
         onTick: function (dt) {
           if (app.lab.onTick) app.lab.onTick(dt, simCtx());
@@ -395,7 +402,7 @@
         SL.records.clear(app.lab.id);
         app.rows = [];
         renderRecords();
-        if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows);
+        if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows, app.simValues);
         evaluateChecks();
         SL.toast('记录已清空', 'ok');
       }, { okText: '清空' });
@@ -425,9 +432,14 @@
         app.submitted = false;
         app.allAnswered = false;
         app.hints = {};
-        app.controls.refresh(defaults);
-        renderGuide();
-        simSync();
+        if ((app.lab.rebuildOn || []).length) {
+          /* 自由实验室：装置回到默认，整套控件与画布都重建一次 */
+          renderSimLab();
+        } else {
+          app.controls.refresh(defaults);
+          renderGuide();
+          simSync();
+        }
         SL.toast('已重置为初始参数', 'ok');
       }, { okText: '重置' });
     });
@@ -480,7 +492,7 @@
     simRender();
     app.result = { ok: true };
     evaluateChecks();
-    if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows);
+    if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows, app.simValues);
     if (app.simTimer) clearTimeout(app.simTimer);
     app.simTimer = setTimeout(saveProgress, 240);
   }
@@ -717,7 +729,7 @@
     renderWarnings(result);
     if (app.lab.tick) app.lab.tick(ctx());
     evaluateChecks();
-    if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows);
+    if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows, app.simValues);
     saveProgress();
   }
 
@@ -794,13 +806,19 @@
     var meta = app.lab.meta;
     if (app.mode === 'free') {
       var isSandbox = !!meta.free;
-      host.innerHTML = '<div class="panel-head"><h2>' + (isSandbox ? '全自由实验室' : '自由探究') + '</h2></div>' +
-        '<div class="free-guide"><p>' + (isSandbox
-          ? '空白画布，元件数量与参数都不限。随便搭、随便接，右侧仪表会实时显示读数。'
-          : '自由搭建任意电路，右侧仪表会实时显示读数。可以随时点击「示例电路」查看标准接法。') + '</p>' +
-        '<ul class="free-list"><li>改变电池节数、电阻阻值或滑片位置，观察读数变化</li>' +
-        '<li>故意断开一根导线或短接电源，看看会出现什么提示</li>' +
-        '<li>记录多组数据后导出 CSV，比较规律</li></ul>' +
+      var fg = app.lab.freeGuide || {};
+      var freeList = fg.list || (app.kind === 'sim'
+        ? ['拖动画面里的物体，或直接改左栏参数，读数会实时重算',
+           '比较不同条件下的读数，看看规律是否成立',
+           '记录多组数据后导出 CSV，自己归纳结论']
+        : ['改变电池节数、电阻阻值或滑片位置，观察读数变化',
+           '故意断开一根导线或短接电源，看看会出现什么提示',
+           '记录多组数据后导出 CSV，比较规律']);
+      host.innerHTML = '<div class="panel-head"><h2>' + (fg.title || (isSandbox ? '全自由实验室' : '自由探究')) + '</h2></div>' +
+        '<div class="free-guide"><p>' + (fg.text || (app.kind === 'sim'
+          ? '左栏参数全部开放，随便改、随便试，画面与读数会立刻跟着变。'
+          : '自由搭建任意电路，右侧仪表会实时显示读数。可以随时点击「示例电路」查看标准接法。')) + '</p>' +
+        '<ul class="free-list">' + freeList.map(function (line) { return '<li>' + line + '</li>'; }).join('') + '</ul>' +
         '<button type="button" class="btn btn-soft btn-sm" id="free-help">' + SL.icon('help-circle', '', 15) + '查看使用说明</button></div>';
       var btn = SL.$('#free-help', host);
       if (btn) btn.addEventListener('click', SL.home.help);
@@ -906,7 +924,7 @@
     evaluateChecks();
     SL.sound.play('record');
     SL.toast('已记录一组数据', 'ok');
-    if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows);
+    if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows, app.simValues);
   }
 
   function renderRecords() {

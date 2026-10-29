@@ -328,6 +328,7 @@
         time: '不限时',
         accent: '#7c5cff',
         free: true,
+        freeNote: '自由搭建 · 元件数量不限',
         equipment: [
           { icon: 'circuit-battery', label: '电池组 / 学生电源' },
           { icon: 'circuit-bulb', label: '小灯泡 / 发光二极管' },
@@ -576,6 +577,33 @@
             reference: 'V排 = 100 cm³ = 1×10⁻⁴ m³，F浮 = ρ水 g V排 = 1.0×10³ × 10 × 1×10⁻⁴ = 1 N。'
           }
         ]
+      },
+
+      {
+        id: 'mech-free',
+        subject: 'mechanics',
+        kind: 'sim',
+        name: '力学自由实验室',
+        short: '杠杆、滑轮组、浮力三套装置随时切换，钩码质量、绕法、摩擦、液体、材料全部开放，无步骤、不限组数。',
+        tag: '自由实验 · 不限步骤',
+        time: '不限时',
+        accent: '#7c5cff',
+        free: true,
+        freeNote: '三套装置随意切换 · 参数不限',
+        equipment: [
+          { icon: 'seesaw', label: '杠杆与支架' },
+          { icon: 'pulley', label: '滑轮组' },
+          { icon: 'beaker', label: '烧杯与液体' },
+          { icon: 'gauge', label: '弹簧测力计' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'device', label: '装置' },
+          { key: 'summary', label: '实验条件' },
+          { key: 'result', label: '主要读数' }
+        ],
+        steps: [],
+        conclusions: []
       }
     ]
   };

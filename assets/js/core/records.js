@@ -83,7 +83,9 @@
     renderTable: function (host, lab, rows) {
       if (!rows.length) {
         host.innerHTML = '<div class="empty-note">' + SL.icon('chart-line', 'empty-icon', 22) +
-          '<p>还没有数据<br><span class="muted">接线通电后，点击「记录当前数据」。</span></p></div>';
+          '<p>还没有数据<br><span class="muted">' +
+          (lab.kind === 'sim' ? '调好参数、读数稳定后，点击「记录当前数据」。' : '接线通电后，点击「记录当前数据」。') +
+          '</span></p></div>';
         return;
       }
       var head = lab.columns.map(function (col) { return '<th>' + col.label + '</th>'; }).join('') + '<th class="col-time">时间</th>';
