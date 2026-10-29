@@ -3,7 +3,8 @@ import subprocess, sys, re, os, tempfile
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 BASE = "http://127.0.0.1:8901/tests/"
 pages = sys.argv[1:] or ["circuit-test.html", "board-test.html", "lab-test.html",
-                         "records-test.html", "formula-test.html", "sim-test.html", "ui-test.html"]
+                         "records-test.html", "formula-test.html", "chem-test.html",
+                         "sim-test.html", "ui-test.html"]
 WORK = os.path.join(tempfile.gettempdir(), "sparklab-tests")
 
 

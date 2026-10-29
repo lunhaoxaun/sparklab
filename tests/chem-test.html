@@ -1,0 +1,274 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>化学实验自测</title>
+  <style>
+    body { font-family: ui-monospace, Consolas, monospace; background: #101820; color: #dbe6f0; padding: 24px; }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    .row { padding: 4px 0; font-size: 13px; }
+    .pass { color: #6ee7a8; }
+    .fail { color: #ff8080; }
+    .detail { color: #8aa0b6; margin-left: 10px; }
+    #summary { margin-top: 16px; font-size: 15px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>化学实验自测（制氧、燃烧、电解、中和、自由混合）</h1>
+  <div id="out"></div>
+  <div id="summary"></div>
+
+  <script src="../assets/js/core/utils.js?v=59"></script>
+  <script src="../data/experiments.js?v=59"></script>
+  <script src="../assets/js/core/simkit.js?v=59"></script>
+  <script src="../assets/js/sims/chem.js?v=59"></script>
+  <script src="../assets/js/labs/lab-chem-oxygen.js?v=59"></script>
+  <script src="../assets/js/labs/lab-chem-combustion.js?v=59"></script>
+  <script src="../assets/js/labs/lab-chem-electrolysis.js?v=59"></script>
+  <script src="../assets/js/labs/lab-chem-acidbase.js?v=59"></script>
+  <script src="../assets/js/labs/lab-chem-free.js?v=59"></script>
+  <script>
+  (function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var total = 0, passed = 0;
+
+    function test(name, fn) {
+      total += 1;
+      var ok = false, detail = '';
+      try {
+        var res = fn();
+        ok = res === true || (res && res.ok);
+        if (res && res.detail) detail = res.detail;
+      } catch (e) {
+        detail = '异常：' + e.message;
+      }
+      if (ok) passed += 1;
+      var row = document.createElement('div');
+      row.className = 'row ' + (ok ? 'pass' : 'fail');
+      row.innerHTML = (ok ? 'PASS ' : 'FAIL ') + total + '. ' + name +
+        (detail ? '<span class="detail">' + detail + '</span>' : '');
+      out.appendChild(row);
+    }
+
+    function near(a, b, tol) { return Math.abs(a - b) <= tol; }
+    function lab(id) { return SL.labs[id]; }
+    function ctxOf(id, values, rows) {
+      var l = lab(id);
+      var v = Object.assign({}, l.defaults, values || {});
+      return { values: v, calc: l.calc(v), rows: rows || [], state: {}, mode: 'guided' };
+    }
+
+    /* ---------- 一、制取氧气 ---------- */
+    test('过氧化氢需要催化剂才快：加二氧化锰速率约为不添加的 20 倍', function () {
+      var slow = SL.chem.oxygen({ reagent: 'h2o2', catalyst: false }, { vol: 0 });
+      var fast = SL.chem.oxygen({ reagent: 'h2o2', catalyst: true }, { vol: 0 });
+      return { ok: slow.reacts && fast.speed / slow.speed > 15, detail: slow.speed.toFixed(2) + ' → ' + fast.speed.toFixed(2) + ' mL/s' };
+    });
+
+    test('高锰酸钾不加热不产生氧气，加热后正常产气', function () {
+      var cold = SL.chem.oxygen({ reagent: 'kmno4', heat: false }, { vol: 0 });
+      var hot = SL.chem.oxygen({ reagent: 'kmno4', heat: true }, { vol: 0 });
+      return { ok: !cold.reacts && cold.speed === 0 && hot.reacts && hot.speed > 3,
+        detail: '未加热=' + cold.speed + ' 加热=' + hot.speed.toFixed(1) };
+    });
+
+    test('集气瓶 250 mL 集满判定与集满标记', function () {
+      var half = SL.chem.oxygen({ reagent: 'h2o2', catalyst: true }, { vol: 125 });
+      var full = SL.chem.oxygen({ reagent: 'h2o2', catalyst: true }, { vol: 250 });
+      return { ok: !half.full && near(half.filled, 0.5, 0.01) && full.full && full.filled === 1,
+        detail: 'filled=' + half.filled + ' / ' + full.filled };
+    });
+
+    test('制氧第 2 步：播放后体积增大才通过', function () {
+      var l = lab('chem-oxygen');
+      l.reset();
+      var c0 = ctxOf('chem-oxygen');
+      var before = l.meta.steps[1].check(c0);
+      l.onTick(5, { calc: c0.calc, clock: null });
+      var c1 = ctxOf('chem-oxygen');
+      var after = l.meta.steps[1].check(c1);
+      return { ok: before === false && after === true, detail: 'V=' + c0.calc.vol.toFixed(1) + '→' + c1.calc.vol.toFixed(1) };
+    });
+
+    test('制氧第 3 步：集满才通过；记录行包含药品与检验现象', function () {
+      var l = lab('chem-oxygen');
+      l.reset();
+      var c = ctxOf('chem-oxygen', { test: 'ember' });
+      l.onTick(30, { calc: c.calc, clock: null });
+      var c2 = ctxOf('chem-oxygen', { test: 'ember' });
+      var fullStep = l.meta.steps[2].check(c2);
+      var row = l.measure({ values: c2.values, calc: c2.calc, rows: [] });
+      return { ok: fullStep === true && row && row.full === '是' && row.phenomenon !== '—',
+        detail: 'V=' + c2.calc.vol + ' row=' + JSON.stringify(row).slice(0, 90) };
+    });
+
+    test('制氧 measure 在无气体时拒绝记录', function () {
+      var l = lab('chem-oxygen');
+      l.reset();
+      var c = ctxOf('chem-oxygen');
+      return { ok: l.measure({ values: c.values, calc: c.calc, rows: [] }) === null };
+    });
+
+    /* ---------- 二、燃烧条件 ---------- */
+    test('水温 25 ℃：三处都不燃烧', function () {
+      var c = SL.chem.combustion({ temp: 25, air: false });
+      return { ok: !c.plateWhite && !c.plateRed && !c.waterWhite && c.burningCount === 0 };
+    });
+
+    test('水温 80 ℃：只有铜片上的白磷燃烧（红磷着火点未到、水中无氧）', function () {
+      var c = SL.chem.combustion({ temp: 80, air: false });
+      return { ok: c.plateWhite && !c.plateRed && !c.waterWhite && c.burningCount === 1,
+        detail: JSON.stringify([c.plateWhite, c.plateRed, c.waterWhite]) };
+    });
+
+    test('水温 80 ℃ 并通氧气：水中白磷也燃烧', function () {
+      var c = SL.chem.combustion({ temp: 80, air: true });
+      return { ok: c.plateWhite && c.waterWhite, detail: 'burning=' + c.burningCount };
+    });
+
+    test('燃烧第 2 步要求「铜片白磷燃、红磷不燃」的对照', function () {
+      var l = lab('chem-combustion');
+      var step = l.meta.steps[2 - 1];
+      var cold = l.meta.steps[1].check(ctxOf('chem-combustion', { temp: 25 }));
+      var hot = l.meta.steps[1].check(ctxOf('chem-combustion', { temp: 80 }));
+      return { ok: cold === false && hot === true };
+    });
+
+    /* ---------- 三、电解水 ---------- */
+    test('电压 1.0 V 不产气，6 V 正常产气', function () {
+      var low = SL.chem.electrolysis({ voltage: 1, electrolyte: 'h2so4' }, { t: 0, vH: 0, vO: 0 });
+      var ok = SL.chem.electrolysis({ voltage: 6, electrolyte: 'h2so4' }, { t: 0, vH: 0, vO: 0 });
+      return { ok: low.rate === 0 && ok.rate > 2, detail: low.rate + ' / ' + ok.rate.toFixed(2) };
+    });
+
+    test('电解 3 秒后 V(H₂):V(O₂) = 2 : 1', function () {
+      var l = lab('chem-electrolysis');
+      l.reset();
+      var c = ctxOf('chem-electrolysis', { voltage: 6 });
+      l.onTick(3, { calc: c.calc, clock: null });
+      var c2 = ctxOf('chem-electrolysis', { voltage: 6 });
+      return { ok: near(c2.calc.splitRatio, 2, 0.05), detail: c2.calc.vH.toFixed(2) + ' : ' + c2.calc.vO.toFixed(2) };
+    });
+
+    test('电解第 4 步要求比值接近 2，第 1 步要求开始产气', function () {
+      var l = lab('chem-electrolysis');
+      l.reset();
+      var s1cold = l.meta.steps[0].check(ctxOf('chem-electrolysis', { voltage: 0.5 }));
+      var c = ctxOf('chem-electrolysis', { voltage: 8 });
+      l.onTick(6, { calc: c.calc, clock: null });
+      var c2 = ctxOf('chem-electrolysis', { voltage: 8 });
+      return { ok: s1cold === false && l.meta.steps[0].check(c2) === true && l.meta.steps[3].check(c2) === true,
+        detail: 'ratio=' + c2.calc.splitRatio };
+    });
+
+    test('电解 measure 记录时间与两管体积', function () {
+      var l = lab('chem-electrolysis');
+      l.reset();
+      var c = ctxOf('chem-electrolysis', { voltage: 6 });
+      l.onTick(4, { calc: c.calc, clock: null });
+      var c2 = ctxOf('chem-electrolysis', { voltage: 6 });
+      var row = l.measure({ values: c2.values, calc: c2.calc, rows: [] });
+      return { ok: row && row.vH > row.vO && near(row.ratio, 2, 0.06), detail: JSON.stringify(row) };
+    });
+
+    /* ---------- 四、酸碱中和 ---------- */
+    test('0.1 mol/L 盐酸 20 mL 与 0.1 mol/L 氢氧化钠 20 mL 恰好中和', function () {
+      var c = SL.chem.acidBase({ acidConc: 0.1, baseConc: 0.1, added: 20, indicator: 'phenolphthalein' });
+      return { ok: c.ph === 7 && c.neutralized && c.state === '恰好完全反应', detail: 'pH=' + c.ph };
+    });
+
+    test('滴入 10 mL 时酸过量（pH < 2），滴入 30 mL 时碱过量（pH > 12）', function () {
+      var a = SL.chem.acidBase({ acidConc: 0.1, baseConc: 0.1, added: 10 });
+      var b = SL.chem.acidBase({ acidConc: 0.1, baseConc: 0.1, added: 30 });
+      return { ok: a.ph < 2 && b.ph > 12, detail: 'pH=' + a.ph + ' / ' + b.ph };
+    });
+
+    test('酚酞在碱性变红、在酸性无色；石蕊遇酸变红', function () {
+      var base = SL.chem.acidBase({ acidConc: 0.1, baseConc: 0.1, added: 30, indicator: 'phenolphthalein' });
+      var acid = SL.chem.acidBase({ acidConc: 0.1, baseConc: 0.1, added: 0, indicator: 'phenolphthalein' });
+      var litmus = SL.chem.acidBase({ acidConc: 0.1, baseConc: 0.1, added: 0, indicator: 'litmus' });
+      return { ok: base.colorText.indexOf('变红') !== -1 && acid.colorText.indexOf('无色') !== -1 && litmus.colorText.indexOf('变红') !== -1,
+        detail: base.colorText + ' / ' + acid.colorText + ' / ' + litmus.colorText };
+    });
+
+    test('中和第 4 步：pH 接近 7 才通过', function () {
+      var l = lab('chem-acidbase');
+      var far = l.meta.steps[3].check(ctxOf('chem-acidbase', { added: 10 }));
+      var hit = l.meta.steps[3].check(ctxOf('chem-acidbase', { added: 20 }));
+      return { ok: far === false && hit === true };
+    });
+
+    test('中和记录行包含浓度、体积与 pH', function () {
+      var l = lab('chem-acidbase');
+      var c = ctxOf('chem-acidbase', { added: 20 });
+      var row = l.measure({ values: c.values, calc: c.calc, rows: [] });
+      return { ok: row && row.ph === 7 && row.added === 20 && row.state === '恰好完全反应', detail: JSON.stringify(row) };
+    });
+
+    /* ---------- 五、化学自由实验室 ---------- */
+    test('盐酸 + 碳酸钠：产生气泡并给出方程式', function () {
+      var c = SL.chem.freeMix({ reagentA: 'hcl', reagentB: 'na2co3' });
+      return { ok: c.bubbles > 0 && c.reacted && c.equation.indexOf('CO₂') !== -1, detail: c.equation };
+    });
+
+    test('氢氧化钠 + 硫酸铜：产生蓝色沉淀', function () {
+      var c = SL.chem.freeMix({ reagentA: 'naoh', reagentB: 'cuso4' });
+      return { ok: !!c.precipitate && c.type === '复分解反应', detail: c.equation };
+    });
+
+    test('铁 + 硫酸铜：置换反应，铁钉表面析出红色物质', function () {
+      var c = SL.chem.freeMix({ reagentA: 'cuso4', reagentB: 'fe' });
+      return { ok: c.type === '置换反应' && !!c.coating, detail: c.equation };
+    });
+
+    test('同种试剂混合判为无反应；无现象的组合同样标为无反应', function () {
+      var same = SL.chem.freeMix({ reagentA: 'hcl', reagentB: 'hcl' });
+      var none = SL.chem.freeMix({ reagentA: 'hcl', reagentB: 'cacl2' });
+      return { ok: !same.reacted && !none.reacted, detail: same.type + ' / ' + none.type };
+    });
+
+    test('加酚酞后碱性溶液变红，自由实验室同步给出提示', function () {
+      var c = SL.chem.freeMix({ reagentA: 'naoh', reagentB: 'h2o', indicator: 'phenolphthalein' });
+      return { ok: c.indicatorText.indexOf('变红') !== -1, detail: c.indicatorText };
+    });
+
+    test('自由实验室记录行使用通用列（试剂组合 / 反应类型 / 现象）', function () {
+      var l = lab('chem-free');
+      var c = ctxOf('chem-free', { reagentA: 'hcl', reagentB: 'na2co3' });
+      var row = l.measure({ values: c.values, calc: c.calc, rows: [] });
+      var cols = l.meta.columns.map(function (k) { return k.key; }).join(',');
+      return { ok: row && row.device && row.summary && row.result && cols === 'group,device,summary,result', detail: cols };
+    });
+
+    /* ---------- 六、元数据完整性 ---------- */
+    test('化学板块已开放，五个实验齐全且自由实验室带 free 标记', function () {
+      var sub = SL.data.subjectById['chemistry'];
+      var labs = SL.data.labs.filter(function (x) { return x.subject === 'chemistry'; });
+      var free = labs.filter(function (x) { return x.free; });
+      var allHaveMeta = labs.every(function (x) {
+        return x.name && x.short && x.accent && x.equipment && x.columns && x.columns.length > 2 && x.steps && x.conclusions;
+      });
+      return { ok: sub.available === true && labs.length === 5 && free.length === 1 && allHaveMeta,
+        detail: 'labs=' + labs.length + ' free=' + free.map(function (x) { return x.id; }).join(',') };
+    });
+
+    test('四步以上的实验，引导步骤都带 check 函数', function () {
+      var bad = [];
+      ['chem-oxygen', 'chem-combustion', 'chem-electrolysis', 'chem-acidbase'].forEach(function (id) {
+        lab(id).meta.steps.forEach(function (s, i) {
+          if (typeof s.check !== 'function') bad.push(id + '#' + i);
+        });
+      });
+      return { ok: bad.length === 0, detail: bad.join(',') || '全部有 check' };
+    });
+
+    var summary = document.getElementById('summary');
+    summary.textContent = (passed === total ? 'PASS ' : 'FAIL ') + passed + ' / ' + total;
+    summary.className = passed === total ? 'pass' : 'fail';
+    document.title = (passed === total ? 'PASS ' : 'FAIL ') + passed + '/' + total;
+    window.__testDone = true;
+  })();
+  </script>
+</body>
+</html>

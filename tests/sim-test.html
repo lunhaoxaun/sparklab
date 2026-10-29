@@ -235,8 +235,18 @@
       ok('力学卡片含自由实验室入口', document.querySelector('.lab-grid-home').textContent.indexOf('自由实验室') !== -1);
       ok('hall 标题切换为力学', document.querySelector('.hall-head h2').textContent.indexOf('力学') !== -1,
         document.querySelector('.hall-head h2').textContent);
-      document.querySelector('[data-subject="thermal"]').click();
-      ok('热学板块暂无实验时显示占位', !!document.querySelector('.hall-empty'));
+      var th = document.querySelector('[data-subject="thermal"]');
+      ok('热学板块未开放时按钮置灰并标“敬请期待”',
+        th.classList.contains('disabled') && th.textContent.indexOf('敬请期待') !== -1);
+      /* 临时插入一个「已开放但还没有实验」的板块，验证占位提示仍然存在 */
+      SL.data.subjects.push({ id: 'tmp-empty', name: '占位测试', icon: 'atom', available: true, desc: 'x' });
+      SL.data.subjectById['tmp-empty'] = SL.data.subjects[SL.data.subjects.length - 1];
+      SL.app.showHome();
+      document.querySelector('[data-subject="tmp-empty"]').click();
+      ok('已开放但暂无实验的板块显示占位', !!document.querySelector('.hall-empty'));
+      SL.data.subjects.pop();
+      delete SL.data.subjectById['tmp-empty'];
+      SL.app.showHome();
       document.querySelector('[data-subject="electricity"]').click();
       ok('切回电学显示 4 个实验卡', document.querySelectorAll('.lab-card').length === 4,
         document.querySelectorAll('.lab-card').length + ' 个');

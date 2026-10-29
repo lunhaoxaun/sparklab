@@ -60,7 +60,7 @@
     var bar = SL.$('#topbar');
     bar.innerHTML = '<button type="button" class="brand" id="brand-btn" aria-label="返回实验大厅">' +
       '<span class="brand-mark">' + SL.icon('atom', '', 22) + '</span>' +
-      '<span class="brand-text"><strong>' + SL.BRAND + '</strong><em>SparkLab · 初中物理</em></span>' +
+      '<span class="brand-text"><strong>' + SL.BRAND + '</strong><em>SparkLab · 初中理化生</em></span>' +
       '<span class="brand-ver" title="当前版本 ' + SL.VERSION_DATE + '">v' + SL.VERSION + '</span>' +
       '</button>' +
       '<div class="top-actions">' +
@@ -102,7 +102,7 @@
       document.removeEventListener('keydown', app.keyHandler);
       app.keyHandler = null;
     }
-    document.title = SL.BRAND + ' · 初中物理虚拟实验';
+    document.title = SL.BRAND + ' · 初中理化生虚拟实验';
     SL.home.render(root(), {
       onOpenLab: openLab,
       help: SL.home.help,

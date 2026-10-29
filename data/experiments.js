@@ -37,8 +37,8 @@
         id: 'chemistry',
         name: '化学',
         icon: 'flask',
-        available: false,
-        desc: '酸碱、气体制取（敬请期待）'
+        available: true,
+        desc: '气体制取、燃烧、电解、中和'
       },
       {
         id: 'biology',
@@ -601,6 +601,346 @@
           { key: 'device', label: '装置' },
           { key: 'summary', label: '实验条件' },
           { key: 'result', label: '主要读数' }
+        ],
+        steps: [],
+        conclusions: []
+      },
+
+      /* ==================== 化学 ==================== */
+      {
+        id: 'chem-oxygen',
+        subject: 'chemistry',
+        kind: 'sim',
+        name: '氧气的实验室制取与性质',
+        short: '比较三种药品的制取装置与产气速率，用排水法收集氧气，再用带火星的木条和燃烧的硫检验它的性质。',
+        tag: '九年级 · 化学',
+        time: '约 18 分钟',
+        accent: '#0d8f6f',
+        equipment: [
+          { icon: 'flask', label: '锥形瓶 / 大试管' },
+          { icon: 'beaker', label: '水槽与集气瓶' },
+          { icon: 'flame', label: '酒精灯' },
+          { icon: 'atom', label: '过氧化氢、高锰酸钾、氯酸钾' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'reagent', label: '药品' },
+          { key: 'speed', label: '速率/(mL·s⁻¹)', digits: 1 },
+          { key: 'vol', label: 'V(O₂)/mL', digits: 0 },
+          { key: 'purity', label: '纯度/%', digits: 0 },
+          { key: 'full', label: '集满' },
+          { key: 'phenomenon', label: '检验现象' }
+        ],
+        steps: [
+          {
+            title: '让药品开始反应',
+            instruction: '选择一种制取药品，把反应条件调好（需要加热的药品要点燃酒精灯，过氧化氢要加二氧化锰），直到读数面板里出现稳定的产气速率。',
+            hint: '高锰酸钾和氯酸钾必须加热；过氧化氢不加二氧化锰时每分钟只产生几个气泡。'
+          },
+          {
+            title: '用排水法收集一瓶氧气',
+            instruction: '点击画面上的「播放」，观察气泡进入倒扣的集气瓶，瓶内水面慢慢下降。集到 60 mL 以上就可以做检验了。',
+            hint: '集气瓶里水面下降的体积，就是收集到的氧气体积。'
+          },
+          {
+            title: '把集气瓶集满',
+            instruction: '继续收集，直到集气瓶内水全部排出（集满 250 mL）。',
+            hint: '排水法收集到的是纯净的氧气，纯度可达 95% 以上。'
+          },
+          {
+            title: '检验氧气的性质',
+            instruction: '把「性质检验」切换到带火星的木条或燃烧的硫，观察现象并记录。',
+            hint: '氧气能支持燃烧：带火星的木条复燃，硫在氧气中燃烧发出明亮的蓝紫色火焰。'
+          },
+          {
+            title: '填写实验结论',
+            instruction: '结合记录的数据，回答下方问题。',
+            hint: '催化剂只改变反应速率，不会增加生成氧气的总量。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'ox1',
+            label: '实验室用过氧化氢溶液制取氧气时，二氧化锰起',
+            suffix: '作用，反应前后它的质量和化学性质都不变。',
+            type: 'keyword',
+            keywords: ['催化'],
+            reference: '催化。二氧化锰是催化剂，只加快分解速率。'
+          },
+          {
+            id: 'ox2',
+            label: '收集氧气常用排水法，说明氧气',
+            suffix: '溶于水。',
+            type: 'keyword',
+            keywords: ['不易', '难'],
+            reference: '不易（难）溶于水，所以可以用排水法收集。'
+          },
+          {
+            id: 'ox3',
+            label: '把带火星的木条伸入集满氧气的瓶中，木条',
+            suffix: '，说明氧气能支持燃烧。',
+            type: 'keyword',
+            keywords: ['复燃'],
+            reference: '复燃。氧气具有助燃性，但本身不能燃烧。'
+          }
+        ]
+      },
+
+      {
+        id: 'chem-combustion',
+        subject: 'chemistry',
+        kind: 'sim',
+        name: '探究燃烧的条件',
+        short: '铜片上的白磷、红磷与水中的白磷三处对照，改变水温与是否通氧气，找出燃烧必须同时满足的条件。',
+        tag: '九年级 · 化学',
+        time: '约 14 分钟',
+        accent: '#c9622a',
+        equipment: [
+          { icon: 'beaker', label: '烧杯与热水' },
+          { icon: 'flame', label: '铜片与白磷、红磷' },
+          { icon: 'thermometer', label: '温度计' },
+          { icon: 'atom', label: '氧气导管' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'temp', label: '水温/℃', digits: 0 },
+          { key: 'air', label: '水中白磷通气' },
+          { key: 'plateWhite', label: '铜片白磷' },
+          { key: 'plateRed', label: '铜片红磷' },
+          { key: 'waterWhite', label: '水中白磷' }
+        ],
+        steps: [
+          {
+            title: '把水温升到白磷的着火点以上',
+            instruction: '把水温滑到 40 ℃ 以上，观察铜片上的白磷有什么变化。',
+            hint: '白磷的着火点只有 40 ℃，温度一到就达到了燃烧所需的温度条件。'
+          },
+          {
+            title: '对照铜片上的红磷',
+            instruction: '同一块铜片上，红磷为什么没有燃烧？把观察到的现象记下来。',
+            hint: '红磷的着火点是 240 ℃，热水最高只有 100 ℃，温度达不到。这说明燃烧需要一个最低温度。'
+          },
+          {
+            title: '让水中的白磷燃烧',
+            instruction: '打开「向水中的白磷通氧气」，观察钟罩里的白磷。',
+            hint: '水中白磷温度够了，但被水隔绝了氧气，所以不燃烧；通入氧气后立刻燃烧。'
+          },
+          {
+            title: '填写实验结论',
+            instruction: '综合三处现象，回答下方问题。',
+            hint: '三个条件必须同时满足，缺一个就不能燃烧。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'cb1',
+            label: '燃烧需要三个条件：可燃物、氧气（或空气）、温度达到',
+            suffix: '。',
+            type: 'keyword',
+            keywords: ['着火点'],
+            reference: '着火点。三者必须同时满足，缺一不可。'
+          },
+          {
+            id: 'cb2',
+            label: '铜片上的红磷不燃烧，是因为',
+            suffix: '。',
+            type: 'keyword',
+            keywords: ['温度', '着火点'],
+            reference: '温度没有达到红磷的着火点（240 ℃）。'
+          },
+          {
+            id: 'cb3',
+            label: '水中的白磷一开始不燃烧，通入氧气后燃烧，说明燃烧需要',
+            suffix: '。',
+            type: 'keyword',
+            keywords: ['氧气', '空气'],
+            reference: '氧气（或空气）。水把白磷与空气隔开了。'
+          }
+        ]
+      },
+
+      {
+        id: 'chem-electrolysis',
+        subject: 'chemistry',
+        kind: 'sim',
+        name: '电解水',
+        short: '给水通电，观察两支刻度管里气体的体积关系，验证水由氢、氧两种元素组成。',
+        tag: '九年级 · 化学',
+        time: '约 15 分钟',
+        accent: '#2f6fbf',
+        equipment: [
+          { icon: 'beaker', label: '电解槽与刻度管' },
+          { icon: 'atom', label: '石墨电极' },
+          { icon: 'gauge', label: '直流电源' },
+          { icon: 'flask', label: '稀硫酸 / 氢氧化钠溶液' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'voltage', label: '电压/V', digits: 1 },
+          { key: 'electrolyte', label: '电解液' },
+          { key: 't', label: '时间/s', digits: 1 },
+          { key: 'vH', label: 'V(H₂)/mL', digits: 1 },
+          { key: 'vO', label: 'V(O₂)/mL', digits: 1 },
+          { key: 'ratio', label: 'V(H₂):V(O₂)', digits: 1 }
+        ],
+        steps: [
+          {
+            title: '把电压调到分解电压以上',
+            instruction: '把电压调到 1.5 V 以上，让两支电极上开始冒气泡。',
+            hint: '水本身几乎不导电，加入少量稀硫酸或氢氧化钠溶液可以增强导电性。'
+          },
+          {
+            title: '观察两极产生的气体',
+            instruction: '点击「播放」通电，看看哪支刻度管里的气体多。',
+            hint: '与电源负极相连的电极产生氢气，与正极相连的产生氧气。'
+          },
+          {
+            title: '比较两支刻度管的体积',
+            instruction: '收集到 20 mL 以上，读出两支刻度管的气体体积，算一算它们的比值。',
+            hint: '氢气的体积大约是氧气的 2 倍。'
+          },
+          {
+            title: '记录数据并验证比值',
+            instruction: '记录当前数据，再换一个电压重复一次，看看比值是否稳定在 2 : 1。',
+            hint: '改变电压只改变产气快慢，不改变氢气和氧气的体积比。'
+          },
+          {
+            title: '填写实验结论',
+            instruction: '根据体积比，回答下方问题。',
+            hint: '水中氢、氧元素的原子个数比是 2 : 1，所以气体体积比也是 2 : 1。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'el1',
+            label: '电解水时，与电源负极相连的电极上产生的气体是',
+            suffix: '。',
+            type: 'keyword',
+            keywords: ['氢气', 'H2', 'H₂'],
+            reference: '氢气（H₂），它可以用燃着的木条点燃，产生淡蓝色火焰。'
+          },
+          {
+            id: 'el2',
+            label: '氢气和氧气的体积比约为',
+            suffix: ': 1。',
+            type: 'number',
+            answer: 2,
+            tolerance: 0.15,
+            reference: '2 : 1。由 2H₂O —通电→ 2H₂↑ + O₂↑ 可知。'
+          },
+          {
+            id: 'el3',
+            label: '电解水的实验说明，水是由氢元素和',
+            suffix: '元素组成的。',
+            type: 'keyword',
+            keywords: ['氧'],
+            reference: '氧元素。化学反应前后元素的种类不变。'
+          }
+        ]
+      },
+
+      {
+        id: 'chem-acidbase',
+        subject: 'chemistry',
+        kind: 'sim',
+        name: '酸碱中和反应与指示剂',
+        short: '向稀盐酸中逐滴加入氢氧化钠溶液，用石蕊或酚酞判断溶液酸碱性的变化，找到恰好完全反应的那一点。',
+        tag: '九年级 · 化学',
+        time: '约 16 分钟',
+        accent: '#a8447f',
+        equipment: [
+          { icon: 'flask', label: '锥形瓶' },
+          { icon: 'beaker', label: '滴定管' },
+          { icon: 'atom', label: '稀盐酸、氢氧化钠溶液' },
+          { icon: 'ruler', label: '石蕊 / 酚酞' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'acidConc', label: 'c(HCl)/(mol/L)', digits: 2 },
+          { key: 'baseConc', label: 'c(NaOH)/(mol/L)', digits: 2 },
+          { key: 'added', label: 'V(NaOH)/mL', digits: 1 },
+          { key: 'ph', label: 'pH', digits: 2 },
+          { key: 'state', label: '状态' },
+          { key: 'color', label: '指示剂颜色' }
+        ],
+        steps: [
+          {
+            title: '先加入指示剂',
+            instruction: '选择紫色石蕊或无色酚酞，观察锥形瓶里 20 mL 稀盐酸的颜色。',
+            hint: '石蕊遇酸变红；酚酞在酸性溶液里仍然无色。'
+          },
+          {
+            title: '开始滴加氢氧化钠溶液',
+            instruction: '把滴加体积从 0 慢慢调大，观察颜色变化和 pH 的变化。',
+            hint: 'pH 会从酸性区间一步步升到 7 附近。'
+          },
+          {
+            title: '越过中性点',
+            instruction: '继续滴加，让溶液变成碱性，看看颜色又怎么变。',
+            hint: '石蕊由红变紫再变蓝；酚酞在碱性溶液里变红。'
+          },
+          {
+            title: '找到恰好完全反应的体积',
+            instruction: '调整滴加体积，让 pH 最接近 7，记录这组数据。',
+            hint: '恰好中和时 n(HCl) = n(NaOH)，也就是 c酸 × 20 mL = c碱 × V碱。'
+          },
+          {
+            title: '填写实验结论',
+            instruction: '记录两组不同浓度的数据，回答下方问题。',
+            hint: '中和反应的实质是 H⁺ + OH⁻ → H₂O。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'ab1',
+            label: '氢氧化钠与盐酸恰好完全反应时，溶液的 pH =',
+            suffix: '。',
+            type: 'number',
+            answer: 7,
+            tolerance: 0.2,
+            reference: '7。酸和碱恰好完全反应，溶液呈中性。'
+          },
+          {
+            id: 'ab2',
+            label: '盐酸与氢氧化钠反应生成氯化钠和',
+            suffix: '，这个反应属于中和反应。',
+            type: 'keyword',
+            keywords: ['水'],
+            reference: '水（H₂O）。NaOH + HCl → NaCl + H₂O。'
+          },
+          {
+            id: 'ab3',
+            label: '无色酚酞遇到碱性溶液会变成',
+            suffix: '色。',
+            type: 'keyword',
+            keywords: ['红'],
+            reference: '红色。酚酞遇碱变红，遇酸和中性溶液不变色。'
+          }
+        ]
+      },
+
+      {
+        id: 'chem-free',
+        subject: 'chemistry',
+        kind: 'sim',
+        name: '化学自由实验室',
+        short: '从八种常见试剂里任选两种混合，随时加入石蕊或酚酞，实时显示现象、颜色与化学方程式，无步骤、不限组数。',
+        tag: '自由实验 · 不限步骤',
+        time: '不限时',
+        accent: '#7c5cff',
+        free: true,
+        freeNote: '八种试剂任意组合 · 现象实时生成',
+        equipment: [
+          { icon: 'flask', label: '大试管' },
+          { icon: 'beaker', label: '试剂瓶' },
+          { icon: 'atom', label: '酸、碱、盐、金属' },
+          { icon: 'ruler', label: '石蕊 / 酚酞' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'device', label: '试剂组合' },
+          { key: 'summary', label: '反应类型' },
+          { key: 'result', label: '实验现象' }
         ],
         steps: [],
         conclusions: []

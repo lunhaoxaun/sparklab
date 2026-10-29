@@ -295,6 +295,71 @@
 }
 .hall-empty p { margin: 0; font-size: 13.5px; line-height: 1.7; }
 
+/* ---------- 化学：玻璃仪器与试剂 ---------- */
+.chem-flask,
+.chem-jar,
+.chem-bell,
+.chem-funnel,
+.chem-trough,
+.chem-reagent-bottle,
+.chem-ball {
+  fill: rgba(255, 255, 255, .58);
+  stroke: #9db4c6;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.chem-jar { fill: rgba(246, 251, 255, .5); }
+.chem-trough { fill: rgba(238, 246, 252, .82); stroke: #a8bccd; }
+.chem-bell { fill: rgba(232, 243, 252, .34); stroke: #86a2b8; stroke-dasharray: 0; }
+.chem-funnel { fill: rgba(250, 253, 255, .72); }
+.chem-funnel-tube { stroke: #9db4c6; stroke-width: 2; fill: none; }
+.chem-valve { fill: #e8eef4; stroke: #8ba3b6; stroke-width: 1.6; }
+.chem-stopper { fill: #d9c1a3; stroke: #b99b78; stroke-width: 1.4; }
+.chem-tube { fill: none; stroke: #8ba3b6; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+.chem-wire { fill: none; stroke: #55677a; stroke-width: 3; stroke-linecap: round; }
+
+.chem-liquid { fill-opacity: .82; }
+.chem-water { fill: #cfe6f2; fill-opacity: .78; }
+.chem-water-hot { fill-opacity: .74; }
+.chem-surface { stroke: #8fbfd8; stroke-width: 1.6; fill: none; }
+.chem-gas { fill-opacity: .5; }
+.chem-bubble { fill: rgba(255, 255, 255, .92); stroke: rgba(140, 180, 205, .8); stroke-width: 1; }
+.chem-solid { fill-opacity: .9; stroke: #7a5fb0; stroke-width: 1; }
+.chem-cotton { fill: #f2f0ea; stroke: #d6d2c6; stroke-width: 1; }
+.chem-copper { fill: #c8874a; stroke: #a56b34; stroke-width: 1.4; }
+.chem-phosphorus { fill: #f4e9c8; stroke: #cbb87e; stroke-width: 1.2; }
+.chem-phosphorus-red { fill: #c0503f; stroke: #9a3c2f; stroke-width: 1.2; }
+.chem-electrode { fill: #3c434a; stroke: #2a3037; stroke-width: 1.2; }
+.chem-nail { fill: #8a939c; stroke: #6b747d; stroke-width: 1.2; }
+.chem-spoon { fill: #9aa4b0; stroke: #78828e; stroke-width: 1.2; }
+.chem-stick { stroke: #b98d5a; stroke-width: 5; stroke-linecap: round; }
+
+.chem-lamp { fill: #cfe0ee; stroke: #9db4c6; stroke-width: 2; }
+.chem-lamp-cap { fill: #9aa8b6; stroke: #7b8996; stroke-width: 1.2; }
+.chem-flame { fill: #ff9d2e; opacity: .92; }
+.chem-flame-inner { fill: #ffe08a; }
+.chem-flame-sulfur { fill: #7b5cd6; opacity: .8; }
+.chem-smoke { fill: rgba(206, 214, 222, .6); }
+.chem-heat-wave { stroke: #e8934a; stroke-width: 2.4; fill: none; opacity: .8; }
+
+.chem-thermo { fill: #f7fafd; stroke: #9db4c6; stroke-width: 1.8; }
+.chem-thermo-fill { fill: #e2554b; }
+.chem-supply { fill: #2f3b4a; stroke: #222b36; stroke-width: 2; }
+.chem-supply-text { fill: #f2f7fc; font-size: 15px; font-weight: 700; }
+.chem-pole-neg { fill: #9fd0ff; font-size: 22px; font-weight: 800; }
+.chem-pole-pos { fill: #ffb3a7; font-size: 22px; font-weight: 800; }
+
+.chem-track { fill: #e3eaf1; stroke: #cfdae5; stroke-width: 1; }
+.chem-track-fill { fill: #16a3a3; }
+.chem-tag-ok { fill: #0d8f6f; font-size: 12.5px; font-weight: 700; }
+.chem-gas-label { fill: #1f4f6f; font-size: 13px; font-weight: 700; }
+.chem-ph-marker { fill: #0f1c2e; stroke: #fff; stroke-width: 1.6; }
+
+.chem-info-card { fill: rgba(255, 255, 255, .82); stroke: rgba(150, 172, 200, .5); stroke-width: 1.4; }
+.chem-info-title { fill: #5a6b83; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.chem-info-text { fill: #0f1c2e; font-size: 12.5px; font-weight: 600; }
+.chem-mix-title { fill: #0f1c2e; font-size: 16px; font-weight: 700; }
+
 /* ---------- 窄屏 ---------- */
 @media (max-width: 900px) {
   .sim-palette { position: static; }

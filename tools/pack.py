@@ -3,7 +3,7 @@
 
 产出两份（内容一致，只是文件名不同）：
   downloads/sparklab-offline-vX.Y.Z.zip        —— 站点内供下载，入 git
-  星火物理实验室-离线版-vX.Y.Z.zip              —— 根目录归档，不入 git
+  <品牌名>-离线版-vX.Y.Z.zip                    —— 根目录归档，不入 git
 
 打包内容：index.html + assets/ + data/ + tests/ + tools/build_icons.py
 排除：reference/、downloads/、.workbuddy/、临时产物、上一版 zip
@@ -14,7 +14,7 @@ import re
 import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BRAND_FILE = "星火物理实验室-离线版-v%s.zip"
+BRAND_FILE = "%s-离线版-v%s.zip"
 SITE_FILE = os.path.join("downloads", "sparklab-offline-v%s.zip")
 
 INCLUDE_DIRS = ["assets", "data", "tests"]
@@ -22,6 +22,13 @@ INCLUDE_FILES = ["index.html", os.path.join("tools", "build_icons.py")]
 SKIP_EXT = {".zip", ".pyc"}
 SKIP_DIR = {".git", ".workbuddy", "reference", "downloads", "node_modules",
             "__pycache__", ".tmpedge", ".shots", ".screenshots"}
+
+
+def _brand():
+    p = os.path.join(ROOT, "assets", "js", "core", "utils.js")
+    with open(p, encoding="utf-8") as f:
+        m = re.search(r"SL\.BRAND\s*=\s*'([^']+)'", f.read())
+    return m.group(1) if m else "星火理化生实验室"
 
 
 def version():
@@ -60,8 +67,9 @@ def collect():
 
 def build(ver):
     files = collect()
-    top = "星火物理实验室-离线版-v%s" % ver
-    targets = [os.path.join(ROOT, SITE_FILE % ver), os.path.join(ROOT, BRAND_FILE % ver)]
+    brand = _brand()
+    top = "%s-离线版-v%s" % (brand, ver)
+    targets = [os.path.join(ROOT, SITE_FILE % ver), os.path.join(ROOT, BRAND_FILE % (brand, ver))]
     for tgt in targets:
         parent = os.path.dirname(tgt)
         if parent and not os.path.isdir(parent):
