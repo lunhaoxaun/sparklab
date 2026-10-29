@@ -1,0 +1,21 @@
+# 开发期临时产物
+.screenshots/
+.trae-html-share-packages/
+node_modules/
+
+# 本地离线发布包（根目录归档包不入库，备份走 zip / 远程仓库 tag）
+/*.zip
+# 供在线版下载的离线包需要随站点发布，保留入库
+!downloads/*.zip
+
+# 工具本地状态
+.workbuddy/
+.trae/
+# WorkBuddy 应用标记文件（环境相关，随目录绑定，不入库）
+.wbapp_*.genie
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

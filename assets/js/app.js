@@ -44,6 +44,9 @@
       '<span class="brand-ver" title="当前版本 ' + SL.VERSION_DATE + '">v' + SL.VERSION + '</span>' +
       '</button>' +
       '<div class="top-actions">' +
+      (SL.canDownloadOffline()
+        ? '<a class="btn btn-icon btn-ghost" id="download-btn" href="' + SL.OFFLINE_ZIP + '" download="星火电学实验室-离线版-v' + SL.VERSION + '.zip" title="下载离线版（断网可用）" aria-label="下载离线版">' + SL.icon('download', '', 20) + '</a>'
+        : '') +
       '<button type="button" class="btn btn-icon btn-ghost" id="help-btn" title="使用说明" aria-label="使用说明">' + SL.icon('help-circle', '', 20) + '</button>' +
       '<button type="button" class="btn btn-icon btn-ghost" id="sound-btn" title="音效开关" aria-label="音效开关"></button>' +
       '</div>';

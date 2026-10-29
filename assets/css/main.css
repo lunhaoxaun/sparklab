@@ -460,7 +460,19 @@ code {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.foot-links { display: inline-flex; gap: 16px; }
+.foot-links { display: inline-flex; align-items: center; gap: 16px; }
+.foot-links a.link-btn { display: inline-flex; align-items: center; gap: 5px; }
+
+/* ---------- 离线包下载入口 ---------- */
+a.btn, a.link-btn { text-decoration: none; }
+a.btn:hover, a.link-btn:hover { text-decoration: none; }
+.help-offline p:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
 
 /* ---------- 空状态 ---------- */
 .empty-note {

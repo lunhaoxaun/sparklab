@@ -4,8 +4,16 @@
   var SL = (window.SparkLab = window.SparkLab || {});
 
   /* 版本号：界面顶栏、首页页脚与「关于」中展示 */
-  SL.VERSION = '1.7.0';
-  SL.VERSION_DATE = '2026-10-25';
+  SL.VERSION = '1.8.0';
+  SL.VERSION_DATE = '2026-10-29';
+
+  /* 离线包下载：文件名随版本号自动生成，打包时按同名输出到 downloads/ */
+  SL.OFFLINE_ZIP = 'downloads/sparklab-offline-v' + SL.VERSION + '.zip';
+
+  /* 只有 http(s) 打开时才提供下载（离线包内部不必再下载一次自己） */
+  SL.canDownloadOffline = function () {
+    return /^https?:$/.test(location.protocol);
+  };
 
   SL.$ = function (sel, root) { return (root || document).querySelector(sel); };
   SL.$$ = function (sel, root) {

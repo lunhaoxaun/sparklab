@@ -77,7 +77,11 @@
         '<div class="lab-grid-home">' + SL.data.labs.map(card).join('') + '</div>' +
         '<div class="home-foot"><span>' + SL.icon('settings', '', 14) + '所有计算在本地完成，无需联网</span>' +
         '<span class="foot-ver">v' + SL.VERSION + ' · ' + SL.VERSION_DATE + '</span>' +
-        '<span class="foot-links"><button type="button" class="link-btn" id="open-help">使用说明</button>' +
+        '<span class="foot-links">' +
+        (SL.canDownloadOffline()
+          ? '<a class="link-btn" href="' + SL.OFFLINE_ZIP + '" download="星火电学实验室-离线版-v' + SL.VERSION + '.zip">' + SL.icon('download', '', 14) + '下载离线版</a>'
+          : '') +
+        '<button type="button" class="link-btn" id="open-help">使用说明</button>' +
         '<button type="button" class="link-btn" id="open-about">关于与致谢</button></span></div>' +
         '</section>';
 
@@ -123,14 +127,21 @@
         '<li>记录单可导出 CSV（Excel 打开）或打印。</li></ol></section>' +
         '</div>' +
         '<section class="help-tip"><h3>安全与提示</h3><p>本工具会检测电源短路、断路、电表反接、超量程、灯泡烧坏和滑动变阻器错误接法，并在画布下方给出提示。出现短路时请先断开开关。</p></section>' +
-        '<section class="help-tip"><h3>快捷键</h3><p><kbd>Ctrl</kbd>+<kbd>=</kbd> 放大　<kbd>Ctrl</kbd>+<kbd>-</kbd> 缩小　<kbd>Ctrl</kbd>+滚轮、双指捏合也可缩放　<kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤回　<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 重做　<kbd>Esc</kbd> 取消连线　<kbd>Delete</kbd> 删除选中　<kbd>R</kbd> 旋转元件</p></section>';
+        '<section class="help-tip"><h3>快捷键</h3><p><kbd>Ctrl</kbd>+<kbd>=</kbd> 放大　<kbd>Ctrl</kbd>+<kbd>-</kbd> 缩小　<kbd>Ctrl</kbd>+滚轮、双指捏合也可缩放　<kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤回　<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 重做　<kbd>Esc</kbd> 取消连线　<kbd>Delete</kbd> 删除选中　<kbd>R</kbd> 旋转元件</p></section>' +
+        (SL.canDownloadOffline()
+          ? '<section class="help-tip help-offline"><h3>教室断网怎么办</h3>' +
+            '<p>先在联网环境把这个离线包下载下来，解压到教室电脑，之后双击文件夹里的 <code>index.html</code> 就能用，全程不需要网络。</p>' +
+            '<p><a class="btn btn-soft" href="' + SL.OFFLINE_ZIP + '" download="星火电学实验室-离线版-v' + SL.VERSION + '.zip">' +
+            SL.icon('download', '', 16) + '下载离线版 v' + SL.VERSION + '</a>' +
+            '<span class="muted">压缩包内含完整程序，解压即用。</span></p></section>'
+          : '');
       SL.modal({ title: '使用说明', body: body, className: 'modal-help' });
     },
 
     about: function () {
       var body = '<p class="modal-text">星火电学实验室是一个面向初中物理教学的离线虚拟实验工具，全部计算与数据存储都在你的浏览器本地完成。</p>' +
         '<section class="about-block"><h3>版本</h3><p>当前版本 <strong>v' + SL.VERSION + '</strong>（' + SL.VERSION_DATE + '）</p>' +
-        '<p class="muted">v1.0.0 首个完整版 · v1.1.0 一键美化 · v1.2.0 撤回/重做 · v1.3.0 画布缩放与变阻器接线校验 · v1.4.0 全自由实验室与变阻器电阻判断修复 · v1.5.0 补齐初中电学常用元件 · v1.6.0 双套元件外观（教材符号 / 拟真元件）可切换 · v1.7.0 新增发电机、电磁继电器、扬声器、灵敏电流计</p></section>' +
+        '<p class="muted">v1.0.0 首个完整版 · v1.1.0 一键美化 · v1.2.0 撤回/重做 · v1.3.0 画布缩放与变阻器接线校验 · v1.4.0 全自由实验室与变阻器电阻判断修复 · v1.5.0 补齐初中电学常用元件 · v1.6.0 双套元件外观（教材符号 / 拟真元件）可切换 · v1.7.0 新增发电机、电磁继电器、扬声器、灵敏电流计 · v1.8.0 在线版增加离线包下载入口</p></section>' +
         '<section class="about-block"><h3>图标素材</h3><p>界面与元件图标来自 <strong>Tabler Icons</strong>（MIT License），已下载并内联到本项目，运行时不访问网络。</p>' +
         '<p class="muted">https://github.com/tabler/tabler-icons</p></section>' +
         '<section class="about-block"><h3>自绘素材</h3><p>滑动变阻器、单刀开关、导线与电流动画由本项目按教材标准画法自绘。</p></section>' +
