@@ -360,6 +360,68 @@
 .chem-info-text { fill: #0f1c2e; font-size: 12.5px; font-weight: 600; }
 .chem-mix-title { fill: #0f1c2e; font-size: 16px; font-weight: 700; }
 
+/* ---------- 生物：显微镜与细胞 ---------- */
+.bio-base { fill: #b7c3cf; stroke: #97a6b4; stroke-width: 1.6; }
+.bio-arm { fill: #cfd9e3; stroke: #a8b7c5; stroke-width: 1.8; }
+.bio-arm-line { fill: none; stroke: #9fb0c0; stroke-width: 9; stroke-linecap: round; }
+.bio-stage { fill: #d7e0e8; stroke: #a8b7c5; stroke-width: 1.6; }
+.bio-clip { fill: #9aa8b6; stroke: #7c8b99; stroke-width: 1.2; }
+.bio-mirror { fill: #dbe7f1; stroke: #93a7b8; stroke-width: 1.8; }
+.bio-tube { fill: #e8eef4; stroke: #9fb0c0; stroke-width: 2; }
+.bio-eyepiece { fill: #c8d4e0; stroke: #94a5b5; stroke-width: 1.8; }
+.bio-nosepiece { fill: #b9c6d3; stroke: #94a5b5; stroke-width: 1.4; }
+.bio-objective { fill: #e2ebf3; stroke: #94a5b5; stroke-width: 1.8; }
+.bio-knob { fill: #cfdae4; stroke: #93a5b6; stroke-width: 1.8; }
+.bio-knob-in { fill: #aebccb; stroke: #8b9daf; stroke-width: 1; }
+.bio-knob-fine { fill: #dfe8f0; }
+.bio-slide { fill: rgba(226, 240, 250, .9); stroke: #a9c0d2; stroke-width: 1.2; }
+
+.bio-eyepiece-ring { fill: #2b3440; stroke: #1c232c; stroke-width: 3; }
+.bio-field-bg { fill: #f7fbfe; stroke: #c9d9e6; stroke-width: 2; }
+.bio-field-light { fill: #ffffff; }
+.bio-field-haze { fill: #cfd9e2; }
+
+.bio-cell-wall { fill: #e7f0d9; stroke: #7f9a63; stroke-width: 6; }
+.bio-cell-wall.is-on { stroke: #2f855a; stroke-width: 9; }
+.bio-cell-membrane { fill: none; stroke: #c98a5a; stroke-width: 3.4; }
+.bio-cell-membrane.is-on { stroke: #e07b39; stroke-width: 6; }
+.bio-cell-cyto { fill: #f4f8ec; stroke: none; }
+.bio-cell-cyto.is-on { fill: #e8f2d8; }
+.bio-vacuole { fill: #dff0f8; stroke: #8fbfd8; stroke-width: 2.4; }
+.bio-vacuole.is-on { fill: #bfe2f2; stroke: #3f8fb8; stroke-width: 4.4; }
+.bio-chloroplast { fill: #8fc07a; stroke: #5f9450; stroke-width: 1.6; }
+.bio-chloroplast.is-on { fill: #4c9a3a; stroke: #2f6f22; stroke-width: 3.6; }
+.bio-mito { fill: #e9a08a; stroke: #bd6a52; stroke-width: 1.6; }
+.bio-mito.is-on { fill: #d9694a; stroke: #9c4023; stroke-width: 3.6; }
+.bio-nucleus { fill: #b79bd0; stroke: #8a6ba8; stroke-width: 2.4; }
+.bio-nucleus.is-on { fill: #9a72c4; stroke: #5f3f88; stroke-width: 5; }
+.bio-nucleolus { fill: #6f4f92; opacity: .85; }
+.bio-organelle-label { fill: #42546a; font-size: 12px; font-weight: 700; }
+
+.bio-chip-on { fill: #e6f2e9; stroke: #7fb894; stroke-width: 1.4; }
+.bio-chip-text-on { fill: #1f6b45; font-size: 12.5px; font-weight: 700; }
+.bio-dot { fill: #b9c9d6; }
+.bio-dot.is-on { fill: #2f855a; }
+
+.bio-sun { fill: #ffcf5c; stroke: #efaa2a; stroke-width: 2; }
+.bio-sun-ray { stroke: #efaa2a; stroke-width: 3; stroke-linecap: round; }
+.bio-dark { fill: #5a6b83; stroke: #3f4d61; stroke-width: 2; }
+.bio-pot { fill: #d79a6a; stroke: #b4784a; stroke-width: 2; }
+.bio-pot-rim { fill: #c98a5a; stroke: #a86c3e; stroke-width: 1.6; }
+.bio-stem { stroke: #5f8f4a; stroke-width: 5; stroke-linecap: round; fill: none; }
+.bio-leaf { fill: #8fc07a; stroke: #5f9450; stroke-width: 2; }
+.bio-mask { fill: #2b3440; opacity: .88; }
+.bio-bell { fill: rgba(226, 240, 250, .3); stroke: #8fb0c8; stroke-width: 2.4; }
+.bio-bell-bad { fill: rgba(226, 240, 250, .22); stroke: #b0836a; stroke-width: 2.4; stroke-dasharray: 7 5; }
+.bio-leaf-piece { stroke-width: 2.4; }
+.bio-leaf-rib { stroke: rgba(255, 255, 255, .55); stroke-width: 3; }
+.bio-arrow { fill: none; stroke: #8b9bb0; stroke-width: 2.4; }
+
+.bio-tube-no { fill: #eef3f8; stroke: #a8b7c5; stroke-width: 1.4; }
+.bio-tube-no-text { fill: #4a5a6e; font-size: 13px; font-weight: 800; }
+
+.chem-tag-no { fill: #b4573f; font-size: 12.5px; font-weight: 700; }
+
 /* ---------- 窄屏 ---------- */
 @media (max-width: 900px) {
   .sim-palette { position: static; }

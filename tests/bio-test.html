@@ -1,0 +1,244 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>生物实验自测</title>
+  <style>
+    body { font-family: ui-monospace, Consolas, monospace; background: #101820; color: #dbe6f0; padding: 24px; }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    .row { padding: 4px 0; font-size: 13px; }
+    .pass { color: #6ee7a8; }
+    .fail { color: #ff8080; }
+    .detail { color: #8aa0b6; margin-left: 10px; }
+    #summary { margin-top: 16px; font-size: 15px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>生物实验自测（显微镜、细胞结构、光合作用、酶活性、自由观察）</h1>
+  <div id="out"></div>
+  <div id="summary"></div>
+
+  <script src="../assets/js/core/utils.js?v=60"></script>
+  <script src="../data/experiments.js?v=60"></script>
+  <script src="../assets/js/core/simkit.js?v=60"></script>
+  <script src="../assets/js/sims/bio.js?v=60"></script>
+  <script src="../assets/js/labs/lab-bio-microscope.js?v=60"></script>
+  <script src="../assets/js/labs/lab-bio-cell.js?v=60"></script>
+  <script src="../assets/js/labs/lab-bio-photo.js?v=60"></script>
+  <script src="../assets/js/labs/lab-bio-enzyme.js?v=60"></script>
+  <script src="../assets/js/labs/lab-bio-free.js?v=60"></script>
+  <script>
+  (function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var total = 0, passed = 0;
+
+    function test(name, fn) {
+      total += 1;
+      var ok = false, detail = '';
+      try {
+        var res = fn();
+        ok = res === true || (res && res.ok);
+        if (res && res.detail) detail = res.detail;
+      } catch (e) {
+        detail = '异常：' + e.message;
+      }
+      if (ok) passed += 1;
+      var row = document.createElement('div');
+      row.className = 'row ' + (ok ? 'pass' : 'fail');
+      row.innerHTML = (ok ? 'PASS ' : 'FAIL ') + total + '. ' + name +
+        (detail ? '<span class="detail">' + detail + '</span>' : '');
+      out.appendChild(row);
+    }
+
+    function near(a, b, tol) { return Math.abs(a - b) <= tol; }
+    function lab(id) { return SL.labs[id]; }
+    function ctxOf(id, values, rows) {
+      var l = lab(id);
+      var v = Object.assign({}, l.defaults, values || {});
+      return { values: v, calc: l.calc(v), rows: rows || [], state: {}, mode: 'guided' };
+    }
+
+    /* ---------- 一、显微镜 ---------- */
+    test('总放大倍数 = 目镜 × 物镜', function () {
+      var c = SL.bio.microscope({ objective: 40, eyepiece: 10 });
+      var c2 = SL.bio.microscope({ objective: 10, eyepiece: 16 });
+      return { ok: c.mag === 400 && c2.mag === 160, detail: c.mag + ' / ' + c2.mag };
+    });
+
+    test('倍数越高视野越小：4× > 10× > 40×', function () {
+      var a = SL.bio.microscope({ objective: 4 }).field;
+      var b = SL.bio.microscope({ objective: 10 }).field;
+      var c = SL.bio.microscope({ objective: 40 }).field;
+      return { ok: a > b && b > c, detail: a + ' / ' + b + ' / ' + c };
+    });
+
+    test('粗准焦停在最佳位置才清晰，偏离后模糊', function () {
+      var far = SL.bio.microscope({ objective: 10, coarse: 0, fine: 50 });
+      var best = SL.bio.microscope({ objective: 10, coarse: 56, fine: 50 });
+      return { ok: far.clear === false && best.clear === true,
+        detail: 'sharp ' + far.sharp.toFixed(2) + ' → ' + best.sharp.toFixed(2) };
+    });
+
+    test('大光圈比小光圈更亮', function () {
+      var small = SL.bio.microscope({ objective: 10, aperture: 'small' }).brightness;
+      var large = SL.bio.microscope({ objective: 10, aperture: 'large' }).brightness;
+      return { ok: large > small, detail: small.toFixed(2) + ' < ' + large.toFixed(2) };
+    });
+
+    test('显微镜第 1 步要求大光圈、第 3 步要求视野清晰', function () {
+      var l = lab('bio-microscope');
+      var s1 = l.meta.steps[0].check(ctxOf('bio-microscope', { aperture: 'large' }));
+      var s1no = l.meta.steps[0].check(ctxOf('bio-microscope', { aperture: 'small' }));
+      var s3 = l.meta.steps[2].check(ctxOf('bio-microscope', { coarse: 56, fine: 50 }));
+      return { ok: s1 === true && s1no === false && s3 === true };
+    });
+
+    test('显微镜：视野模糊时拒绝记录，清晰后可记录', function () {
+      var l = lab('bio-microscope');
+      var bad = ctxOf('bio-microscope', { coarse: 0 });
+      var good = ctxOf('bio-microscope', { coarse: 56, fine: 50 });
+      var reject = l.measure({ values: bad.values, calc: bad.calc, rows: [] });
+      var row = l.measure({ values: good.values, calc: good.calc, rows: [] });
+      return { ok: reject === null && !!row && row.mag === 100, detail: JSON.stringify(row) };
+    });
+
+    /* ---------- 二、细胞结构 ---------- */
+    test('植物细胞有细胞壁、液泡、叶绿体；动物细胞没有', function () {
+      var p = SL.bio.cellInfo({ type: 'plant', picked: 'wall' });
+      var a = SL.bio.cellInfo({ type: 'animal', picked: 'wall' });
+      return { ok: p.available === true && a.available === false, detail: 'plant=' + p.list.length + ' animal=' + a.list.length };
+    });
+
+    test('线粒体与细胞核是动植物细胞都有的结构', function () {
+      var a = SL.bio.cellInfo({ type: 'animal', picked: 'mito' });
+      var b = SL.bio.cellInfo({ type: 'animal', picked: 'nucleus' });
+      return { ok: a.available && b.available };
+    });
+
+    test('植物特有结构清单包含细胞壁、液泡、叶绿体', function () {
+      var p = SL.bio.cellInfo({ type: 'plant', picked: 'nucleus' });
+      return { ok: p.plantOnly.length === 3 && p.plantOnly.indexOf('vacuole') !== -1, detail: p.plantOnly.join(',') };
+    });
+
+    test('细胞实验第 3 步要求切到动物细胞并点选细胞膜或细胞质', function () {
+      var l = lab('bio-cell');
+      var wrong = l.meta.steps[2].check(ctxOf('bio-cell', { type: 'plant', picked: 'membrane' }));
+      var right = l.meta.steps[2].check(ctxOf('bio-cell', { type: 'animal', picked: 'membrane' }));
+      return { ok: wrong === false && right === true };
+    });
+
+    test('细胞记录行包含类型、结构、是否含有与功能', function () {
+      var l = lab('bio-cell');
+      var c = ctxOf('bio-cell', { type: 'plant', picked: 'chloroplast' });
+      var row = l.measure({ values: c.values, calc: c.calc, rows: [] });
+      return { ok: row && row.structure === '叶绿体' && row.present === '有' && row.func.length > 8, detail: JSON.stringify(row).slice(0, 120) };
+    });
+
+    /* ---------- 三、光合作用 ---------- */
+    test('有光有二氧化碳时积累淀粉，见光部分碘液变深蓝', function () {
+      var c = SL.bio.photosynthesis({ light: true, co2: true, hours: 4 });
+      return { ok: c.starch === 1 && c.exposed.text.indexOf('深蓝') !== -1 && c.masked.text.indexOf('不变蓝') === 0,
+        detail: c.exposed.text + ' / ' + c.masked.text };
+    });
+
+    test('没有光照或没有二氧化碳都不积累淀粉', function () {
+      var noLight = SL.bio.photosynthesis({ light: false, co2: true, hours: 4 });
+      var noCo2 = SL.bio.photosynthesis({ light: true, co2: false, hours: 4 });
+      return { ok: noLight.starch === 0 && noCo2.starch === 0, detail: noLight.reason + ' | ' + noCo2.reason };
+    });
+
+    test('光照时间越长淀粉越多（0.5 h < 2 h < 4 h）', function () {
+      var a = SL.bio.photosynthesis({ light: true, co2: true, hours: 0.5 }).starch;
+      var b = SL.bio.photosynthesis({ light: true, co2: true, hours: 2 }).starch;
+      var c = SL.bio.photosynthesis({ light: true, co2: true, hours: 4 }).starch;
+      return { ok: a < b && b < c, detail: a + ' / ' + b + ' / ' + c };
+    });
+
+    test('光合作用第 4 步要求「有光但缺二氧化碳」的条件', function () {
+      var l = lab('bio-photo');
+      var no = l.meta.steps[3].check(ctxOf('bio-photo', { light: true, co2: true }));
+      var yes = l.meta.steps[3].check(ctxOf('bio-photo', { light: true, co2: false }));
+      return { ok: no === false && yes === true };
+    });
+
+    test('光合作用记录行包含光照、二氧化碳与两部分的检验现象', function () {
+      var l = lab('bio-photo');
+      var c = ctxOf('bio-photo', { hours: 4 });
+      var row = l.measure({ values: c.values, calc: c.calc, rows: [] });
+      return { ok: row && row.starch === 100 && row.exposed && row.masked, detail: JSON.stringify(row) };
+    });
+
+    /* ---------- 四、酶 ---------- */
+    test('37 ℃ 附近活性最高，70 ℃ 时完全失活', function () {
+      var best = SL.bio.enzymeActivity(37);
+      var hot = SL.bio.enzymeActivity(70);
+      var cold = SL.bio.enzymeActivity(5);
+      return { ok: near(best, 1, 0.01) && hot === 0 && cold < 0.1,
+        detail: best.toFixed(2) + ' / ' + cold.toFixed(2) + ' / ' + hot };
+    });
+
+    test('37 ℃ 保温 10 min：1 号管淀粉分解完，2、3 号管仍有淀粉', function () {
+      var c = SL.bio.enzyme({ temp: 37, minutes: 10 });
+      return { ok: c.tubes[0].cleared && !c.tubes[1].cleared && !c.tubes[2].cleared && c.digestedCount === 1,
+        detail: c.tubes.map(function (t) { return t.iodine.text; }).join(' | ') };
+    });
+
+    test('高温使酶变性：70 ℃ 时 1 号管也不再变清', function () {
+      var c = SL.bio.enzyme({ temp: 75, minutes: 15 });
+      return { ok: c.denatured && !c.tubes[0].cleared && c.digestedCount === 0, detail: 'activity=' + c.activity };
+    });
+
+    test('酶实验第 4 步要求高温且淀粉未被分解', function () {
+      var l = lab('bio-enzyme');
+      var good = l.meta.steps[3].check(ctxOf('bio-enzyme', { temp: 75, minutes: 10 }));
+      var bad = l.meta.steps[3].check(ctxOf('bio-enzyme', { temp: 37, minutes: 10 }));
+      return { ok: good === true && bad === false };
+    });
+
+    test('酶实验记录行包含三支试管的碘液结果', function () {
+      var l = lab('bio-enzyme');
+      var c = ctxOf('bio-enzyme', { temp: 37, minutes: 10 });
+      var row = l.measure({ values: c.values, calc: c.calc, rows: [] });
+      return { ok: row && row.t1 && row.t2 && row.t3 && row.digested === 1, detail: JSON.stringify(row) };
+    });
+
+    /* ---------- 五、自由与元数据 ---------- */
+    test('生物自由实验室复用显微镜绘制与计算', function () {
+      var free = lab('bio-free');
+      var micro = lab('bio-microscope');
+      var c = free.calc({ slide: 'cheek', eyepiece: 16, objective: 40, aperture: 'large', coarse: 76, fine: 50 });
+      return { ok: typeof micro.drawField === 'function' && typeof micro.drawBody === 'function'
+        && c.mag === 640 && c.clear === true, detail: 'mag=' + c.mag + ' clear=' + c.clear };
+    });
+
+    test('生物板块已开放，五个实验齐全且自由实验室带 free 标记', function () {
+      var sub = SL.data.subjectById['biology'];
+      var labs = SL.data.labs.filter(function (x) { return x.subject === 'biology'; });
+      var free = labs.filter(function (x) { return x.free; });
+      var allMeta = labs.every(function (x) {
+        return x.name && x.short && x.accent && x.equipment && x.columns && x.columns.length > 2 && x.steps && x.conclusions;
+      });
+      return { ok: sub.available === true && labs.length === 5 && free.length === 1 && allMeta,
+        detail: 'labs=' + labs.length + ' free=' + free.map(function (x) { return x.id; }).join(',') };
+    });
+
+    test('显微镜 / 细胞 / 光合 / 酶四组引导步骤都带 check 函数', function () {
+      var bad = [];
+      ['bio-microscope', 'bio-cell', 'bio-photo', 'bio-enzyme'].forEach(function (id) {
+        lab(id).meta.steps.forEach(function (s, i) {
+          if (typeof s.check !== 'function') bad.push(id + '#' + i);
+        });
+      });
+      return { ok: bad.length === 0, detail: bad.join(',') || '全部有 check' };
+    });
+
+    var summary = document.getElementById('summary');
+    summary.textContent = (passed === total ? 'PASS ' : 'FAIL ') + passed + ' / ' + total;
+    summary.className = passed === total ? 'pass' : 'fail';
+    document.title = (passed === total ? 'PASS ' : 'FAIL ') + passed + '/' + total;
+    window.__testDone = true;
+  })();
+  </script>
+</body>
+</html>

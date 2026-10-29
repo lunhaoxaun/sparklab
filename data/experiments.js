@@ -44,8 +44,8 @@
         id: 'biology',
         name: '生物',
         icon: 'dna',
-        available: false,
-        desc: '显微镜、光合作用（敬请期待）'
+        available: true,
+        desc: '显微镜、细胞、光合、酶'
       }
     ],
 
@@ -941,6 +941,345 @@
           { key: 'device', label: '试剂组合' },
           { key: 'summary', label: '反应类型' },
           { key: 'result', label: '实验现象' }
+        ],
+        steps: [],
+        conclusions: []
+      },
+
+      /* ==================== 生物 ==================== */
+      {
+        id: 'bio-microscope',
+        subject: 'biology',
+        kind: 'sim',
+        name: '练习使用显微镜',
+        short: '对光、放片、调焦、换高倍镜，一步一步把视野调清楚，比较不同放大倍数下看到的范围与细胞大小。',
+        tag: '七年级 · 生物',
+        time: '约 16 分钟',
+        accent: '#2f855a',
+        equipment: [
+          { icon: 'lens', label: '显微镜（目镜 10×）' },
+          { icon: 'beaker', label: '玻片标本与碘液' },
+          { icon: 'ruler', label: '粗 / 细准焦螺旋' },
+          { icon: 'atom', label: '反光镜与光圈' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'slide', label: '玻片' },
+          { key: 'objective', label: '物镜' },
+          { key: 'mag', label: '放大倍数', digits: 0 },
+          { key: 'field', label: '视野直径/mm', digits: 2 },
+          { key: 'aperture', label: '光圈' },
+          { key: 'structures', label: '可见结构' }
+        ],
+        steps: [
+          {
+            title: '对光',
+            instruction: '把光圈调到「大光圈」，让视野明亮起来。',
+            hint: '对光时左眼注视目镜，转动反光镜，直到看到一个明亮的圆形视野。'
+          },
+          {
+            title: '放片并下降镜筒',
+            instruction: '把玻片放到载物台上，转动粗准焦螺旋，让镜筒慢慢下降靠近玻片。',
+            hint: '眼睛要从侧面看着物镜，避免物镜压碎玻片。'
+          },
+          {
+            title: '调出清晰的物像',
+            instruction: '再慢慢升高镜筒，找到物像后用细准焦螺旋把它调清楚。',
+            hint: '先低倍后高倍：低倍镜下找到物像，再换高倍镜观察细节。'
+          },
+          {
+            title: '换成高倍镜观察',
+            instruction: '把物镜换成 40×，只用细准焦螺旋调清楚，看看细胞有什么变化。',
+            hint: '放大倍数变大，看到的细胞变大、数目变少、视野变暗。'
+          },
+          {
+            title: '填写实验结论',
+            instruction: '记录两组不同放大倍数的数据，回答下方问题。',
+            hint: '放大倍数 = 目镜倍数 × 物镜倍数。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'mc1',
+            label: '显微镜的放大倍数等于目镜倍数与物镜倍数的',
+            suffix: '。',
+            type: 'keyword',
+            keywords: ['乘积', '乘'],
+            reference: '乘积。目镜 10× 配 40× 物镜，放大倍数就是 400 倍。'
+          },
+          {
+            id: 'mc2',
+            label: '放大倍数越大，视野中看到的细胞数目越',
+            suffix: '。',
+            type: 'keyword',
+            keywords: ['少'],
+            reference: '少。倍数越大视野范围越小，看到的细胞数目越少、细胞越大。'
+          },
+          {
+            id: 'mc3',
+            label: '观察时如果物像在视野的左上方，应该把玻片向',
+            suffix: '方移动，才能把物像移到视野中央。',
+            type: 'keyword',
+            keywords: ['左上', '左上方'],
+            reference: '左上方。显微镜成的是倒像，物像偏向哪边就往哪边移动玻片。'
+          }
+        ]
+      },
+
+      {
+        id: 'bio-cell',
+        subject: 'biology',
+        kind: 'sim',
+        name: '观察动、植物细胞的结构',
+        short: '在植物细胞与动物细胞之间切换，点选细胞里的各个结构，弄清哪些结构是植物细胞特有的。',
+        tag: '七年级 · 生物',
+        time: '约 12 分钟',
+        accent: '#7c5cff',
+        equipment: [
+          { icon: 'lens', label: '显微镜视野' },
+          { icon: 'atom', label: '植物细胞模型' },
+          { icon: 'dna', label: '动物细胞模型' },
+          { icon: 'ruler', label: '结构名称与功能' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'cell', label: '细胞类型' },
+          { key: 'structure', label: '结构' },
+          { key: 'present', label: '是否含有' },
+          { key: 'func', label: '功能' }
+        ],
+        steps: [
+          {
+            title: '找出植物细胞最外层的结构',
+            instruction: '切到植物细胞，点选最外层的结构，看看它叫什么、有什么作用。',
+            hint: '植物细胞最外面是细胞壁，起支持和保护作用。'
+          },
+          {
+            title: '认识细胞核',
+            instruction: '点选细胞中央那个圆圆的结构——细胞核。',
+            hint: '细胞核里有遗传物质，是细胞的控制中心，动植物细胞都有。'
+          },
+          {
+            title: '对比动物细胞',
+            instruction: '切换到动物细胞，点选细胞膜或细胞质，比较它和植物细胞少了哪些结构。',
+            hint: '动物细胞没有细胞壁、液泡和叶绿体，只有细胞膜、细胞质、细胞核和线粒体。'
+          },
+          {
+            title: '填写实验结论',
+            instruction: '根据观察结果，回答下方问题。',
+            hint: '细胞是生物体结构和功能的基本单位。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'cl1',
+            label: '植物细胞与动物细胞都有的结构是细胞膜、细胞质、细胞核和',
+            suffix: '。',
+            type: 'keyword',
+            keywords: ['线粒体'],
+            reference: '线粒体。它是呼吸作用的场所，动植物细胞都有。'
+          },
+          {
+            id: 'cl2',
+            label: '下列结构中，动物细胞没有的是：细胞壁、液泡、',
+            suffix: '。（填一个即可）',
+            type: 'keyword',
+            keywords: ['叶绿体'],
+            reference: '叶绿体（细胞壁、液泡、叶绿体都是植物细胞特有的）。'
+          },
+          {
+            id: 'cl3',
+            label: '细胞中进行光合作用的场所是',
+            suffix: '。',
+            type: 'keyword',
+            keywords: ['叶绿体'],
+            reference: '叶绿体。它含有叶绿素，能把光能转变成化学能。'
+          }
+        ]
+      },
+
+      {
+        id: 'bio-photo',
+        subject: 'biology',
+        kind: 'sim',
+        name: '探究光合作用需要光和二氧化碳',
+        short: '给天竺葵部分遮光、控制钟罩里的二氧化碳，再用碘液检验叶片，看看哪一部分变蓝。',
+        tag: '七年级 · 生物',
+        time: '约 15 分钟',
+        accent: '#0d8f6f',
+        equipment: [
+          { icon: 'flask', label: '天竺葵与透明钟罩' },
+          { icon: 'beaker', label: '氢氧化钠溶液 / 清水' },
+          { icon: 'flame', label: '酒精与碘液' },
+          { icon: 'ruler', label: '黑纸片' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'light', label: '光照' },
+          { key: 'co2', label: '二氧化碳' },
+          { key: 'hours', label: '光照时间/h', digits: 1 },
+          { key: 'starch', label: '淀粉积累/%', digits: 0 },
+          { key: 'exposed', label: '见光部分' },
+          { key: 'masked', label: '遮光部分' }
+        ],
+        steps: [
+          {
+            title: '给叶片一部分遮光',
+            instruction: '把「用黑纸遮住叶片的一部分」打开，确认有光照，光照时间调到 1 小时以上。',
+            hint: '遮光的目的是形成对照：同一片叶子上，见光与不见光的部分只有光照这一个条件不同。'
+          },
+          {
+            title: '让叶片积累淀粉',
+            instruction: '把光照时间逐渐调大，观察淀粉积累的变化。',
+            hint: '光照时间越长，光合作用制造的淀粉越多。'
+          },
+          {
+            title: '检验遮光部分',
+            instruction: '看碘液检验的结果：遮光的部分变蓝了吗？记录下来。',
+            hint: '遮光部分没有光照，不能进行光合作用，滴碘液不变蓝。'
+          },
+          {
+            title: '去掉二氧化碳再试一次',
+            instruction: '关闭「放清水」，改用氢氧化钠溶液吸收二氧化碳，观察叶片是否还能变蓝。',
+            hint: '二氧化碳是光合作用的原料，没有它同样制造不出淀粉。'
+          },
+          {
+            title: '填写实验结论',
+            instruction: '综合两次实验，回答下方问题。',
+            hint: '光合作用的原料是二氧化碳和水，条件是光照，产物有淀粉和氧气。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'ph1',
+            label: '绿叶在光下制造的有机物主要是',
+            suffix: '，它遇碘液会变蓝。',
+            type: 'keyword',
+            keywords: ['淀粉'],
+            reference: '淀粉。碘液遇淀粉变蓝，这是检验光合作用产物的常用方法。'
+          },
+          {
+            id: 'ph2',
+            label: '叶片遮光部分滴碘液不变蓝，说明光合作用需要',
+            suffix: '。',
+            type: 'keyword',
+            keywords: ['光', '光照'],
+            reference: '光。没有光照就不能进行光合作用。'
+          },
+          {
+            id: 'ph3',
+            label: '光合作用的原料是二氧化碳和',
+            suffix: '。',
+            type: 'keyword',
+            keywords: ['水'],
+            reference: '水。光合作用的表达式：二氧化碳 + 水 —光→ 有机物（贮存能量）+ 氧气。'
+          }
+        ]
+      },
+
+      {
+        id: 'bio-enzyme',
+        subject: 'biology',
+        kind: 'sim',
+        name: '探究唾液淀粉酶对淀粉的消化作用',
+        short: '三支试管分别放唾液、煮沸后冷却的唾液和清水，在同一个水浴里保温，再用碘液检验淀粉是否被分解。',
+        tag: '七年级 · 生物',
+        time: '约 14 分钟',
+        accent: '#c05621',
+        equipment: [
+          { icon: 'flask', label: '试管与淀粉液' },
+          { icon: 'beaker', label: '水浴与温度计' },
+          { icon: 'thermometer', label: '37 ℃ 温水' },
+          { icon: 'atom', label: '唾液与碘液' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'temp', label: '温度/℃', digits: 0 },
+          { key: 'minutes', label: '时间/min', digits: 0 },
+          { key: 'activity', label: '酶活性/%', digits: 0 },
+          { key: 't1', label: '1 号管' },
+          { key: 't2', label: '2 号管' },
+          { key: 't3', label: '3 号管' },
+          { key: 'digested', label: '变清管数', digits: 0 }
+        ],
+        steps: [
+          {
+            title: '把水浴调到 37 ℃',
+            instruction: '把水浴温度调到 37 ℃ 左右，这是唾液淀粉酶最适宜的温度。',
+            hint: '37 ℃ 接近人体体温，酶的活性最高。'
+          },
+          {
+            title: '等待淀粉被分解',
+            instruction: '把保温时间调到 5 分钟以上，观察 1 号试管里淀粉的分解进程。',
+            hint: '酶把淀粉分解成麦芽糖，淀粉越少，滴碘液后颜色越浅。'
+          },
+          {
+            title: '1 号试管完全变清',
+            instruction: '继续延长保温时间，直到 1 号试管滴碘液后不再变蓝。',
+            hint: '淀粉被彻底分解后，碘液就没有东西可以变蓝了。'
+          },
+          {
+            title: '把温度升到 70 ℃ 以上',
+            instruction: '把水浴温度升到 70 ℃ 以上，看看 1 号试管的淀粉还能不能被分解。',
+            hint: '高温会使唾液淀粉酶的空间结构被破坏，永久失去活性（变性）。'
+          },
+          {
+            title: '填写实验结论',
+            instruction: '综合三支试管的对照结果，回答下方问题。',
+            hint: '2 号管的唾液煮沸过，酶已经变性；3 号管没有酶，两个都不会让淀粉消失。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'en1',
+            label: '唾液淀粉酶把淀粉分解成',
+            suffix: '。',
+            type: 'keyword',
+            keywords: ['麦芽糖'],
+            reference: '麦芽糖。淀粉在唾液淀粉酶的作用下分解成麦芽糖，所以碘液不再变蓝。'
+          },
+          {
+            id: 'en2',
+            label: '唾液淀粉酶最适宜的温度约为',
+            suffix: '℃。',
+            type: 'number',
+            answer: 37,
+            tolerance: 2,
+            reference: '37 ℃，接近人的体温。'
+          },
+          {
+            id: 'en3',
+            label: '把唾液煮沸后再冷却，它就不能分解淀粉了，因为高温使酶',
+            suffix: '。',
+            type: 'keyword',
+            keywords: ['变性', '失活', '失去活性'],
+            reference: '变性失活。高温破坏酶的空间结构，这种破坏是不可逆的。'
+          }
+        ]
+      },
+
+      {
+        id: 'bio-free',
+        subject: 'biology',
+        kind: 'sim',
+        name: '生物自由实验室',
+        short: '显微镜随便用：六种玻片、三种目镜、三种物镜、两级准焦、两种光圈全部开放，所见即所得，无步骤、不限组数。',
+        tag: '自由实验 · 不限步骤',
+        time: '不限时',
+        accent: '#7c5cff',
+        free: true,
+        freeNote: '六种玻片 × 三种目镜 × 三种物镜',
+        equipment: [
+          { icon: 'lens', label: '显微镜' },
+          { icon: 'beaker', label: '六种玻片标本' },
+          { icon: 'ruler', label: '粗 / 细准焦螺旋' },
+          { icon: 'atom', label: '反光镜与光圈' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'device', label: '装置' },
+          { key: 'summary', label: '观察条件' },
+          { key: 'result', label: '观察结果' }
         ],
         steps: [],
         conclusions: []
