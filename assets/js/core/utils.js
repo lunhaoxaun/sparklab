@@ -4,8 +4,9 @@
   var SL = (window.SparkLab = window.SparkLab || {});
 
   /* 版本号：界面顶栏、首页页脚与「关于」中展示 */
-  SL.VERSION = '1.8.0';
+  SL.VERSION = '2.1.0';
   SL.VERSION_DATE = '2026-10-29';
+  SL.BRAND = '星火物理实验室';
 
   /* 离线包下载：文件名随版本号自动生成，打包时按同名输出到 downloads/ */
   SL.OFFLINE_ZIP = 'downloads/sparklab-offline-v' + SL.VERSION + '.zip';

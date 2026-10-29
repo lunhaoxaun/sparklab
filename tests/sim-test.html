@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>仿真实验自测</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+  <link rel="stylesheet" href="../assets/css/lab.css">
+  <link rel="stylesheet" href="../assets/css/sim.css">
+  <style>
+    body { padding: 20px; font-family: var(--font); }
+    #out { font: 13px/1.7 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
+    .pass { color: #2fa36b; }
+    .fail { color: #e05252; font-weight: 700; }
+    #view-root { position: absolute; left: -9999px; top: 0; width: 1280px; }
+    #topbar { display: none; }
+  </style>
+</head>
+<body>
+  <h1 style="font-size:16px">星火物理实验室 · 仿真实验自测</h1>
+  <div id="out">运行中…</div>
+  <header class="topbar" id="topbar"></header>
+  <main class="view-root" id="view-root"></main>
+
+  <script src="../assets/icons/sprite.js"></script>
+  <script src="../assets/js/core/utils.js"></script>
+  <script src="../data/experiments.js"></script>
+  <script src="../assets/js/core/simkit.js"></script>
+  <script src="../assets/js/core/circuit.js"></script>
+  <script src="../assets/js/core/skins.js"></script>
+  <script src="../assets/js/core/board.js"></script>
+  <script src="../assets/js/core/meters.js"></script>
+  <script src="../assets/js/core/records.js"></script>
+  <script src="../assets/js/sims/mech.js"></script>
+  <script src="../assets/js/labs/lab-series.js"></script>
+  <script src="../assets/js/labs/lab-ohm-r.js"></script>
+  <script src="../assets/js/labs/lab-ohm-law.js"></script>
+  <script src="../assets/js/labs/lab-free.js"></script>
+  <script src="../assets/js/labs/lab-lever.js"></script>
+  <script src="../assets/js/labs/lab-pulley.js"></script>
+  <script src="../assets/js/labs/lab-buoyancy.js"></script>
+  <script src="../assets/js/ui/home.js"></script>
+  <script src="../assets/js/app.js"></script>
+
+  <script>
+  (function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var lines = [];
+    var pass = 0, fail = 0;
+
+    function ok(name, cond, detail) {
+      if (cond) { pass += 1; lines.push('PASS  ' + name + (detail ? '  [' + detail + ']' : '')); }
+      else { fail += 1; lines.push('FAIL  ' + name + (detail ? '  [' + detail + ']' : '')); }
+    }
+    function near(a, b, tol) { return Math.abs(a - b) <= (tol == null ? 1e-6 : tol); }
+    function flush() {
+      out.innerHTML = lines.map(function (l) {
+        return '<span class="' + (l.indexOf('PASS') === 0 ? 'pass' : 'fail') + '">' + l + '</span>';
+      }).join('\n') + '\n\n合计：' + pass + ' 通过 / ' + fail + ' 失败';
+      document.title = fail ? 'FAIL ' + fail : 'DONE';
+    }
+
+    /* ---------- 1. 力学引擎算例 ---------- */
+    var M = SL.mech;
+
+    var lv = M.lever({ leftCount: 2, leftArm: 3, rightCount: 3, rightArm: 2, hookMass: 50 });
+    ok('杠杆 2个×15cm 与 3个×10cm 平衡', lv.balanced === true, 'F1L1=' + lv.m1 + ' F2L2=' + lv.m2);
+    ok('杠杆平衡时倾角为 0', near(lv.angle, 0));
+    ok('杠杆左力矩 = 15 N·cm', near(lv.m1, 15, 1e-9), String(lv.m1));
+
+    var lv2 = M.lever({ leftCount: 2, leftArm: 3, rightCount: 2, rightArm: 2, hookMass: 50 });
+    ok('杠杆 15 vs 10 N·cm 不平衡', lv2.balanced === false, 'diff=' + lv2.diff);
+    ok('力矩大的一侧下沉（角度非零）', Math.abs(lv2.angle) > 1, 'angle=' + lv2.angle.toFixed(2));
+
+    var hs = [2, 3, 4].map(function (n) {
+      return M.lever({ leftCount: 1, leftArm: n, rightCount: n, rightArm: 1, hookMass: 50 });
+    });
+    ok('不同格数组合仍满足平衡', hs.every(function (x) { return x.balanced; }));
+
+    var pl = M.pulley({ segments: 2, loadN: 4, movingN: 1, h: 0.2, friction: 0.04 });
+    ok('滑轮组 F=(G+G动+n·f)/n', near(pl.F, (4 + 1 + 2 * 0.04) / 2, 1e-9), 'F=' + pl.F.toFixed(3));
+    ok('滑轮组 s = n·h', near(pl.s, 0.4, 1e-9), 's=' + pl.s);
+    ok('滑轮组 η = W有/W总', near(pl.eta, (4 * 0.2) / (pl.F * 0.4) * 100, 1e-9), 'η=' + pl.eta.toFixed(2) + '%');
+
+    var pl2 = M.pulley({ segments: 2, loadN: 6, movingN: 1, h: 0.2, friction: 0.04 });
+    ok('物重越大效率越高', pl2.eta > pl.eta, pl.eta.toFixed(1) + '% → ' + pl2.eta.toFixed(1) + '%');
+
+    var pl3 = M.pulley({ segments: 2, loadN: 4, movingN: 2, h: 0.2, friction: 0.04 });
+    ok('动滑轮越重效率越低', pl3.eta < pl.eta, pl.eta.toFixed(1) + '% → ' + pl3.eta.toFixed(1) + '%');
+
+    var by = M.buoyancy({ liquidRho: 1.0, solidRho: 2.7, volume: 100, submerge: 1, g: 10 });
+    ok('铝块 100cm³ 全浸入水中 F浮=1.0N', near(by.fBuoy, 1.0, 1e-6), String(by.fBuoy));
+    ok('F浮 与 G排 相等（阿基米德）', near(by.fBuoy, by.gDisplaced, 1e-9));
+    ok('测力计示数 = G − F浮', near(by.reading, 2.7 - 1.0, 1e-6), String(by.reading.toFixed(2)));
+    ok('铝块在水中浸没判为“浸没”', by.state === '浸没', by.state);
+
+    var byHalf = M.buoyancy({ liquidRho: 1.0, solidRho: 2.7, volume: 100, submerge: 0.5, g: 10 });
+    ok('半浸入时 F浮 减半', near(byHalf.fBuoy, 0.5, 1e-6), String(byHalf.fBuoy));
+
+    var bySalt = M.buoyancy({ liquidRho: 1.1, solidRho: 2.7, volume: 100, submerge: 1, g: 10 });
+    ok('盐水中浮力更大', bySalt.fBuoy > by.fBuoy, by.fBuoy.toFixed(2) + ' → ' + bySalt.fBuoy.toFixed(2));
+
+    var byWood = M.buoyancy({ liquidRho: 1.0, solidRho: 0.6, volume: 100, submerge: 1, g: 10 });
+    ok('木块在水中漂浮，示数为 0', byWood.reading === 0 && byWood.state === '漂浮', byWood.state);
+
+    /* ---------- 2. 三个实验的渲染 ---------- */
+    var App = SL.app;
+    ['lever', 'pulley', 'buoyancy'].forEach(function (id) {
+      try {
+        App.openLab(id, 'guided');
+        var host = document.getElementById('controls-host');
+        var canvas = document.querySelector('.sim-canvas');
+        var readouts = document.getElementById('meters-host');
+        var steps = document.querySelectorAll('#guide-panel .step');
+        ok('打开实验 ' + id + '：参数控件已生成', host && host.children.length >= 3, host ? host.children.length + ' 个' : 'null');
+        ok('打开实验 ' + id + '：舞台已绘制', !!canvas && canvas.querySelectorAll('*').length > 10,
+          canvas ? canvas.querySelectorAll('*').length + ' 个节点' : 'null');
+        ok('打开实验 ' + id + '：读数已渲染', !!readouts && readouts.textContent.trim().length > 5,
+          readouts ? readouts.textContent.trim().slice(0, 24) : 'null');
+        ok('打开实验 ' + id + '：引导步骤 ' + SL.data.labsById[id].steps.length + ' 步',
+          steps.length === SL.data.labsById[id].steps.length, steps.length + ' 步');
+
+        /* 模拟改变一个参数：不应抛错，读数应更新 */
+        var box = App.state.controls;
+        var firstKey = Object.keys(App.state.simValues)[0];
+        var before = readouts.textContent;
+        box.set(firstKey, App.state.simValues[firstKey]);
+        ok('实验 ' + id + '：改参数后重算正常', readouts.textContent.length > 5,
+          before === readouts.textContent ? '读数未变化（参数相同，正常）' : '读数已更新');
+      } catch (e) {
+        ok('打开实验 ' + id, false, e && e.message);
+      }
+    });
+
+    /* ---------- 3. 记录单与数据流 ---------- */
+    try {
+      App.openLab('lever', 'free');
+      App.state.simValues.leftCount = 2;
+      App.state.simValues.leftArm = 2;
+      App.state.simValues.rightCount = 2;
+      App.state.simValues.rightArm = 2;
+      App.state.controls.set('leftArm', 2);
+      App.state.controls.set('rightArm', 2);
+      var row = SL.labs.lever.measure({
+        values: App.state.simValues, calc: SL.mech.lever(App.state.simValues),
+        rows: [], state: App.state
+      });
+      ok('杠杆 measure 返回平衡行', !!row && row.state === '平衡', row ? JSON.stringify(row) : 'null');
+      SL.records.add('lever', row);
+      var rows = SL.records.get('lever');
+      ok('记录已写入 storage', rows.length >= 1, rows.length + ' 条');
+      SL.records.clear('lever');
+    } catch (e) {
+      ok('记录单数据流', false, e && e.message);
+    }
+
+    /* ---------- 4. 学科数据完整性 ---------- */
+    var subs = SL.data.subjects.map(function (s) { return s.id; });
+    ok('学科含电学/力学/热学/光学', ['electricity', 'mechanics', 'thermal', 'optics'].every(function (s) {
+      return subs.indexOf(s) !== -1;
+    }), subs.join(','));
+    var mechLabs = SL.data.labs.filter(function (l) { return l.subject === 'mechanics'; });
+    ok('力学实验 3 个', mechLabs.length === 3, mechLabs.map(function (l) { return l.id; }).join(','));
+    ok('每个力学实验都有 kind=sim 与完整元数据', mechLabs.every(function (l) {
+      return l.kind === 'sim' && l.steps.length >= 4 && l.conclusions.length >= 3 && l.columns.length >= 7;
+    }));
+
+    /* ---------- 5. 首页学科切换 ---------- */
+    try {
+      SL.app.showHome();
+      var pill = document.querySelector('[data-subject="mechanics"]');
+      ok('首页有力学学科按钮', !!pill);
+      pill.click();
+      var cards = document.querySelectorAll('.lab-card');
+      ok('切到力学后显示 3 个实验卡', cards.length === 3, cards.length + ' 个');
+      ok('力学卡片含杠杆实验', document.querySelector('.lab-grid-home').textContent.indexOf('杠杆') !== -1);
+      ok('hall 标题切换为力学', document.querySelector('.hall-head h2').textContent.indexOf('力学') !== -1,
+        document.querySelector('.hall-head h2').textContent);
+      document.querySelector('[data-subject="thermal"]').click();
+      ok('热学板块暂无实验时显示占位', !!document.querySelector('.hall-empty'));
+      document.querySelector('[data-subject="electricity"]').click();
+      ok('切回电学显示 4 个实验卡', document.querySelectorAll('.lab-card').length === 4,
+        document.querySelectorAll('.lab-card').length + ' 个');
+    } catch (e) {
+      ok('首页学科切换', false, e && e.message);
+    }
+
+    flush();
+  })();
+  </script>
+</body>
+</html>

@@ -6,8 +6,14 @@
   var app = {
     view: 'home',
     lab: null,
+    kind: 'circuit',
     mode: 'guided',
     board: null,
+    stage: null,
+    controls: null,
+    clock: null,
+    simValues: null,
+    simCalc: null,
     result: null,
     rows: [],
     guideIndex: 0,
@@ -39,13 +45,13 @@
   function renderTopbar() {
     var bar = SL.$('#topbar');
     bar.innerHTML = '<button type="button" class="brand" id="brand-btn" aria-label="返回实验大厅">' +
-      '<span class="brand-mark">' + SL.icon('circuit-battery', '', 22) + '</span>' +
-      '<span class="brand-text"><strong>星火电学实验室</strong><em>SparkLab · 初中电学</em></span>' +
+      '<span class="brand-mark">' + SL.icon('atom', '', 22) + '</span>' +
+      '<span class="brand-text"><strong>' + SL.BRAND + '</strong><em>SparkLab · 初中物理</em></span>' +
       '<span class="brand-ver" title="当前版本 ' + SL.VERSION_DATE + '">v' + SL.VERSION + '</span>' +
       '</button>' +
       '<div class="top-actions">' +
       (SL.canDownloadOffline()
-        ? '<a class="btn btn-icon btn-ghost" id="download-btn" href="' + SL.OFFLINE_ZIP + '" download="星火电学实验室-离线版-v' + SL.VERSION + '.zip" title="下载离线版（断网可用）" aria-label="下载离线版">' + SL.icon('download', '', 20) + '</a>'
+        ? '<a class="btn btn-icon btn-ghost" id="download-btn" href="' + SL.OFFLINE_ZIP + '" download="' + SL.BRAND + '-离线版-v' + SL.VERSION + '.zip" title="下载离线版（断网可用）" aria-label="下载离线版">' + SL.icon('download', '', 20) + '</a>'
         : '') +
       '<button type="button" class="btn btn-icon btn-ghost" id="help-btn" title="使用说明" aria-label="使用说明">' + SL.icon('help-circle', '', 20) + '</button>' +
       '<button type="button" class="btn btn-icon btn-ghost" id="sound-btn" title="音效开关" aria-label="音效开关"></button>' +
@@ -82,7 +88,7 @@
       document.removeEventListener('keydown', app.keyHandler);
       app.keyHandler = null;
     }
-    document.title = '星火电学实验室 · 初中物理虚拟实验';
+    document.title = SL.BRAND + ' · 初中物理虚拟实验';
     SL.home.render(root(), {
       onOpenLab: openLab,
       help: SL.home.help,
@@ -111,6 +117,7 @@
       mode: app.mode,
       point: app.point,
       scene: app.board ? app.board.getScene() : null,
+      values: app.simValues || null,
       updated: Date.now()
     };
     SL.storage.set(SL.KEYS.progress, all);
@@ -121,6 +128,7 @@
     var lab = SL.labs[labId];
     if (!lab) { SL.toast('实验不存在', 'warn'); return; }
     app.lab = lab;
+    app.kind = lab.kind || 'circuit';
     app.mode = lab.meta.free || mode === 'free' ? 'free' : 'guided';
     app.rows = SL.records.get(labId);
     app.result = null;
@@ -129,6 +137,10 @@
     app.submitted = false;
     app.allAnswered = false;
     app.selectedComp = null;
+    app.simValues = null;
+    app.stage = null;
+    app.controls = null;
+    app.clock = null;
 
     var saved = loadProgress(labId);
     app.guideIndex = 0;
@@ -144,9 +156,23 @@
     if (saved && saved.scene && saved.scene.components && saved.scene.components.length) {
       app.mode = lab.meta.free ? 'free' : mode || saved.mode || 'guided';
     }
+    if (app.kind === 'sim') {
+      var values = {};
+      Object.keys(lab.defaults || {}).forEach(function (key) { values[key] = lab.defaults[key]; });
+      if (saved && saved.values) {
+        Object.keys(saved.values).forEach(function (key) {
+          if (saved.values[key] != null) values[key] = saved.values[key];
+        });
+      }
+      app.simValues = values;
+      if (saved && saved.mode) app.mode = mode || saved.mode || app.mode;
+      if (lab.reset) lab.reset();
+    } else {
+      app.simValues = null;
+    }
 
     app.view = 'lab';
-    document.title = lab.meta.name + ' · 星火电学实验室';
+    document.title = lab.meta.name + ' · ' + SL.BRAND;
     renderLab();
     window.scrollTo(0, 0);
 
@@ -156,6 +182,7 @@
   }
 
   function renderLab() {
+    if (app.kind === 'sim') { renderSimLab(); return; }
     var lab = app.lab;
     var meta = lab.meta;
     app.skin = SL.skins ? SL.skins.current() : 'classic';
@@ -249,6 +276,213 @@
     if (app.mode === 'guided' && app.guideIndex > 0 && !meta.free && meta.steps.length) {
       SL.toast('已恢复上次进度：第 ' + Math.min(app.guideIndex + 1, meta.steps.length) + ' 步', 'info');
     }
+  }
+
+  /* ---------- 仿真类实验（力学 / 热学 / 光学） ---------- */
+  function simCtx() {
+    return {
+      stage: app.stage,
+      values: app.simValues,
+      calc: app.simCalc,
+      mode: app.mode,
+      rows: app.rows,
+      state: app,
+      clock: app.clock,
+      rt: app.lab ? app.lab.rt : null,
+      set: function (key, value) { if (app.controls) app.controls.set(key, value); },
+      redraw: function () { simRender(); }
+    };
+  }
+
+  function renderSimLab() {
+    var lab = app.lab;
+    var meta = lab.meta;
+
+    var modeHtml = meta.free ? '' :
+      '<div class="mode-switch" role="group" aria-label="教学模式">' +
+      '<button type="button" data-mode-btn="guided" class="' + (app.mode === 'guided' ? 'active' : '') + '">引导模式</button>' +
+      '<button type="button" data-mode-btn="free" class="' + (app.mode === 'free' ? 'active' : '') + '">自由探究</button>' +
+      '</div>';
+
+    var playHtml = lab.animated
+      ? '<div class="sim-play"><button type="button" class="btn btn-soft btn-sm" id="sim-play-btn">' +
+        SL.icon('player-play', '', 16) + '<span>播放</span></button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" id="sim-reset-btn">复位</button></div>'
+      : '';
+
+    root().innerHTML = '<div class="lab-view sim-lab" style="--accent:' + meta.accent + '">' +
+      '<div class="lab-topbar">' +
+      '<button type="button" class="btn btn-ghost" id="lab-back">' + SL.icon('arrow-left', '', 17) + '返回大厅</button>' +
+      '<div class="lab-heading"><span class="lab-tag">' + meta.tag + '</span><h1>' + meta.name + '</h1></div>' +
+      '<div class="lab-top-actions">' + modeHtml +
+      '<button type="button" class="btn btn-ghost" id="lab-reset">重置</button>' +
+      '</div></div>' +
+
+      '<div class="lab-body">' +
+      '<aside class="palette sim-palette"><h2 class="palette-title">实验参数</h2>' +
+      '<div class="ctrl-list" id="controls-host"></div>' + playHtml +
+      '<p class="palette-tip">拖动画面中的物体也能改变参数；<br>数值会随参数实时重算。</p></aside>' +
+
+      '<section class="stage sim-stage-wrap">' +
+      '<div class="board-host sim-stage-host" id="board-host"></div>' +
+      '<div class="stage-bar"><div class="warnings" id="stage-warnings"></div>' +
+      '<div class="stage-actions"><button type="button" class="btn btn-primary" id="record-btn">' +
+      SL.icon('chart-line', '', 17) + '记录当前数据</button></div></div></section>' +
+
+      '<aside class="side">' +
+      '<section class="panel"><div class="panel-head"><h2>实时读数</h2></div><div class="readouts-host" id="meters-host"></div></section>' +
+      '<section class="panel panel-extra" id="extra-panel"' + (lab.renderExtra ? '' : ' hidden') +
+      '><div class="panel-head"><h2>图像</h2></div><div id="extra-host"></div></section>' +
+      '<section class="panel panel-guide" id="guide-panel"></section>' +
+      '<section class="panel panel-records"><div class="panel-head"><h2>实验记录单</h2><span class="panel-badge" id="record-count"></span></div>' +
+      '<div id="records-host"></div>' +
+      '<div class="record-actions">' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="export-btn">' + SL.icon('download', '', 15) + '导出 CSV</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="print-btn">' + SL.icon('printer', '', 15) + '打印</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm btn-danger-ghost" id="clear-btn">' + SL.icon('trash', '', 15) + '清空</button>' +
+      '</div></section>' +
+      '</aside></div></div>';
+
+    app.stage = SL.sim.Stage(SL.$('#board-host'), {
+      w: lab.canvas.w, h: lab.canvas.h, label: meta.name
+    });
+    app.controls = SL.sim.Controls(SL.$('#controls-host'), lab.controls, app.simValues, function () {
+      simSync();
+    });
+    if (lab.animated) {
+      app.clock = SL.sim.Clock({
+        onTick: function (dt) {
+          if (app.lab.onTick) app.lab.onTick(dt, simCtx());
+          simRender();
+        },
+        onState: updatePlayBtn
+      });
+    } else {
+      app.clock = null;
+    }
+    if (lab.setup) lab.setup(simCtx());
+
+    bindSimEvents();
+    renderGuide();
+    renderRecords();
+    simSync();
+    updatePlayBtn();
+    if (app.mode === 'guided' && app.guideIndex > 0 && meta.steps.length) {
+      SL.toast('已恢复上次进度：第 ' + Math.min(app.guideIndex + 1, meta.steps.length) + ' 步', 'info');
+    }
+  }
+
+  function updatePlayBtn() {
+    var btn = SL.$('#sim-play-btn');
+    if (!btn) return;
+    var playing = app.clock && app.clock.playing;
+    btn.innerHTML = SL.icon('player-play', '', 16) + '<span>' + (playing ? '暂停' : '播放') + '</span>';
+    btn.classList.toggle('active', !!playing);
+  }
+
+  function bindSimEvents() {
+    SL.$('#lab-back').addEventListener('click', leaveLab);
+    SL.$('#record-btn').addEventListener('click', recordNow);
+    SL.$('#export-btn').addEventListener('click', function () {
+      SL.records.exportCSV(app.lab.meta, app.rows);
+    });
+    SL.$('#print-btn').addEventListener('click', function () {
+      SL.records.print(app.lab.meta, app.rows, app.answers);
+    });
+    SL.$('#clear-btn').addEventListener('click', function () {
+      if (!app.rows.length) { SL.toast('记录单已经是空的', 'info'); return; }
+      SL.confirm('清空后会删除这台设备上保存的 ' + app.rows.length + ' 条数据，确定吗？', function () {
+        SL.records.clear(app.lab.id);
+        app.rows = [];
+        renderRecords();
+        if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows);
+        evaluateChecks();
+        SL.toast('记录已清空', 'ok');
+      }, { okText: '清空' });
+    });
+
+    SL.$$('[data-mode-btn]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var mode = btn.getAttribute('data-mode-btn');
+        if (mode === app.mode) return;
+        app.mode = mode;
+        SL.$$('[data-mode-btn]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-mode-btn') === mode); });
+        renderGuide();
+        saveProgress();
+        SL.toast(mode === 'guided' ? '引导模式：按步骤完成探究' : '自由探究模式：任意改变参数', 'info');
+      });
+    });
+
+    SL.$('#lab-reset').addEventListener('click', function () {
+      SL.confirm('重置会把所有参数恢复默认值，并清空引导进度（记录单不受影响），确定吗？', function () {
+        if (app.clock) app.clock.reset();
+        if (app.lab.reset) app.lab.reset();
+        var defaults = {};
+        (app.lab.controls || []).forEach(function (def) { defaults[def.key] = app.lab.defaults[def.key]; });
+        app.simValues = defaults;
+        app.guideIndex = 0;
+        app.answers = {};
+        app.submitted = false;
+        app.allAnswered = false;
+        app.hints = {};
+        app.controls.refresh(defaults);
+        renderGuide();
+        simSync();
+        SL.toast('已重置为初始参数', 'ok');
+      }, { okText: '重置' });
+    });
+
+    var playBtn = SL.$('#sim-play-btn');
+    if (playBtn) {
+      playBtn.addEventListener('click', function () {
+        if (!app.clock) return;
+        app.clock.toggle();
+        SL.sound.play('click');
+      });
+    }
+    var resetBtn = SL.$('#sim-reset-btn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () {
+        if (app.clock) app.clock.reset();
+        if (app.lab.onReset) app.lab.onReset(simCtx());
+        simRender();
+        SL.sound.play('click');
+      });
+    }
+  }
+
+  /* 重算并重绘（不写存储） */
+  function simRender() {
+    if (!app.lab || app.kind !== 'sim') return;
+    app.simCalc = app.lab.calc(app.simValues);
+    var ctx = simCtx();
+    if (app.lab.draw) app.lab.draw(ctx);
+    if (app.lab.readouts) SL.sim.Readouts(SL.$('#meters-host'), app.lab.readouts(app.simCalc, app.simValues));
+    renderSimWarnings();
+  }
+
+  function renderSimWarnings() {
+    var host = SL.$('#stage-warnings');
+    if (!host) return;
+    var items = (app.lab.warnings ? app.lab.warnings(app.simCalc, app.simValues) : []) || [];
+    if (!items.length) {
+      host.innerHTML = '<span class="warn-ok">' + SL.icon('check', '', 14) + '参数已生效，可读数记录</span>';
+      return;
+    }
+    host.innerHTML = items.slice(0, 3).map(function (w) {
+      return '<span class="warn-chip warn-' + (w.type || 'state') + '">' + SL.icon('alert-triangle', '', 14) + SL.escape(w.message) + '</span>';
+    }).join('');
+  }
+
+  /* 重算 + 引导判定 + 存档 */
+  function simSync() {
+    if (!app.lab || app.kind !== 'sim') return;
+    simRender();
+    app.result = { ok: true };
+    evaluateChecks();
+    if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows);
+    if (app.simTimer) clearTimeout(app.simTimer);
+    app.simTimer = setTimeout(saveProgress, 240);
   }
 
   function savedScene() {
@@ -508,6 +742,10 @@
   }
 
   /* ---------- 引导模式 ---------- */
+  function labCtx() {
+    return app.kind === 'sim' ? simCtx() : ctx();
+  }
+
   function evaluateChecks() {
     if (app.mode !== 'guided' || !app.result || !app.lab) return;
     var steps = app.lab.meta.steps;
@@ -516,7 +754,7 @@
     while (app.guideIndex < steps.length && guard < steps.length) {
       var step = steps[app.guideIndex];
       var ok = false;
-      try { ok = !!step.check(ctx()); } catch (e) { ok = false; }
+      try { ok = !!step.check(labCtx()); } catch (e) { ok = false; }
       if (!ok) break;
       app.guideIndex += 1;
       advanced += 1;
@@ -660,7 +898,7 @@
 
   /* ---------- 记录 ---------- */
   function recordNow() {
-    var row = app.lab.measure(ctx());
+    var row = app.lab.measure(labCtx());
     if (!row) return;
     SL.records.add(app.lab.id, row);
     app.rows = SL.records.get(app.lab.id);
@@ -983,8 +1221,16 @@
 
   function leaveLab() {
     saveProgress();
+    if (app.clock) app.clock.stop();
+    if (app.board) app.board.destroy && app.board.destroy();
+    app.clock = null;
+    app.stage = null;
+    app.controls = null;
+    app.simValues = null;
+    app.simCalc = null;
     app.board = null;
     app.lab = null;
+    app.kind = 'circuit';
     showHome();
   }
 

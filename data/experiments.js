@@ -6,11 +6,32 @@
   SL.data = {
     subjects: [
       {
-        id: 'physics',
+        id: 'electricity',
         name: '物理 · 电学',
         icon: 'circuit-battery',
         available: true,
         desc: '电路、电流、电压、电阻'
+      },
+      {
+        id: 'mechanics',
+        name: '物理 · 力学',
+        icon: 'weight',
+        available: true,
+        desc: '杠杆、滑轮、浮力、压强'
+      },
+      {
+        id: 'thermal',
+        name: '物理 · 热学',
+        icon: 'thermometer',
+        available: true,
+        desc: '物态变化、比热容、内能'
+      },
+      {
+        id: 'optics',
+        name: '物理 · 光学',
+        icon: 'lens',
+        available: true,
+        desc: '反射、折射、平面镜、凸透镜'
       },
       {
         id: 'chemistry',
@@ -31,7 +52,7 @@
     labs: [
       {
         id: 'series',
-        subject: 'physics',
+        subject: 'electricity',
         name: '串并联电路中电流、电压的规律',
         short: '用两只小灯泡分别搭建串联与并联电路，测量不同位置的电流和各部分电压，自己归纳规律。',
         tag: '九年级 · 电学',
@@ -138,7 +159,7 @@
 
       {
         id: 'ohm-r',
-        subject: 'physics',
+        subject: 'electricity',
         name: '伏安法测电阻',
         short: '用电压表和电流表测量未知电阻 Rx：连接电路、移动滑片、记录三组数据，求平均值。',
         tag: '九年级 · 电学',
@@ -212,7 +233,7 @@
 
       {
         id: 'ohm-law',
-        subject: 'physics',
+        subject: 'electricity',
         name: '探究电流与电压、电阻的关系',
         short: '控制变量法：保持电阻不变改变电压，再保持电压不变更换电阻，用图像归纳欧姆定律。',
         tag: '九年级 · 电学',
@@ -300,7 +321,7 @@
 
       {
         id: 'sandbox',
-        subject: 'physics',
+        subject: 'electricity',
         name: '全自由电学实验室',
         short: '空白实验台：元件数量不限、参数可自由设定、任意接线，实时读数与真实计算。',
         tag: '自由实验 · 不限步骤',
@@ -324,6 +345,237 @@
         ],
         steps: [],
         conclusions: []
+      },
+
+      /* ================= 物理 · 力学 ================= */
+      {
+        id: 'lever',
+        subject: 'mechanics',
+        kind: 'sim',
+        name: '探究杠杆的平衡条件',
+        short: '在杠杆两侧挂不同数量的钩码，移动悬挂位置，找出使杠杆水平平衡的条件，归纳出力矩关系。',
+        tag: '八年级 · 力学',
+        time: '约 15 分钟',
+        accent: '#c2731a',
+        equipment: [
+          { icon: 'seesaw', label: '杠杆与支架' },
+          { icon: 'weight', label: '钩码 ×4' },
+          { icon: 'ruler', label: '刻度尺' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'leftCount', label: '左侧钩码/个' },
+          { key: 'leftArm', label: '左力臂/cm' },
+          { key: 'leftTorque', label: 'F₁L₁ /N·cm', digits: 1 },
+          { key: 'rightCount', label: '右侧钩码/个' },
+          { key: 'rightArm', label: '右力臂/cm' },
+          { key: 'rightTorque', label: 'F₂L₂ /N·cm', digits: 1 },
+          { key: 'state', label: '状态' }
+        ],
+        steps: [
+          {
+            title: '让杠杆水平平衡',
+            instruction: '先用左侧 2 个钩码、右侧 2 个钩码，拖动钩码改变悬挂位置，使杠杆回到水平位置。',
+            hint: '每个钩码重 0.5 N，每格 5 cm。让左右两侧「钩码个数 × 格数」相等即可。'
+          },
+          {
+            title: '换一组数据再做一次',
+            instruction: '改变左右钩码的个数与位置，重新调平，并在右侧读数面板核对 F₁L₁ 与 F₂L₂ 是否相等。',
+            hint: '只要满足「左边个数 × 左边格数 = 右边个数 × 右边格数」，杠杆就会平衡。'
+          },
+          {
+            title: '记录三组平衡数据',
+            instruction: '把杠杆调平后点击「记录当前数据」，至少记录 3 组不同的平衡组合。',
+            hint: '每组数据都要先让杠杆稳定在水平位置再记录。'
+          },
+          {
+            title: '填写实验结论',
+            instruction: '根据记录的数据，回答下方问题，归纳杠杆的平衡条件。',
+            hint: '比较每组数据中 F₁L₁ 与 F₂L₂ 的数值。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'lv1',
+            label: '杠杆平衡时，动力 × 动力臂与阻力 × 阻力臂的大小',
+            suffix: '（填“相等”或“不相等”）。',
+            type: 'keyword',
+            keywords: ['相等'],
+            reference: '相等，即 F₁L₁ = F₂L₂，这就是杠杆的平衡条件。'
+          },
+          {
+            id: 'lv2',
+            label: '保持左侧钩码个数和位置不变，把右侧钩码向远离支点方向移动，右侧力矩会',
+            suffix: '（填“变大”“变小”或“不变”）。',
+            type: 'keyword',
+            keywords: ['变大'],
+            reference: '变大。力臂变长，力矩 F₂L₂ 增大。'
+          },
+          {
+            id: 'lv3',
+            label: '若 F₁ = 1.0 N、L₁ = 15 cm，要使杠杆平衡，当 L₂ = 10 cm 时 F₂ =',
+            suffix: 'N。',
+            type: 'number',
+            answer: 1.5,
+            tolerance: 0.05,
+            reference: 'F₂ = F₁L₁ / L₂ = 1.0 × 15 / 10 = 1.5 N。'
+          }
+        ]
+      },
+
+      {
+        id: 'pulley',
+        subject: 'mechanics',
+        kind: 'sim',
+        name: '测量滑轮组的机械效率',
+        short: '改变绕法、物重和提升高度，测出绳端拉力与移动距离，计算有用功、总功和机械效率。',
+        tag: '八年级 · 力学',
+        time: '约 18 分钟',
+        accent: '#0e7490',
+        equipment: [
+          { icon: 'pulley', label: '滑轮组' },
+          { icon: 'weight', label: '钩码若干' },
+          { icon: 'ruler', label: '刻度尺' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'segments', label: '绳段数 n' },
+          { key: 'load', label: '物重 G/N', digits: 1 },
+          { key: 'h', label: '高度 h/m', digits: 2 },
+          { key: 'force', label: '拉力 F/N', digits: 2 },
+          { key: 's', label: '绳移动 s/m', digits: 2 },
+          { key: 'wUse', label: 'W有 /J', digits: 2 },
+          { key: 'wTotal', label: 'W总 /J', digits: 2 },
+          { key: 'eta', label: 'η/%', digits: 1 }
+        ],
+        steps: [
+          {
+            title: '认识滑轮组：n 段绳承担物重',
+            instruction: '先选择 n = 2 的绕法，观察有几段绳子吊着动滑轮，读出绳端拉力 F 与物重 G 的关系。',
+            hint: '动滑轮和重物由 n 段绳子共同承担，理想情况下 F = (G + G动) / n。'
+          },
+          {
+            title: '提升钩码并记录',
+            instruction: '把钩码提升到设定高度（可点「播放」自动提升，也可直接拖动钩码），然后记录一组数据。',
+            hint: '一定要读到「提升到位」再记录，否则绳端移动距离对不上。'
+          },
+          {
+            title: '改变物重再测一次',
+            instruction: '把钩码总重加大到 4 N 以上，重新提升并记录，比较两次的机械效率。',
+            hint: '物重越大，有用功占总功的比例越高，机械效率越大。'
+          },
+          {
+            title: '改变绕法再测一次',
+            instruction: '切换到 n = 3 的绕法，提升同一重物并记录，比较不同绕法的机械效率。',
+            hint: '同一重物时，绕法不同拉力不同，但机械效率主要由物重和动滑轮重决定。'
+          },
+          {
+            title: '填写实验结论',
+            instruction: '根据记录单中的数据，回答下方问题，归纳影响机械效率的因素。',
+            hint: '看看 η 与物重 G、动滑轮重 G动 的关系。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'pl1',
+            label: '同一滑轮组，提升的物重越大，机械效率',
+            suffix: '（填“越高”“越低”或“不变”）。',
+            type: 'keyword',
+            keywords: ['越高', '变大', '增大', '提高'],
+            reference: '越高。因为额外功（克服动滑轮重和摩擦）基本不变，有用功增大，η = W有/W总 增大。'
+          },
+          {
+            id: 'pl2',
+            label: '使用同一滑轮组提升同一重物，动滑轮越重，机械效率',
+            suffix: '（填“越高”“越低”或“不变”）。',
+            type: 'keyword',
+            keywords: ['越低', '变小', '减小', '降低'],
+            reference: '越低。动滑轮越重，额外功越多，机械效率越低。'
+          },
+          {
+            id: 'pl3',
+            label: '物重 4 N、动滑轮重 1 N、n = 2，忽略摩擦时机械效率 η =',
+            suffix: '%。',
+            type: 'number',
+            answer: 80,
+            tolerance: 2,
+            reference: 'F = (4 + 1)/2 = 2.5 N，η = Gh/(Fs) = 4/(2.5×2) = 80%。'
+          }
+        ]
+      },
+
+      {
+        id: 'buoyancy',
+        subject: 'mechanics',
+        kind: 'sim',
+        name: '探究浮力的大小（阿基米德原理）',
+        short: '把物体逐渐浸入液体，读出测力计示数变化，比较浮力与排开液体所受的重力。',
+        tag: '八年级 · 力学',
+        time: '约 16 分钟',
+        accent: '#0d7a68',
+        equipment: [
+          { icon: 'beaker', label: '烧杯与液体' },
+          { icon: 'gauge', label: '弹簧测力计' },
+          { icon: 'waves', label: '水 / 盐水 / 酒精' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'liquid', label: '液体' },
+          { key: 'solid', label: '物体' },
+          { key: 'vDisplaced', label: 'V排/cm³', digits: 0 },
+          { key: 'fBuoy', label: 'F浮/N', digits: 2 },
+          { key: 'gDisplaced', label: 'G排/N', digits: 2 },
+          { key: 'reading', label: '示数/N', digits: 2 }
+        ],
+        steps: [
+          {
+            title: '让物体部分浸入液体',
+            instruction: '把物体缓缓浸入水中，观察弹簧测力计的示数变化，并注意物体受到的浮力大小。',
+            hint: '示数变小说明液体给物体一个向上的托力，这就是浮力，F浮 = G − F示。'
+          },
+          {
+            title: '把物体完全浸没',
+            instruction: '继续下移，使物体完全浸没在水中，记录此时的数据。',
+            hint: '完全浸没后再下沉，排开液体的体积不再变化，浮力也不再变化。'
+          },
+          {
+            title: '换用盐水再测一次',
+            instruction: '保持物体完全浸没，把液体换成盐水，比较浮力是否变化。',
+            hint: '盐水密度比水大，同一物体浸没时排开液体体积相同，浮力更大。'
+          },
+          {
+            title: '填写实验结论',
+            instruction: '根据记录的数据，比较 F浮 与 G排，回答下方问题。',
+            hint: '每组数据里 F浮 与 G排 的数值应该几乎相同。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'by1',
+            label: '浸在液体中的物体受到的浮力，等于它排开的液体所受的',
+            suffix: '（这一规律叫阿基米德原理）。',
+            type: 'keyword',
+            keywords: ['重力'],
+            reference: '重力，即 F浮 = G排 = ρ液 g V排。'
+          },
+          {
+            id: 'by2',
+            label: '同种液体中，物体排开液体的体积越大，受到的浮力',
+            suffix: '（填“越大”或“越小”）。',
+            type: 'keyword',
+            keywords: ['越大'],
+            reference: '越大。F浮 = ρ液 g V排，与排开液体的体积成正比。'
+          },
+          {
+            id: 'by3',
+            label: '体积 100 cm³ 的物体完全浸没在水中，受到的浮力 F浮 =',
+            suffix: 'N。',
+            type: 'number',
+            answer: 1,
+            tolerance: 0.1,
+            reference: 'V排 = 100 cm³ = 1×10⁻⁴ m³，F浮 = ρ水 g V排 = 1.0×10³ × 10 × 1×10⁻⁴ = 1 N。'
+          }
+        ]
       }
     ]
   };

@@ -1,0 +1,296 @@
+/* ==========================================================
+   星火物理实验室 · 仿真实验台样式（力学 / 热学 / 光学）
+   依赖 main.css 的设计令牌
+   ========================================================== */
+
+/* ---------- 左栏：参数控件 ---------- */
+.sim-palette { gap: 12px; }
+.ctrl-list { display: flex; flex-direction: column; gap: 14px; }
+.ctrl { display: flex; flex-direction: column; gap: 6px; }
+.ctrl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ctrl-label { font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.45; }
+.ctrl-value {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--primary-dark);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ctrl-note { font-size: 11px; line-height: 1.6; color: #8998ab; font-style: normal; }
+
+.ctrl input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary) 45%, #dfe6f0 45%, #dfe6f0 100%);
+  outline: none;
+  cursor: pointer;
+}
+.ctrl input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--primary);
+  box-shadow: 0 2px 6px rgba(22, 35, 58, .18);
+  cursor: grab;
+}
+.ctrl input[type="range"]::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--primary);
+  box-shadow: 0 2px 6px rgba(22, 35, 58, .18);
+  cursor: grab;
+}
+.ctrl input[type="range"]:focus-visible { box-shadow: var(--focus); }
+
+.ctrl select {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: 9px;
+  border: 1px solid var(--line-strong);
+  background: #fbfdff;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-family: inherit;
+}
+.ctrl-toggle { flex-direction: row; align-items: center; gap: 8px; }
+.ctrl-toggle input { width: 16px; height: 16px; accent-color: var(--primary); }
+
+.ctrl-btn-row { display: flex; flex-wrap: nowrap; gap: 5px; }
+.ctrl-btn-row button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 3px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: #fbfdff;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.ctrl-btn-row button:hover { border-color: var(--primary); color: var(--primary-dark); }
+.ctrl-btn-row button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(31, 111, 178, .25);
+}
+.ctrl-btn-row button:focus-visible { outline: none; box-shadow: var(--focus); }
+
+.sim-play { display: flex; gap: 8px; }
+.sim-play .btn { flex: 1; }
+.sim-play .btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* ---------- 舞台 ---------- */
+.board-host.sim-stage-host {
+  padding: 10px 12px;
+  min-height: 420px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(560px 280px at 50% 0%, #fbfdff 0%, #f2f6fb 70%, #eaf0f7 100%);
+}
+.sim-canvas { width: 100%; height: auto; max-height: 68vh; display: block; overflow: visible; }
+
+/* 舞台通用图元 */
+.floor-line { stroke: #c4cfdc; stroke-width: 3; stroke-linecap: round; }
+.level-guide { stroke: #b7c4d4; stroke-width: 1.4; stroke-dasharray: 7 6; }
+.level-label { fill: #9aa8ba; font-size: 12px; }
+.sim-note { fill: #7d8b9d; font-size: 12.5px; }
+/* 文字压在图元上时用白色描边托底，保证可读 */
+.force-label, .sim-note, .measure-label, .solid-label, .arm-label, .gauge-read {
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 3.2px;
+  stroke-linejoin: round;
+}
+.sim-badge { fill: #fff; stroke: #dbe4ef; stroke-width: 1; }
+.sim-badge.bal-ok { fill: #eaf7f0; stroke: #b9e3cc; }
+.sim-badge.bal-no { fill: #fdf0e8; stroke: #f3d0b6; }
+.sim-badge-text { font-size: 13px; font-weight: 600; fill: var(--ink); }
+.sim-badge-text.bal-ok { fill: #1d7a50; }
+.sim-badge-text.bal-no { fill: #a4531f; }
+.drag-ring { fill: none; stroke: #9fb6cd; stroke-width: 1.2; stroke-dasharray: 4 5; opacity: .55; }
+.force-arrow { stroke: #c0392b; stroke-width: 2.4; fill: none; }
+.force-label { fill: #a4331f; font-size: 12.5px; font-weight: 600; }
+.measure-line { stroke: #7b8ea3; stroke-width: 1.4; stroke-dasharray: 5 4; }
+.measure-line-alt { stroke: #b0793a; }
+.measure-cap { stroke: #7b8ea3; stroke-width: 1.6; }
+.measure-cap-alt { stroke: #b0793a; stroke-width: 1.6; }
+.measure-label { fill: #5f7186; font-size: 12px; font-weight: 600; }
+.measure-label-alt { fill: #96601f; }
+
+/* ---------- 杠杆 ---------- */
+.lever-bar { fill: url(#sim-glass); stroke: #8fa3b8; stroke-width: 1.4; }
+.lever-bar-inner { fill: rgba(143, 163, 184, .35); }
+.lever-tick { stroke: #6f8296; stroke-width: 1.6; }
+.lever-num { fill: #5f7186; font-size: 11.5px; font-weight: 600; }
+.pivot { fill: #dfe7f0; stroke: #7b8ea3; stroke-width: 1.6; }
+.pivot-dot { fill: #4a5c70; }
+.stand-body { fill: #d6dfe9; stroke: #9fb0c2; stroke-width: 1.3; }
+.stand-base { fill: #c3cfdc; stroke: #9fb0c2; stroke-width: 1; }
+.stand-pole { stroke: #9fb0c2; stroke-width: 7; stroke-linecap: round; }
+.lever-wire { stroke: #7b8ea3; stroke-width: 1.6; }
+.hook-block { fill: #b8c2cc; stroke: #7d8896; stroke-width: 1.2; }
+.hook-block.hook-left { fill: #cbb9a2; stroke: #97815f; }
+.hook-notch { stroke: rgba(255, 255, 255, .75); stroke-width: 1.4; }
+.arm-guide { stroke: #b6c6d8; stroke-width: 1.3; stroke-dasharray: 6 5; }
+.arm-guide.arm-left { stroke: #c9a26b; }
+.arm-cap { stroke: #9fb0c2; stroke-width: 1.4; }
+.arm-cap.arm-left { stroke: #c9a26b; }
+.arm-cap.arm-right { stroke: #7aa6cf; }
+.arm-label { fill: #7b8ea3; font-size: 11.5px; }
+.arm-label.arm-left { fill: #a67c3c; }
+.arm-label.arm-right { fill: #4a7fae; }
+
+/* ---------- 滑轮组 ---------- */
+.pulley-beam { fill: #d6dfe9; stroke: #9fb0c2; stroke-width: 1.2; }
+.pulley-hatch { stroke: #a9b8c8; stroke-width: 1.6; stroke-linecap: round; }
+.pulley-wheel { fill: #eef3f9; stroke: #7b8ea3; stroke-width: 2; }
+.pulley-wheel-moving { fill: #e6eef7; stroke: #4a7fae; }
+.pulley-axle { fill: #6b7d91; }
+.pulley-moving { fill: rgba(212, 224, 237, .75); stroke: #8fa3b8; stroke-width: 1.3; }
+.rope { stroke: #6b5a44; stroke-width: 1.8; fill: none; }
+.rope-tail { stroke-dasharray: none; }
+.hand-grip { fill: #e8c9a0; stroke: #b08a56; stroke-width: 1.3; }
+.load-box { fill: rgba(203, 185, 162, .55); stroke: #97815f; stroke-width: 1.3; }
+.load-slot { stroke: rgba(255, 255, 255, .8); stroke-width: 1.2; }
+
+/* ---------- 浮力 ---------- */
+.gauge-body { fill: #e7ecf3; stroke: #8b9db0; stroke-width: 1.3; }
+.gauge-face { fill: #fdfefe; stroke: #c9d5e4; stroke-width: 1; }
+.gauge-tick { stroke: #8b9db0; stroke-width: 1.2; }
+.gauge-num { fill: #6f8296; font-size: 10.5px; }
+.gauge-pointer { stroke: #c0392b; stroke-width: 2.4; stroke-linecap: round; }
+.gauge-read { fill: #a4331f; font-size: 13px; font-weight: 700; }
+.gauge-hook { fill: #b8c2cc; stroke: #7d8896; stroke-width: 1.2; }
+.hang-wire { stroke: #8b9db0; stroke-width: 1.4; }
+.beaker-glass { fill: rgba(226, 238, 247, .5); stroke: #9fb9cf; stroke-width: 2; }
+.beaker-liquid { opacity: .82; }
+.beaker-rim { stroke: #86a4bd; stroke-width: 2.4; }
+.beaker-surface { stroke: #5f9dc4; stroke-width: 2; }
+.beaker-tick { stroke: rgba(255, 255, 255, .8); stroke-width: 1.6; }
+.solid-block { opacity: .95; stroke-width: 1.5; }
+.solid-block-wet { opacity: .55; stroke-width: 1.5; }
+.solid-label { fill: #43536a; font-size: 12px; font-weight: 600; }
+.hang-ring { fill: none; stroke: #7b8ea3; stroke-width: 1.6; }
+
+/* ---------- 读数面板 ---------- */
+.readouts-host { display: flex; flex-direction: column; gap: 6px; }
+.readout {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: #f7fafd;
+  border: 1px solid var(--line);
+}
+.readout-accent { background: var(--primary-soft); border-color: #cfe2f4; }
+.readout-label { font-size: 12px; color: var(--muted); }
+.readout-value {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.readout-value em { font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+.readout-accent .readout-value { color: var(--primary-dark); }
+.readout-note { grid-column: 1 / -1; font-size: 10.5px; color: #93a2b5; }
+
+/* ---------- 曲线图 ---------- */
+.plot-card { display: flex; flex-direction: column; gap: 8px; }
+.plot-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.plot-head span { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.plot-head em { font-size: 11px; color: var(--muted); font-style: normal; }
+.plot { width: 100%; height: auto; display: block; }
+.plot-grid { stroke: #e7edf5; stroke-width: 1; }
+.plot-axis { stroke: #b9c6d6; stroke-width: 1.4; }
+.plot-tick { fill: #93a2b5; font-size: 9.5px; }
+.plot-label { fill: #7d8b9d; font-size: 10.5px; }
+.plot-line { fill: none; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.plot-dot { stroke: #fff; stroke-width: 1.2; }
+.plot-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+.plot-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.plot-legend-item i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.plot-foot {
+  font-size: 11px;
+  color: #8998ab;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line);
+}
+
+/* 杠杆力矩对照 */
+.torque-pairs { display: flex; flex-direction: column; gap: 6px; }
+.torque-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: #f7fafd;
+  border: 1px solid var(--line);
+}
+.torque-row b { color: var(--primary-dark); font-variant-numeric: tabular-nums; }
+.torque-row i { color: #b6c4d4; font-style: normal; }
+
+/* 机械效率条 */
+.eta-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 9px; }
+.eta-group-head { font-size: 11px; font-weight: 700; color: var(--primary-dark); letter-spacing: .04em; }
+.eta-row { display: grid; grid-template-columns: 64px 1fr 46px; align-items: center; gap: 7px; }
+.eta-label { font-size: 11px; color: var(--muted); }
+.eta-track { height: 7px; border-radius: 999px; background: #e9eff7; overflow: hidden; }
+.eta-track i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1f6fb2, #16a3a3);
+}
+.eta-value { font-size: 11px; font-weight: 700; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------- 首页空板块 ---------- */
+.hall-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 46px 20px;
+  border-radius: 16px;
+  border: 1px dashed var(--line-strong);
+  background: rgba(255, 255, 255, .6);
+  color: var(--muted);
+  text-align: center;
+}
+.hall-empty p { margin: 0; font-size: 13.5px; line-height: 1.7; }
+
+/* ---------- 窄屏 ---------- */
+@media (max-width: 1180px) {
+  .lab-body { grid-template-columns: 190px minmax(0, 1fr) 320px; }
+}
+@media (max-width: 900px) {
+  .lab-body { grid-template-columns: 1fr; }
+  .sim-palette { position: static; }
+  .ctrl-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px 16px; }
+  .sim-play { max-width: 280px; }
+  .board-host.sim-stage-host { min-height: 320px; }
+  .sim-canvas { max-height: 52vh; }
+}

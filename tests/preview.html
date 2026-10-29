@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>实验预览</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+  <link rel="stylesheet" href="../assets/css/lab.css">
+  <link rel="stylesheet" href="../assets/css/sim.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+  <main class="view-root" id="view-root"></main>
+
+  <script src="../assets/icons/sprite.js"></script>
+  <script src="../assets/js/core/utils.js"></script>
+  <script src="../data/experiments.js"></script>
+  <script src="../assets/js/core/simkit.js"></script>
+  <script src="../assets/js/core/circuit.js"></script>
+  <script src="../assets/js/core/skins.js"></script>
+  <script src="../assets/js/core/board.js"></script>
+  <script src="../assets/js/core/meters.js"></script>
+  <script src="../assets/js/core/records.js"></script>
+  <script src="../assets/js/sims/mech.js"></script>
+  <script src="../assets/js/labs/lab-series.js"></script>
+  <script src="../assets/js/labs/lab-ohm-r.js"></script>
+  <script src="../assets/js/labs/lab-ohm-law.js"></script>
+  <script src="../assets/js/labs/lab-free.js"></script>
+  <script src="../assets/js/labs/lab-lever.js"></script>
+  <script src="../assets/js/labs/lab-pulley.js"></script>
+  <script src="../assets/js/labs/lab-buoyancy.js"></script>
+  <script src="../assets/js/ui/home.js"></script>
+  <script src="../assets/js/app.js"></script>
+  <script>
+    (function () {
+      var SL = window.SparkLab;
+      var q = new URLSearchParams(location.search);
+      var lab = q.get('lab') || 'lever';
+      var mode = q.get('mode') || 'guided';
+      window.addEventListener('load', function () {
+        SL.records.clear(lab);
+        SL.storage.remove(SL.KEYS.progress);
+        SL.settings.set('sound', false);
+        SL.app.openLab(lab, mode);
+        if (q.get('sub')) SL.app.state.controls.set('submerge', parseFloat(q.get('sub')));
+        if (q.get('n')) SL.app.state.controls.set('segments', parseFloat(q.get('n')));
+        if (q.get('lift')) {
+          SL.app.state.controls.set('h', 0.3);
+          SL.labs[lab].onTick(6, SL.app.state);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

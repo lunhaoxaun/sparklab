@@ -23,6 +23,7 @@ def inner_svg(source: str) -> str:
 
 icons = {}
 entries = []
+self_drawn = []
 for name in sorted(os.listdir(RAW)):
     if not name.endswith(".svg"):
         continue
@@ -30,7 +31,10 @@ for name in sorted(os.listdir(RAW)):
     source = open(os.path.join(RAW, name), encoding="utf-8").read()
     version_match = re.search(r'version:\s*"([^"]+)"', source)
     icons[key] = inner_svg(source)
-    entries.append((key, version_match.group(1) if version_match else "unknown"))
+    if "self-drawn" in source:
+        self_drawn.append(key)
+    else:
+        entries.append((key, version_match.group(1) if version_match else "unknown"))
 
 generated_at = datetime.datetime.now().isoformat(timespec="seconds")
 lines = [
@@ -72,6 +76,7 @@ doc += [
     "## 自绘素材（不在上表，无第三方版权）",
     "",
     "- 滑动变阻器、单刀开关、导线接头、电流方向箭头、灯泡光晕：由本项目按教材标准画法自绘。",
+    "- 力学 / 热学 / 光学图标（" + "、".join("`{}`".format(k) for k in self_drawn) + "）：由本项目自绘。",
     "",
     "## MIT License 全文",
     "",
