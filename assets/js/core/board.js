@@ -42,6 +42,8 @@
     this.view = { x: 0, y: 0, w: VIEW_W, h: VIEW_H };
     this.pointers = {};
     this.pinch = null;
+    this.guides = [];
+    this.pan = null;
     this.skin = 'classic';
     this.mount();
   }
@@ -523,6 +525,17 @@
     this.renderFlow();
 
     var overlay = '';
+    /* 拖动时的对齐辅助线：把元件中心吸到其他元件的同一行/同一列上 */
+    if (this.guides && this.guides.length) {
+      var v = this.view;
+      this.guides.forEach(function (g) {
+        if (g.dir === 'v') {
+          overlay += '<line class="align-guide" x1="' + g.at + '" y1="' + v.y + '" x2="' + g.at + '" y2="' + (v.y + v.h) + '"/>';
+        } else {
+          overlay += '<line class="align-guide" x1="' + v.x + '" y1="' + g.at + '" x2="' + (v.x + v.w) + '" y2="' + g.at + '"/>';
+        }
+      });
+    }
     if (this.pending) {
       overlay += '<text class="board-hint" x="24" y="' + (VIEW_H - 24) + '">点击另一个接线柱完成连接 · 按 Esc 取消</text>';
     }
@@ -619,11 +632,31 @@
     }
     this.sliderDrag = null;
     this.pointer = null;
+    this.pan = null;
     this.pinch = {
       dist: Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2)) || 1,
       x: (a.x + b.x) / 2,
       y: (a.y + b.y) / 2
     };
+  };
+
+  /* ---------- 拖动吸附：优先与其他元件对齐（画辅助线），否则落到 10px 网格 ---------- */
+  Board.prototype.snapPosition = function (comp, x, y) {
+    var TOL = 9;
+    var guides = [];
+    var bestX = null;
+    var bestY = null;
+    this.scene.components.forEach(function (other) {
+      if (other.id === comp.id) return;
+      if (Math.abs(other.x - x) <= TOL && (bestX == null || Math.abs(other.x - x) < Math.abs(bestX - x))) bestX = other.x;
+      if (Math.abs(other.y - y) <= TOL && (bestY == null || Math.abs(other.y - y) < Math.abs(bestY - y))) bestY = other.y;
+    });
+    if (bestX != null) { x = bestX; guides.push({ dir: 'v', at: bestX }); }
+    else x = Math.round(x / 10) * 10;
+    if (bestY != null) { y = bestY; guides.push({ dir: 'h', at: bestY }); }
+    else y = Math.round(y / 10) * 10;
+    this.guides = guides;
+    return { x: x, y: y };
   };
 
   Board.prototype.onDown = function (evt) {
@@ -633,6 +666,13 @@
     this.svg.setPointerCapture && this.svg.setPointerCapture(evt.pointerId);
     this.pointers[evt.pointerId] = { x: evt.clientX, y: evt.clientY };
     if (Object.keys(this.pointers).length >= 2) { this.startPinch(); return; }
+
+    /* 中键拖动、Alt+拖动：平移画布（不改变选中） */
+    if (evt.button === 1 || (evt.button === 0 && evt.altKey)) {
+      this.pan = { x: evt.clientX, y: evt.clientY, view: { x: this.view.x, y: this.view.y }, empty: false, moved: false };
+      this.svg.classList.add('is-panning');
+      return;
+    }
 
     var slider = target.closest('[data-slider]');
     if (slider) {
@@ -676,8 +716,11 @@
     }
 
     if (this.pending) { this.pending = null; this.schedule(); return; }
+    /* 空白处按住拖动 = 平移画布；松手没动过就是单纯的取消选中 */
     this.selected = null;
     if (this.options.onSelect) this.options.onSelect(null);
+    this.pan = { x: evt.clientX, y: evt.clientY, view: { x: this.view.x, y: this.view.y }, empty: true, moved: false };
+    this.svg.classList.add('is-grab');
     this.schedule();
   };
 
@@ -694,11 +737,34 @@
         var mx = (a.x + b.x) / 2;
         var my = (a.y + b.y) / 2;
         if (this.pinch.dist > 0 && dist > 0) this.zoomAtClient(mx, my, dist / this.pinch.dist);
+        /* 双指同时平移：中点位移换算成世界坐标后移动视口 */
+        var rectP = this.svg.getBoundingClientRect();
+        if (rectP.width > 0) {
+          var kp = this.view.w / rectP.width;
+          this.view.x -= (mx - this.pinch.x) * kp;
+          this.view.y -= (my - this.pinch.y) * kp;
+          this.applyView();
+        }
         this.pinch.dist = dist;
         this.pinch.x = mx;
         this.pinch.y = my;
         return;
       }
+    }
+    if (this.pan) {
+      var deltaX = evt.clientX - this.pan.x;
+      var deltaY = evt.clientY - this.pan.y;
+      if (!this.pan.moved && Math.abs(deltaX) + Math.abs(deltaY) < 4) return;
+      this.pan.moved = true;
+      this.svg.classList.add('is-panning');
+      var rect = this.svg.getBoundingClientRect();
+      if (rect.width > 0) {
+        var k = this.view.w / rect.width;
+        this.view.x = this.pan.view.x - deltaX * k;
+        this.view.y = this.pan.view.y - deltaY * k;
+        this.applyView();
+      }
+      return;
     }
     var p = this.svgPoint(evt);
     this.pointer = p;
@@ -712,8 +778,9 @@
       var dx = p.x - this.drag.startX;
       var dy = p.y - this.drag.startY;
       if (Math.abs(dx) + Math.abs(dy) > 3) this.drag.moved = true;
-      comp.x = Math.round((this.drag.originX + dx) / 10) * 10;
-      comp.y = Math.round((this.drag.originY + dy) / 10) * 10;
+      var snapped = this.snapPosition(comp, this.drag.originX + dx, this.drag.originY + dy);
+      comp.x = snapped.x;
+      comp.y = snapped.y;
       this.schedule();
       return;
     }
@@ -727,6 +794,12 @@
       if (Object.keys(this.pointers).length < 2) this.pinch = null;
       return;
     }
+    if (this.pan) {
+      var panned = this.pan.moved;
+      this.pan = null;
+      this.svg.classList.remove('is-panning', 'is-grab');
+      if (panned) return;
+    }
     if (this.sliderDrag) {
       this.sliderDrag = null;
       this.emitChange();
@@ -736,6 +809,7 @@
       var comp = this.findComp(this.drag.id);
       var moved = this.drag.moved;
       this.drag = null;
+      this.guides = [];
       if (comp && comp.type === 'switch' && !moved) {
         comp.props.closed = !comp.props.closed;
         SL.sound.play('click');
@@ -830,6 +904,30 @@
     var comp = SL.circuit.create(type, x, y, props);
     this.scene.components.push(comp);
     this.selected = { type: 'comp', id: comp.id };
+    this.emitChange();
+    return comp;
+  };
+
+  /* 按屏幕落点放置元件（器材库拖拽用），落点换算成世界坐标并夹在画布内 */
+  Board.prototype.placeAt = function (type, clientX, clientY, props) {
+    var p = this.svgPoint({ clientX: clientX, clientY: clientY });
+    var x = Math.max(60, Math.min(VIEW_W - 60, Math.round(p.x / 10) * 10));
+    var y = Math.max(60, Math.min(VIEW_H - 70, Math.round(p.y / 10) * 10));
+    return this.addComponent(type, x, y, props);
+  };
+
+  /* 复制选中元件：属性与朝向一起复制，偏移 40px 避免完全重叠 */
+  Board.prototype.copySelected = function () {
+    if (!this.selected || this.selected.type !== 'comp') return null;
+    var src = this.findComp(this.selected.id);
+    if (!src) return null;
+    var props = JSON.parse(JSON.stringify(src.props || {}));
+    delete props.id;
+    var comp = SL.circuit.create(src.type, src.x + 40, src.y + 40, props);
+    comp.rotation = src.rotation || 0;
+    this.scene.components.push(comp);
+    this.selected = { type: 'comp', id: comp.id };
+    if (this.options.onSelect) this.options.onSelect(comp);
     this.emitChange();
     return comp;
   };

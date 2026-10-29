@@ -104,6 +104,18 @@
     radial-gradient(560px 280px at 50% 0%, #fbfdff 0%, #f2f6fb 70%, #eaf0f7 100%);
 }
 .sim-canvas { width: 100%; height: auto; max-height: 68vh; display: block; overflow: visible; }
+/* 参考网格与图层显隐（对应实验台工具条上的「网格 / 标注 / 矢量」） */
+.sim-grid line { stroke: rgba(31, 111, 178, .055); stroke-width: 1; }
+.sim-canvas.hide-grid .sim-grid,
+.sim-canvas.hide-grid .level-guide,
+.sim-canvas.hide-grid .level-label { display: none; }
+.sim-canvas.hide-vectors .force-arrow,
+.sim-canvas.hide-vectors .force-label { display: none; }
+.sim-canvas.hide-labels .sim-note,
+.sim-canvas.hide-labels .measure-label,
+.sim-canvas.hide-labels .arm-label,
+.sim-canvas.hide-labels .solid-label,
+.sim-canvas.hide-labels .gauge-read { display: none; }
 
 /* 舞台通用图元 */
 .floor-line { stroke: #c4cfdc; stroke-width: 3; stroke-linecap: round; }
@@ -293,4 +305,6 @@
   .sim-play { max-width: 280px; }
   .board-host.sim-stage-host { min-height: 320px; }
   .sim-canvas { max-height: 52vh; }
+  .stage-tools { gap: 2px; padding: 3px; }
+  .tool-btn { padding: 0 6px; font-size: 11px; }
 }

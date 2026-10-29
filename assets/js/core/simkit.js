@@ -44,6 +44,19 @@
       '<radialGradient id="sim-glow" cx="50%" cy="50%" r="50%">' +
       '<stop offset="0%" stop-color="#ffd479" stop-opacity=".85"/><stop offset="100%" stop-color="#ffb020" stop-opacity="0"/></radialGradient>';
     svg.appendChild(defs);
+    /* 参考网格：供「网格」开关显隐，默认 40px 一格 */
+    if (opts.grid !== false) {
+      var grid = svgEl('g', { class: 'sim-grid' });
+      var gridMarkup = '';
+      for (var gx = 0; gx <= W; gx += 40) {
+        gridMarkup += '<line x1="' + gx + '" y1="0" x2="' + gx + '" y2="' + H + '"/>';
+      }
+      for (var gy = 0; gy <= H; gy += 40) {
+        gridMarkup += '<line x1="0" y1="' + gy + '" x2="' + W + '" y2="' + gy + '"/>';
+      }
+      grid.innerHTML = gridMarkup;
+      svg.appendChild(grid);
+    }
     var layer = svgEl('g', { class: 'sim-layer' });
     svg.appendChild(layer);
     host.innerHTML = '';

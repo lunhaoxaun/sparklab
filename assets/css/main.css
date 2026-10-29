@@ -183,7 +183,7 @@ code {
 }
 .btn-icon.is-off { color: #98a6b8; }
 
-.btn-icon, .link-btn, .brand, .chip, .palette-item, .range-pill, .mode-switch button, .subject-pill {
+.btn-icon, .link-btn, .brand, .chip, .palette-card, .tool-btn, .row-del, .range-pill, .mode-switch button, .subject-pill {
   -webkit-tap-highlight-color: transparent;
 }
 

@@ -39,10 +39,12 @@
     return cells;
   }
 
-  function avgFooter(lab, avg) {
+  function avgFooter(lab, avg, extra, noTime) {
     var cells = avgCells(lab, avg, true);
     if (!cells.length) return '';
-    return '<tfoot><tr>' + cells.join('') + '<td class="col-time"></td></tr></tfoot>';
+    var tail = noTime ? '<td></td>' : '<td class="col-time"></td>';
+    for (var i = 0; i < (extra || 0); i++) tail += '<td class="col-act"></td>';
+    return '<tfoot><tr>' + cells.join('') + tail + '</tr></tfoot>';
   }
 
   var records = {
@@ -64,6 +66,13 @@
       all[labId] = [];
       writeAll(all);
     },
+    /* 整表覆盖写（删除单行用） */
+    replace: function (labId, rows) {
+      var all = readAll();
+      all[labId] = Array.isArray(rows) ? rows : [];
+      writeAll(all);
+      return all[labId];
+    },
     count: function (labId) {
       var all = readAll();
       return Array.isArray(all[labId]) ? all[labId].length : 0;
@@ -80,7 +89,10 @@
       if (!values.length) return null;
       return values.reduce(function (a, b) { return a + b; }, 0) / values.length;
     },
-    renderTable: function (host, lab, rows) {
+    renderTable: function (host, lab, rows, opts) {
+      opts = opts || {};
+      var canDelete = typeof opts.onDelete === 'function';
+      var showTime = !opts.compact;
       if (!rows.length) {
         host.innerHTML = '<div class="empty-note">' + SL.icon('chart-line', 'empty-icon', 22) +
           '<p>还没有数据<br><span class="muted">' +
@@ -88,7 +100,9 @@
           '</span></p></div>';
         return;
       }
-      var head = lab.columns.map(function (col) { return '<th>' + col.label + '</th>'; }).join('') + '<th class="col-time">时间</th>';
+      var head = lab.columns.map(function (col) { return '<th>' + col.label + '</th>'; }).join('') +
+        (showTime ? '<th class="col-time">时间</th>' : '') +
+        (canDelete ? '<th class="col-act"><span class="sr-only">删除</span></th>' : '');
       var body = rows.map(function (row, index) {
         var tds = lab.columns.map(function (col) {
           var raw = row[col.key];
@@ -96,12 +110,25 @@
           if (col.digits != null && !isNaN(raw)) return '<td class="num">' + SL.fmt(raw, col.digits) + '</td>';
           return '<td>' + SL.escape(raw) + '</td>';
         }).join('');
-        return '<tr>' + tds +
-          '<td class="col-time muted">' + SL.escape(row._time || '') + '</td></tr>';
+        var isNew = opts.highlight === index;
+        return '<tr' + (isNew ? ' class="is-new"' : '') + '>' + tds +
+          (showTime ? '<td class="col-time muted">' + SL.escape(row._time || '') + '</td>' : '') +
+          (canDelete
+            ? '<td class="col-act"><button type="button" class="row-del" data-row="' + index + '" title="删除第 ' + (index + 1) + ' 行" aria-label="删除第 ' + (index + 1) + ' 行">' +
+              SL.icon('x', '', 12) + '</button></td>'
+            : '') +
+          '</tr>';
       }).join('');
       var avg = this.average(lab, rows);
-      var footer = avgFooter(lab, avg);
+      var footer = avgFooter(lab, avg, canDelete ? 1 : 0, !showTime);
       host.innerHTML = '<div class="table-wrap"><table class="record-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody>' + footer + '</table></div>';
+      if (canDelete) {
+        SL.$$('.row-del', host).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            opts.onDelete(Number(btn.getAttribute('data-row')));
+          });
+        });
+      }
     },
     exportCSV: function (lab, rows) {
       if (!rows.length) {

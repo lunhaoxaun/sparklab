@@ -4,7 +4,7 @@
   var SL = (window.SparkLab = window.SparkLab || {});
 
   /* 版本号：界面顶栏、首页页脚与「关于」中展示 */
-  SL.VERSION = '2.2.0';
+  SL.VERSION = '2.3.0';
   SL.VERSION_DATE = '2026-10-29';
   SL.BRAND = '星火物理实验室';
 
@@ -186,6 +186,8 @@
       document.body.appendChild(host);
     }
     var item = SL.el('div', { class: 'toast toast-' + (type || 'info') });
+    /* 最多同时显示 3 条，避免连续操作时提示堆满画面 */
+    while (host.children.length >= 3) host.removeChild(host.firstChild);
     var iconName = type === 'warn' ? 'alert-triangle' : type === 'ok' ? 'check' : 'help-circle';
     item.innerHTML = SL.icon(iconName, 'toast-icon', 18) + '<span>' + SL.escape(message) + '</span>';
     host.appendChild(item);

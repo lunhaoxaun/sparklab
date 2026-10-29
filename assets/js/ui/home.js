@@ -147,21 +147,25 @@
     help: function () {
       var body = '<div class="help-grid">' +
         '<section><h3>怎样接线</h3><ol class="help-list">' +
-        '<li>从左侧元件库点击元件，它会被放到实验台上；也可以直接拖动。</li>' +
+        '<li>左侧器材库按「电源 / 开关·调节 / 用电器 / 仪表」分组。把卡片<strong>拖到实验台</strong>的任意位置就能放下；单击一下则由程序自动摆放。</li>' +
         '<li>点击一个接线柱（小圆点），再点击另一个接线柱，就完成一根导线。</li>' +
-        '<li>点击元件可拖动位置；选中后按 <kbd>Delete</kbd> 删除，按 <kbd>R</kbd> 旋转 90°。</li>' +
+        '<li>拖动元件可以挪位置：与其他元件对齐时会浮出橙色虚线，松手自动吸附对齐。方向键可微调，按住 <kbd>Shift</kbd> 更精细。</li>' +
+        '<li>空白处按住拖动可以平移画布（中键或 <kbd>Alt</kbd>+拖动也行），<kbd>Ctrl</kbd>+滚轮、双指捏合缩放；右上角工具条上的「＋ / − / 适应」同样可用。</li>' +
+        '<li>点击元件选中后按 <kbd>Delete</kbd> 删除、<kbd>R</kbd> 旋转 90°、<kbd>Ctrl</kbd>+<kbd>D</kbd> 复制一份。</li>' +
         '<li>点击开关可以闭合或断开；拖动滑动变阻器上方的滑片可以改变阻值。</li>' +
         '<li>双击元件可以查看和修改它的参数。</li>' +
         '<li>线路乱了就点「一键美化」：单回路会自动排成矩形、导线沿边走；其他电路按连接顺序分列排布。点错了就点「撤回」或按 <kbd>Ctrl</kbd>+<kbd>Z</kbd> 退回上一步。</li></ol></section>' +
-        '<section><h3>怎样读数与记录</h3><ol class="help-list" start="7">' +
+        '<section><h3>怎样读数与记录</h3><ol class="help-list" start="9">' +
         '<li>电表接入电路后，右侧会自动出现表盘和数字读数。</li>' +
         '<li>点击量程按钮可以切换 0–0.6A / 0–3A、0–3V / 0–15V。</li>' +
-        '<li>读数稳定后点击「记录当前数据」，数据会写进记录单。</li>' +
+        '<li>读数稳定后点击「记录当前数据」，数据会写进记录单，最新一行会闪一下。</li>' +
+        '<li>记录单每行右侧的 × 可以删掉录错的那一条，其余数据不受影响。</li>' +
         '<li>记录单可导出 CSV（Excel 打开）或打印。</li></ol></section>' +
         '</div>' +
+        '<section class="help-tip"><h3>实验台右上角的工具条</h3><p>「网格」显示或隐藏参考网格，「数值 / 标注」显示或隐藏画布上的读数与文字标注，「矢量」开关力的箭头（力学实验），「0.5× / 1× / 2×」调整自动演示速度，「全屏」把实验台放大到整个屏幕，适合投影上课。这些开关会被记住，下次打开实验仍是上次的设置。</p></section>' +
         '<section class="help-tip"><h3>安全与提示</h3><p>电学实验会检测电源短路、断路、电表反接、超量程、灯泡烧坏和滑动变阻器错误接法，并在画布下方给出提示。出现短路时请先断开开关。力学、热学、光学实验没有危险操作，可以随意改变参数。</p></section>' +
         '<section class="help-tip"><h3>力学 / 热学 / 光学怎么玩</h3><p>左栏是实验参数：拖动滑块或点按钮，画面和右侧读数会立刻重算。画面里的物体大多可以直接拖动——杠杆上的钩码、滑轮组的钩码、烧杯里的物块都能用鼠标或手指拉，松开即生效。有「播放」按钮的实验可以自动演示一段过程（如匀速提升、持续加热）。每个板块末尾还有一个<strong>自由实验室</strong>：几套装置放在一起，参数全部开放、没有步骤，适合开放探究或考前自己验证想法。</p></section>' +
-        '<section class="help-tip"><h3>快捷键</h3><p><kbd>Ctrl</kbd>+<kbd>=</kbd> 放大　<kbd>Ctrl</kbd>+<kbd>-</kbd> 缩小　<kbd>Ctrl</kbd>+滚轮、双指捏合也可缩放　<kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤回　<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 重做　<kbd>Esc</kbd> 取消连线　<kbd>Delete</kbd> 删除选中　<kbd>R</kbd> 旋转元件</p></section>' +
+        '<section class="help-tip"><h3>快捷键</h3><p><kbd>Ctrl</kbd>+<kbd>=</kbd> 放大　<kbd>Ctrl</kbd>+<kbd>-</kbd> 缩小　<kbd>Ctrl</kbd>+滚轮、双指捏合也可缩放　<kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤回　<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 重做　<kbd>Ctrl</kbd>+<kbd>D</kbd> 复制元件　<kbd>Esc</kbd> 取消连线　<kbd>Delete</kbd> 删除选中　<kbd>R</kbd> 旋转元件　<kbd>Shift</kbd>+方向键 精细移动</p></section>' +
         (SL.canDownloadOffline()
           ? '<section class="help-tip help-offline"><h3>教室断网怎么办</h3>' +
             '<p>先在联网环境把这个离线包下载下来，解压到教室电脑，之后双击文件夹里的 <code>index.html</code> 就能用，全程不需要网络。</p>' +
@@ -175,7 +179,7 @@
     about: function () {
       var body = '<p class="modal-text">' + SL.BRAND + '是一个面向初中物理教学的离线虚拟实验工具，覆盖电学、力学、热学、光学四大板块，全部计算与数据存储都在你的浏览器本地完成。</p>' +
         '<section class="about-block"><h3>版本</h3><p>当前版本 <strong>v' + SL.VERSION + '</strong>（' + SL.VERSION_DATE + '）</p>' +
-        '<p class="muted">v1.0.0 首个完整版 · v1.1.0 一键美化 · v1.2.0 撤回/重做 · v1.3.0 画布缩放与变阻器接线校验 · v1.4.0 全自由实验室与变阻器电阻判断修复 · v1.5.0 补齐初中电学常用元件 · v1.6.0 双套元件外观可切换 · v1.7.0 新增发电机、继电器、扬声器、灵敏电流计 · v1.8.0 在线版增加离线包下载入口 · v2.1.0 引入仿真引擎、学科墙扩展到力学/热学/光学，新增杠杆平衡、滑轮组机械效率、浮力探究三个力学实验 · v2.2.0 新增力学自由实验室：三套装置合一、参数全开</p></section>' +
+        '<p class="muted">v1.0.0 首个完整版 · v1.1.0 一键美化 · v1.2.0 撤回/重做 · v1.3.0 画布缩放与变阻器接线校验 · v1.4.0 全自由实验室与变阻器电阻判断修复 · v1.5.0 补齐初中电学常用元件 · v1.6.0 双套元件外观可切换 · v1.7.0 新增发电机、继电器、扬声器、灵敏电流计 · v1.8.0 在线版增加离线包下载入口 · v2.1.0 引入仿真引擎、学科墙扩展到力学/热学/光学，新增杠杆平衡、滑轮组机械效率、浮力探究三个力学实验 · v2.2.0 新增力学自由实验室：三套装置合一、参数全开 · v2.3.0 参考真实实验台重做交互：器材库分组缩略图与拖拽放置、对齐吸附辅助线、画布平移与元件复制、实验台浮动工具条（网格/标注/矢量/倍速/全屏）、记录单可删单行</p></section>' +
         '<section class="about-block"><h3>图标素材</h3><p>界面与元件图标来自 <strong>Tabler Icons</strong>（MIT License），已下载并内联到本项目，运行时不访问网络。</p>' +
         '<p class="muted">https://github.com/tabler/tabler-icons</p></section>' +
         '<section class="about-block"><h3>自绘素材</h3><p>滑动变阻器、单刀开关、导线与电流动画由本项目按教材标准画法自绘；力学、热学、光学实验的舞台图形（杠杆、滑轮、烧杯、测力计、光路等）同样为自绘。</p></section>' +

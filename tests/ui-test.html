@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>实验台交互自测</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+  <link rel="stylesheet" href="../assets/css/lab.css">
+  <link rel="stylesheet" href="../assets/css/sim.css">
+  <style>
+    body { padding: 20px; font-family: var(--font); }
+    #out { font: 13px/1.7 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
+    .pass { color: #2fa36b; }
+    .fail { color: #e05252; font-weight: 700; }
+    #view-root { position: absolute; left: -9999px; top: 0; width: 1280px; }
+    #topbar { display: none; }
+  </style>
+</head>
+<body>
+  <h1 style="font-size:16px">星火物理实验室 · 实验台交互自测（v2.3.0）</h1>
+  <div id="out">运行中…</div>
+  <header class="topbar" id="topbar"></header>
+  <main class="view-root" id="view-root"></main>
+
+  <script src="../assets/icons/sprite.js"></script>
+  <script src="../assets/js/core/utils.js"></script>
+  <script src="../data/experiments.js"></script>
+  <script src="../assets/js/core/simkit.js"></script>
+  <script src="../assets/js/core/circuit.js"></script>
+  <script src="../assets/js/core/skins.js"></script>
+  <script src="../assets/js/core/board.js"></script>
+  <script src="../assets/js/core/meters.js"></script>
+  <script src="../assets/js/core/records.js"></script>
+  <script src="../assets/js/sims/mech.js"></script>
+  <script src="../assets/js/labs/lab-series.js"></script>
+  <script src="../assets/js/labs/lab-ohm-r.js"></script>
+  <script src="../assets/js/labs/lab-ohm-law.js"></script>
+  <script src="../assets/js/labs/lab-free.js"></script>
+  <script src="../assets/js/labs/lab-lever.js"></script>
+  <script src="../assets/js/labs/lab-pulley.js"></script>
+  <script src="../assets/js/labs/lab-buoyancy.js"></script>
+  <script src="../assets/js/labs/lab-mech-free.js"></script>
+  <script src="../assets/js/ui/home.js"></script>
+  <script src="../assets/js/app.js"></script>
+
+  <script>
+  (function () {
+    var SL = window.SparkLab;
+    var App = SL.app;
+    var out = document.getElementById('out');
+    var lines = [];
+    var pass = 0, fail = 0;
+
+    function ok(name, cond, detail) {
+      if (cond) { pass += 1; lines.push('PASS  ' + name + (detail ? '  [' + detail + ']' : '')); }
+      else { fail += 1; lines.push('FAIL  ' + name + (detail ? '  [' + detail + ']' : '')); }
+    }
+    function near(a, b, tol) { return Math.abs(a - b) <= (tol == null ? 1e-6 : tol); }
+    function flush() {
+      out.innerHTML = lines.map(function (l) {
+        return '<span class="' + (l.indexOf('PASS') === 0 ? 'pass' : 'fail') + '">' + l + '</span>';
+      }).join('\n') + '\n\n合计：' + pass + ' 通过 / ' + fail + ' 失败';
+      document.title = fail ? 'FAIL ' + fail : 'DONE';
+      window.__testDone = true;
+    }
+
+    function run() {
+    /* ---------- 1. 器材库：分组、搜索、卡片数 ---------- */
+    App.openLab('sandbox', 'free');
+    var lab = SL.labs['sandbox'];
+    var cards = SL.$$('.palette-card');
+    ok('器材库卡片数 = 元件种类数', cards.length === lab.palette.length, cards.length + ' / ' + lab.palette.length);
+    var titles = SL.$$('.palette-group-title').map(function (el) { return el.textContent; });
+    ok('器材库按电源/开关/用电器/仪表分组', titles.length >= 3 && titles[0] === '电源', titles.join('|'));
+    ok('每个器材卡都有名称与缩略图', cards.every(function (c) {
+      return !!c.querySelector('.palette-thumb svg') && c.getAttribute('data-name');
+    }));
+
+    var search = document.getElementById('palette-search');
+    search.value = '滑';
+    search.dispatchEvent(new Event('input'));
+    var visible = cards.filter(function (c) { return !c.hidden; });
+    ok('搜索「滑」只剩滑动变阻器', visible.length === 1 && visible[0].getAttribute('data-type') === 'rheostat',
+      visible.map(function (c) { return c.getAttribute('data-type'); }).join(','));
+    search.value = '不存在的器材';
+    search.dispatchEvent(new Event('input'));
+    ok('搜不到时显示空提示', !document.getElementById('palette-empty').hidden);
+    search.value = '';
+    search.dispatchEvent(new Event('input'));
+    ok('清空搜索后恢复全部卡片', cards.filter(function (c) { return !c.hidden; }).length === cards.length);
+
+    /* ---------- 2. 画布：落点放置、对齐吸附、复制 ---------- */
+    var board = App.state.board;
+    var host = document.getElementById('board-host').getBoundingClientRect();
+    var comp = board.placeAt('bulb', host.left + host.width / 2, host.top + host.height / 2, {});
+    ok('placeAt 在画布中央放置元件', !!comp && near(comp.x, 600, 60) && near(comp.y, 380, 80), comp ? comp.x + ',' + comp.y : 'null');
+
+    var a = board.addComponent('switch', 300, 200, {});
+    var m = board.addComponent('resistor', 700, 500, {});
+    var snapped = board.snapPosition(m, a.x + 5, a.y + 4);
+    ok('拖动时吸附到同列同行的元件', snapped.x === a.x && snapped.y === a.y, snapped.x + ',' + snapped.y);
+    ok('吸附时给出两条对齐辅助线', board.guides.length === 2 &&
+      board.guides[0].dir === 'v' && board.guides[0].at === a.x, JSON.stringify(board.guides));
+    board.render();
+    ok('辅助线绘制到画布覆盖层', document.querySelectorAll('.align-guide').length === 2,
+      document.querySelectorAll('.align-guide').length + ' 条');
+
+    var noSnap = board.snapPosition(m, a.x + 40, a.y + 40);
+    ok('距离较远时不吸附，只落到 10px 网格', near(noSnap.x % 10, 0) && board.guides.length === 0,
+      noSnap.x + ',' + noSnap.y);
+
+    var before = board.getScene().components.length;
+    board.select(m.id);
+    var cloned = board.copySelected();
+    ok('复制元件后数量 +1', board.getScene().components.length === before + 1, String(board.getScene().components.length));
+    ok('副本换了新 id、属性一致', cloned && cloned.id !== m.id && cloned.props.resistance === m.props.resistance,
+      cloned ? cloned.id : 'null');
+    ok('副本相对原元件偏移 40px', cloned && cloned.x === m.x + 40 && cloned.y === m.y + 40, cloned ? cloned.x + ',' + cloned.y : 'null');
+    ok('未选中时复制返回 null', (function () { board.selected = null; return board.copySelected() === null; })());
+
+    /* ---------- 3. 实验台工具条 ---------- */
+    var tools = document.getElementById('stage-tools');
+    ok('电路实验台有浮动工具条', !!tools && SL.$$('.tool-btn', tools).length === 6,
+      tools ? SL.$$('.tool-btn', tools).map(function (b) { return b.textContent; }).join('|') : 'null');
+
+    var gridBtn = tools.querySelector('[data-tool="grid"]');
+    var valBtn = tools.querySelector('[data-tool="values"]');
+    gridBtn.click();
+    valBtn.click();
+    var hostEl = document.getElementById('board-host');
+    ok('关闭网格后画布加 no-grid 类', hostEl.classList.contains('no-grid'), hostEl.className);
+    ok('关闭数值后画布加 hide-values 类', hostEl.classList.contains('hide-values'), hostEl.className);
+    ok('开关状态写进 state.viewOpts', App.state.viewOpts.grid === false && App.state.viewOpts.values === false,
+      JSON.stringify(App.state.viewOpts));
+    gridBtn.click();
+    valBtn.click();
+    ok('再次点击恢复显示', !hostEl.classList.contains('no-grid') && !hostEl.classList.contains('hide-values'));
+
+    var w0 = board.view.w;
+    tools.querySelector('[data-zoom="in"]').click();
+    ok('工具条「＋」放大画布', board.view.w < w0, w0.toFixed(0) + ' → ' + board.view.w.toFixed(0));
+    tools.querySelector('[data-zoom="fit"]').click();
+    ok('「适应」按元件范围重新计算视图', board.view.w > 0 && Math.abs(board.view.w - w0) > 1,
+      w0.toFixed(0) + ' → ' + board.view.w.toFixed(0));
+
+    /* ---------- 4. 记录单：删单行、最新行高亮 ---------- */
+    SL.records.clear('ui-test-lab');
+    SL.records.add('ui-test-lab', { k: 1 });
+    SL.records.add('ui-test-lab', { k: 2 });
+    SL.records.add('ui-test-lab', { k: 3 });
+    var fakeLab = { columns: [{ key: 'k', label: '读数', digits: 1 }], name: '交互自测' };
+    var tHost = SL.el('div');
+    var deleted = -1;
+    SL.records.renderTable(tHost, fakeLab, SL.records.get('ui-test-lab'), {
+      highlight: 2,
+      onDelete: function (index) { deleted = index; }
+    });
+    ok('每行都有删除按钮', tHost.querySelectorAll('.row-del').length === 3,
+      tHost.querySelectorAll('.row-del').length + ' 个');
+    ok('最新一行带 is-new 高亮类', tHost.querySelectorAll('tr.is-new').length === 1);
+    tHost.querySelectorAll('.row-del')[1].click();
+    ok('点删除按钮回传正确行号', deleted === 1, String(deleted));
+
+    var replaced = SL.records.replace('ui-test-lab', [{ k: 9 }]);
+    ok('replace 覆盖整表', replaced.length === 1 && SL.records.get('ui-test-lab')[0].k === 9,
+      JSON.stringify(SL.records.get('ui-test-lab')));
+    SL.records.clear('ui-test-lab');
+
+    /* ---------- 5. 仿真台工具条：矢量开关 + 倍速 ---------- */
+    App.openLab('pulley', 'guided');
+    var simTools = document.getElementById('stage-tools');
+    ok('仿真台工具条含网格/标注/矢量', simTools.textContent.indexOf('矢量') !== -1,
+      SL.$$('.tool-btn', simTools).map(function (b) { return b.textContent; }).join('|'));
+    ok('仿真画布默认画出参考网格', document.querySelectorAll('.sim-grid line').length > 10,
+      document.querySelectorAll('.sim-grid line').length + ' 条');
+
+    simTools.querySelector('[data-tool="vectors"]').click();
+    ok('关闭矢量后画布加 hide-vectors 类',
+      document.querySelector('.sim-canvas').classList.contains('hide-vectors'));
+    simTools.querySelector('[data-tool="vectors"]').click();
+    ok('再开启矢量恢复显示',
+      !document.querySelector('.sim-canvas').classList.contains('hide-vectors'));
+
+    simTools.querySelector('[data-speed="2"]').click();
+    ok('倍速按钮把时钟调到 2×', App.state.clock && App.state.clock.speed === 2,
+      App.state.clock ? String(App.state.clock.speed) : 'null');
+
+    App.openLab('lever', 'guided');
+    ok('无动画的实验不显示倍速按钮', !document.querySelector('[data-speed="2"]'));
+
+    flush();
+    }
+    if (document.readyState === 'complete') run();
+    else window.addEventListener('load', run);
+  })();
+  </script>
+</body>
+</html>

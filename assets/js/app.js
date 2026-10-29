@@ -25,9 +25,21 @@
     hints: {},
     selectedComp: null,
     skin: 'classic',
+    viewOpts: { grid: true, values: true, vectors: true },
+    simSpeed: 1,
+    highlightRow: -1,
     syncTimer: null,
     keyHandler: null
   };
+
+  /* 器材库分组：按「电源 → 控制 → 用电器 → 仪表」的教学顺序排布 */
+  var PALETTE_GROUPS = [
+    { label: '电源', types: ['battery', 'dcsupply', 'generator'] },
+    { label: '开关 · 调节', types: ['switch', 'switch-spdt', 'rheostat', 'resistance-box', 'fuse'] },
+    { label: '用电器', types: ['bulb', 'resistor', 'led', 'motor', 'bell', 'speaker', 'electromagnet'] },
+    { label: '测量仪表', types: ['ammeter', 'voltmeter', 'galvanometer'] },
+    { label: '其他', types: ['relay'] }
+  ];
 
   function root() { return SL.$('#view-root'); }
 
@@ -190,12 +202,11 @@
       SL.skins.list.map(function (s) {
         return '<button type="button" data-skin-btn="' + s.id + '" class="' + (app.skin === s.id ? 'active' : '') + '" title="' + s.label + '">' + s.label + '</button>';
       }).join('') + '</div>' : '';
-    var paletteHtml = lab.palette.map(function (type) {
-      var def = SL.circuit.TYPES[type];
-      return '<button type="button" class="palette-item" data-type="' + type + '">' +
-        '<span class="palette-icon">' + paletteIcon(type) + '</span>' +
-        '<span class="palette-label">' + def.label + '</span>' +
-        '<span class="palette-plus">' + SL.icon('plus', '', 14) + '</span></button>';
+    var sections = paletteSections(lab);
+    var paletteHtml = sections.map(function (sec) {
+      return '<section class="palette-group" data-group>' +
+        '<h3 class="palette-group-title">' + sec.label + '</h3>' +
+        '<div class="palette-grid">' + sec.types.map(paletteCard).join('') + '</div></section>';
     }).join('');
 
     var pointHtml = '';
@@ -225,15 +236,21 @@
       '</div></div>' +
 
       '<div class="lab-body">' +
-      '<aside class="palette"><h2 class="palette-title">元件库</h2><div class="palette-list">' + paletteHtml + '</div>' +
+      '<aside class="palette"><div class="palette-head"><h2 class="palette-title">器材库</h2>' +
+      '<span class="palette-count">' + lab.palette.length + ' 种</span></div>' +
+      '<div class="palette-search"><input type="search" id="palette-search" placeholder="搜索器材…" autocomplete="off" aria-label="搜索器材"></div>' +
+      '<div class="palette-groups" id="palette-groups">' + paletteHtml + '</div>' +
+      '<p class="palette-empty" id="palette-empty" hidden>没有找到这个器材</p>' +
       '<div class="palette-tools">' +
       '<button type="button" class="btn btn-ghost btn-sm" id="tool-rotate" title="旋转选中元件（R）">' + SL.icon('rotate-clockwise', '', 16) + '旋转</button>' +
-      '<button type="button" class="btn btn-ghost btn-sm" id="tool-delete" title="删除选中">' + SL.icon('trash', '', 16) + '删除</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="tool-copy" title="复制选中元件（Ctrl+D）">' + SL.icon('plus', '', 16) + '复制</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="tool-delete" title="删除选中（Delete）">' + SL.icon('trash', '', 16) + '删除</button>' +
       '<button type="button" class="btn btn-ghost btn-sm" id="tool-fit" title="适应窗口">' + SL.icon('zoom-in', '', 16) + '适应</button>' +
-      '</div><p class="palette-tip">点击元件添加到实验台<br>点击两个接线柱完成连线</p></aside>' +
+      '</div><p class="palette-tip">拖动器材到实验台，或单击直接添加<br>点击两个接线柱完成连线</p></aside>' +
 
       '<section class="stage">' +
       '<div class="inspector" id="inspector" hidden></div>' +
+      stageToolsHtml({ sim: false }) +
       '<div class="board-host" id="board-host"></div>' +
       '<div class="stage-bar"><div class="warnings" id="stage-warnings"></div>' +
       '<div class="stage-actions">' + pointHtml +
@@ -325,6 +342,7 @@
       '<p class="palette-tip">拖动画面中的物体也能改变参数；<br>数值会随参数实时重算。</p></aside>' +
 
       '<section class="stage sim-stage-wrap">' +
+      stageToolsHtml({ sim: true, animated: animated }) +
       '<div class="board-host sim-stage-host" id="board-host"></div>' +
       '<div class="stage-bar"><div class="warnings" id="stage-warnings"></div>' +
       '<div class="stage-actions"><button type="button" class="btn btn-primary" id="record-btn">' +
@@ -358,6 +376,7 @@
     });
     if (animated) {
       app.clock = SL.sim.Clock({
+        speed: app.simSpeed || 1,
         onTick: function (dt) {
           if (app.lab.onTick) app.lab.onTick(dt, simCtx());
           simRender();
@@ -461,6 +480,8 @@
         SL.sound.play('click');
       });
     }
+    bindStageTools();
+    applyViewOpts();
   }
 
   /* 重算并重绘（不写存储） */
@@ -526,10 +547,135 @@
 
   /* 切换皮肤后同步元件库图标（拟真皮肤使用缩略图） */
   function refreshPaletteIcons() {
-    SL.$$('.palette-item').forEach(function (btn) {
-      var host = btn.querySelector('.palette-icon');
+    SL.$$('.palette-card').forEach(function (btn) {
+      var host = btn.querySelector('.palette-thumb');
       if (host) host.innerHTML = paletteIcon(btn.getAttribute('data-type'));
     });
+  }
+
+  /* ---------- 器材库：分组 + 缩略图卡片 ---------- */
+  function paletteSections(lab) {
+    var want = (lab.palette || []).slice();
+    var used = {};
+    var out = [];
+    PALETTE_GROUPS.forEach(function (group) {
+      var list = group.types.filter(function (type) {
+        if (want.indexOf(type) < 0 || used[type]) return false;
+        used[type] = true;
+        return true;
+      });
+      if (list.length) out.push({ label: group.label, types: list });
+    });
+    var rest = want.filter(function (type) { return !used[type]; });
+    if (rest.length) out.push({ label: '其他', types: rest });
+    return out;
+  }
+
+  function paletteCard(type) {
+    var def = SL.circuit.TYPES[type];
+    return '<button type="button" class="palette-card" data-type="' + type + '" data-name="' + SL.escape(def.label) + '">' +
+      '<span class="palette-thumb">' + paletteIcon(type) + '</span>' +
+      '<span class="palette-name">' + def.label + '</span></button>';
+  }
+
+  /* ---------- 实验台浮动工具条 ---------- */
+  function stageToolsHtml(opts) {
+    opts = opts || {};
+    var parts = [];
+    parts.push('<div class="tool-seg">' +
+      '<button type="button" class="tool-btn' + (app.viewOpts.grid ? ' is-on' : '') + '" data-tool="grid" title="显示/隐藏参考网格">网格</button>' +
+      '<button type="button" class="tool-btn' + (app.viewOpts.values ? ' is-on' : '') + '" data-tool="values" title="' +
+      (opts.sim ? '显示/隐藏画面标注' : '显示/隐藏读数标注') + '">' + (opts.sim ? '标注' : '数值') + '</button>' +
+      (opts.sim
+        ? '<button type="button" class="tool-btn' + (app.viewOpts.vectors ? ' is-on' : '') + '" data-tool="vectors" title="显示/隐藏力的矢量箭头">矢量</button>'
+        : '') +
+      '</div>');
+    if (opts.sim) {
+      if (opts.animated) {
+        parts.push('<div class="tool-seg tool-speed">' +
+          [0.5, 1, 2].map(function (s) {
+            return '<button type="button" class="tool-btn' + ((app.simSpeed || 1) === s ? ' is-on' : '') + '" data-speed="' + s + '" title="播放速度 ' + s + ' 倍">' + s + '×</button>';
+          }).join('') + '</div>');
+      }
+    } else {
+      parts.push('<div class="tool-seg">' +
+        '<button type="button" class="tool-btn" data-zoom="out" title="缩小（Ctrl+-）">−</button>' +
+        '<button type="button" class="tool-btn" data-zoom="in" title="放大（Ctrl+=）">＋</button>' +
+        '<button type="button" class="tool-btn" data-zoom="fit" title="适应窗口">适应</button>' +
+        '</div>');
+    }
+    parts.push('<button type="button" class="tool-btn tool-solo" data-full="1" title="全屏演示">全屏</button>');
+    return '<div class="stage-tools" id="stage-tools">' + parts.join('') + '</div>';
+  }
+
+  function applyViewOpts() {
+    if (app.kind === 'sim') {
+      if (app.stage && app.stage.svg) {
+        var svg = app.stage.svg;
+        svg.classList.toggle('hide-grid', !app.viewOpts.grid);
+        svg.classList.toggle('hide-labels', !app.viewOpts.values);
+        svg.classList.toggle('hide-vectors', !app.viewOpts.vectors);
+      }
+      return;
+    }
+    var host = SL.$('#board-host');
+    if (!host) return;
+    host.classList.toggle('no-grid', !app.viewOpts.grid);
+    host.classList.toggle('hide-values', !app.viewOpts.values);
+  }
+
+  function persistViewOpts() {
+    SL.settings.set('stageView', app.viewOpts);
+  }
+
+  function toggleFullscreen() {
+    var el = SL.$('.lab-view');
+    if (!el) return;
+    if (document.fullscreenElement) {
+      if (document.exitFullscreen) document.exitFullscreen();
+      return;
+    }
+    if (el.requestFullscreen) {
+      var p = el.requestFullscreen();
+      if (p && p.catch) p.catch(function () { SL.toast('当前浏览器不支持全屏', 'warn'); });
+    } else {
+      SL.toast('当前浏览器不支持全屏', 'warn');
+    }
+  }
+
+  function bindStageTools() {
+    var host = SL.$('#stage-tools');
+    if (!host) return;
+    SL.$$('[data-tool]', host).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-tool');
+        app.viewOpts[key] = !app.viewOpts[key];
+        btn.classList.toggle('is-on', app.viewOpts[key]);
+        applyViewOpts();
+        persistViewOpts();
+      });
+    });
+    SL.$$('[data-zoom]', host).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!app.board) return;
+        var action = btn.getAttribute('data-zoom');
+        if (action === 'in') app.board.zoomBy(1.25);
+        else if (action === 'out') app.board.zoomBy(1 / 1.25);
+        else app.board.fit();
+        SL.sound.play('click');
+      });
+    });
+    SL.$$('[data-speed]', host).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var speed = parseFloat(btn.getAttribute('data-speed')) || 1;
+        app.simSpeed = speed;
+        if (app.clock) app.clock.speed = speed;
+        SL.$$('[data-speed]', host).forEach(function (b) { b.classList.toggle('is-on', b === btn); });
+        SL.settings.set('simSpeed', speed);
+      });
+    });
+    var full = SL.$('[data-full]', host);
+    if (full) full.addEventListener('click', toggleFullscreen);
   }
 
   function updateHistoryButtons() {
@@ -620,15 +766,23 @@
       });
     });
 
-    SL.$$('.palette-item').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        addFromPalette(btn.getAttribute('data-type'));
-      });
-    });
+    bindPalette();
 
     SL.$('#tool-rotate').addEventListener('click', function () { app.board.rotateSelected(); });
+    SL.$('#tool-copy').addEventListener('click', function () {
+      if (!app.board.copySelected()) {
+        SL.toast('先点选一个元件，再复制', 'warn');
+        return;
+      }
+      app.selectedComp = app.board.selected ? app.board.selected.id : null;
+      renderInspector();
+      sync();
+      SL.sound.play('connect');
+    });
     SL.$('#tool-delete').addEventListener('click', function () { app.board.removeSelected(); renderInspector(); });
     SL.$('#tool-fit').addEventListener('click', function () { app.board.fit(); });
+    bindStageTools();
+    applyViewOpts();
 
     SL.$('#record-btn').addEventListener('click', recordNow);
     SL.$('#export-btn').addEventListener('click', function () {
@@ -675,8 +829,8 @@
     return { x: 300 + Math.round(Math.random() * 600), y: 160 + Math.round(Math.random() * 400) };
   }
 
-  function addFromPalette(type) {
-    var spot = freeSpot();
+  /* 新元件的初始参数：按元件类型给一套「马上能用」的值 */
+  function defaultProps(type) {
     var props = {};
     if (type === 'battery') props.cells = 2;
     if (type === 'resistor') {
@@ -686,11 +840,107 @@
     if (type === 'rheostat') { props.slider = 0.5; props.max = 20; }
     if (type === 'ammeter') props.range = 0.6;
     if (type === 'voltmeter') props.range = 3;
-    var comp = app.board.addComponent(type, spot.x, spot.y, props);
+    return props;
+  }
+
+  function addFromPalette(type) {
+    var spot = freeSpot();
+    var comp = app.board.addComponent(type, spot.x, spot.y, defaultProps(type));
     app.selectedComp = comp.id;
     renderInspector();
     sync();
     SL.sound.play('connect');
+  }
+
+  /* 从器材库拖到画布：按落点放置（落在画布外则忽略） */
+  function placeFromDrop(type, clientX, clientY) {
+    var host = SL.$('#board-host');
+    if (!host || !app.board) return;
+    var r = host.getBoundingClientRect();
+    if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) return;
+    var comp = app.board.placeAt(type, clientX, clientY, defaultProps(type));
+    if (!comp) return;
+    app.selectedComp = comp.id;
+    renderInspector();
+    sync();
+    SL.sound.play('connect');
+  }
+
+  var paletteDragSuppress = false;
+
+  function bindPalette() {
+    SL.$$('.palette-card').forEach(function (card) {
+      card.addEventListener('pointerdown', function (evt) {
+        if (evt.button !== 0) return;
+        var type = card.getAttribute('data-type');
+        var startX = evt.clientX;
+        var startY = evt.clientY;
+        var ghost = null;
+        var moved = false;
+
+        function onMove(e) {
+          if (!moved) {
+            if (Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY) < 8) return;
+            moved = true;
+            ghost = SL.el('div', {
+              class: 'palette-ghost',
+              html: '<span class="palette-ghost-icon">' + paletteIcon(type) + '</span>' +
+                '<span>' + SL.escape(SL.circuit.TYPES[type].label) + '</span>'
+            });
+            document.body.appendChild(ghost);
+            document.body.classList.add('is-palette-dragging');
+          }
+          ghost.style.transform = 'translate3d(' + (e.clientX + 12) + 'px,' + (e.clientY + 12) + 'px,0)';
+          var host = SL.$('#board-host');
+          var r = host && host.getBoundingClientRect();
+          var over = !!r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+          document.body.classList.toggle('is-drop-active', over);
+        }
+
+        function onUp(e) {
+          document.removeEventListener('pointermove', onMove);
+          document.removeEventListener('pointerup', onUp);
+          document.removeEventListener('pointercancel', onUp);
+          document.body.classList.remove('is-palette-dragging', 'is-drop-active');
+          if (ghost) { ghost.remove(); ghost = null; }
+          if (!moved) return;
+          /* 拖完紧接着会派发一次 click，短暂屏蔽，避免重复添加 */
+          paletteDragSuppress = true;
+          window.setTimeout(function () { paletteDragSuppress = false; }, 120);
+          placeFromDrop(type, e.clientX, e.clientY);
+        }
+
+        document.addEventListener('pointermove', onMove);
+        document.addEventListener('pointerup', onUp);
+        document.addEventListener('pointercancel', onUp);
+      });
+
+      card.addEventListener('click', function () {
+        if (paletteDragSuppress) return;
+        addFromPalette(card.getAttribute('data-type'));
+      });
+    });
+
+    var search = SL.$('#palette-search');
+    if (search) {
+      search.addEventListener('input', function () {
+        var q = search.value.trim().toLowerCase();
+        SL.$$('.palette-group').forEach(function (group) {
+          var shown = 0;
+          SL.$$('.palette-card', group).forEach(function (card) {
+            var name = ((card.getAttribute('data-name') || '') + ' ' + (card.getAttribute('data-type') || '')).toLowerCase();
+            var hit = !q || name.indexOf(q) >= 0;
+            card.hidden = !hit;
+            if (hit) shown += 1;
+          });
+          group.hidden = shown === 0;
+        });
+        var empty = SL.$('#palette-empty');
+        if (empty) {
+          empty.hidden = SL.$$('.palette-card').some(function (c) { return !c.hidden; });
+        }
+      });
+    }
   }
 
   function scheduleSync(delay) {
@@ -920,6 +1170,7 @@
     if (!row) return;
     SL.records.add(app.lab.id, row);
     app.rows = SL.records.get(app.lab.id);
+    app.highlightRow = app.rows.length - 1;
     renderRecords();
     evaluateChecks();
     SL.sound.play('record');
@@ -930,9 +1181,26 @@
   function renderRecords() {
     var host = SL.$('#records-host');
     if (!host) return;
-    SL.records.renderTable(host, app.lab.meta, app.rows);
+    SL.records.renderTable(host, app.lab.meta, app.rows, {
+      highlight: app.highlightRow,
+      onDelete: deleteRow,
+      compact: true
+    });
+    app.highlightRow = -1;
     var badge = SL.$('#record-count');
     if (badge) badge.textContent = app.rows.length + ' 条';
+  }
+
+  function deleteRow(index) {
+    var rows = app.rows.slice();
+    if (index < 0 || index >= rows.length) return;
+    rows.splice(index, 1);
+    app.rows = SL.records.replace(app.lab.id, rows);
+    app.highlightRow = -1;
+    renderRecords();
+    evaluateChecks();
+    if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows, app.simValues);
+    SL.toast('已删除第 ' + (index + 1) + ' 条记录', 'ok');
   }
 
   /* ---------- 元件属性 ---------- */
@@ -1224,11 +1492,36 @@
       }
       return;
     }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+      e.preventDefault();
+      if (app.board.copySelected()) {
+        app.selectedComp = app.board.selected ? app.board.selected.id : null;
+        renderInspector();
+        sync();
+        SL.sound.play('connect');
+      } else {
+        SL.toast('先点选一个元件，再复制', 'warn');
+      }
+      return;
+    }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       if (app.board.removeSelected()) {
         e.preventDefault();
         renderInspector();
       }
+    } else if (e.key.indexOf('Arrow') === 0 && app.board.selected && app.board.selected.type === 'comp') {
+      /* 方向键微调选中元件位置，Shift 加速 */
+      var comp = SL.circuit.getComp(app.board.getScene(), app.board.selected.id);
+      if (!comp) return;
+      var step = e.shiftKey ? 1 : 10;
+      if (e.key === 'ArrowLeft') comp.x -= step;
+      else if (e.key === 'ArrowRight') comp.x += step;
+      else if (e.key === 'ArrowUp') comp.y -= step;
+      else if (e.key === 'ArrowDown') comp.y += step;
+      e.preventDefault();
+      app.board.schedule();
+      app.board.mark();
+      sync();
     } else if (e.key === 'Escape') {
       app.board.pending = null;
       app.board.schedule();
@@ -1253,6 +1546,18 @@
   }
 
   function init() {
+    var savedView = SL.settings.get('stageView');
+    if (savedView && typeof savedView === 'object') {
+      Object.keys(app.viewOpts).forEach(function (key) {
+        if (savedView[key] != null) app.viewOpts[key] = !!savedView[key];
+      });
+    }
+    app.simSpeed = Number(SL.settings.get('simSpeed')) || 1;
+    document.addEventListener('fullscreenchange', function () {
+      SL.$$('[data-full]').forEach(function (btn) {
+        btn.textContent = document.fullscreenElement ? '退出' : '全屏';
+      });
+    });
     renderTopbar();
     showHome();
   }
