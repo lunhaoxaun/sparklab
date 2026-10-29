@@ -272,7 +272,7 @@
       onChange: function () { app.selectedComp = null; renderInspector(); sync(); updateHistoryButtons(); },
       onSelect: function (comp) { app.selectedComp = comp ? comp.id : null; renderInspector(); },
       onInspect: function (compId) { app.selectedComp = compId; renderInspector(); },
-      onSlider: function () { scheduleSync(40); }
+      onSlider: function () { requestSync(true); }
     });
     if (SL.skins) app.board.setSkin(SL.skins.current());
 
@@ -360,6 +360,8 @@
       w: lab.canvas.w, h: lab.canvas.h, label: meta.name
     });
     app.controls = SL.sim.Controls(SL.$('#controls-host'), lab.controls, app.simValues, function (key) {
+      /* 参数变化钩子：实验模块可在这里响应「某个参数被改动」（如滑轮组的 h） */
+      if (lab.onParam) lab.onParam(key, simCtx());
       /* 装置/模式类参数会改变整套控件与画布，直接重建界面（延后一拍，避免销毁正在派发事件的节点） */
       if ((lab.rebuildOn || []).indexOf(key) >= 0) {
         saveProgress();
@@ -498,6 +500,12 @@
   function savedScene() {
     var saved = loadProgress(app.lab.id);
     return saved && saved.scene && saved.scene.components ? saved.scene : null;
+  }
+
+  function flipIcon() {
+    return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M4 8h13"/><path d="M14 5l3 3l-3 3"/>' +
+      '<path d="M20 16H7"/><path d="M10 13l-3 3l3 3"/></svg>';
   }
 
   function beautifyIcon() {
@@ -963,15 +971,47 @@
   }
 
   function scheduleSync(delay) {
+    if (delay == null) { requestSync(); return; }
     if (app.syncTimer) clearTimeout(app.syncTimer);
     app.syncTimer = setTimeout(function () {
       app.syncTimer = null;
       sync();
-    }, delay || 60);
+    }, delay);
+  }
+
+  /* 拖动滑片 / 连发电位器时用：一帧最多求解一次，先只跑「求解 + 表盘」，
+     图像与存档这类重活延后 180ms 收尾，读数才能贴着手指走 */
+  var syncRaf = 0;
+  var syncTailTimer = 0;
+
+  function requestSync(light) {
+    if (!light) app.syncFullWanted = true;
+    if (syncRaf) return;
+    syncRaf = requestAnimationFrame(function () {
+      syncRaf = 0;
+      var full = !!app.syncFullWanted;
+      app.syncFullWanted = false;
+      sync(!full);
+    });
+  }
+
+  function flushSyncTail() {
+    if (syncTailTimer) clearTimeout(syncTailTimer);
+    syncTailTimer = setTimeout(function () {
+      syncTailTimer = null;
+      if (!app.lab || app.kind !== 'circuit') return;
+      runSyncTail();
+    }, 180);
+  }
+
+  function runSyncTail() {
+    if (!app.lab) return;
+    if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows, app.simValues);
+    saveProgress();
   }
 
   /* ---------- 求解与刷新 ---------- */
-  function sync() {
+  function sync(light) {
     if (!app.board || !app.lab) return;
     var scene = app.board.getScene();
     var result = SL.circuit.solve(scene);
@@ -998,8 +1038,8 @@
     renderWarnings(result);
     if (app.lab.tick) app.lab.tick(ctx());
     evaluateChecks();
-    if (app.lab.renderExtra) app.lab.renderExtra(SL.$('#extra-host'), app.rows, app.simValues);
-    saveProgress();
+    if (light) { flushSyncTail(); return; }
+    runSyncTail();
   }
 
   function renderWarnings(result) {
@@ -1599,9 +1639,29 @@
           return '<button type="button" class="chip' + (Number(comp.props.range) === r ? ' active' : '') + '" data-range-chip="' + r + '">0–' + r + '</button>';
         }).join('') + '</div>';
     }
+    if (SL.circuit.FLIPPABLE && SL.circuit.FLIPPABLE[comp.type]) {
+      var flipped = SL.circuit.isFlipped(comp);
+      html += '<button type="button" class="btn btn-sm flip-btn' + (flipped ? ' is-on' : '') + '" id="insp-flip"' +
+        ' title="一键互换正负极：接线柱位置不变，只把 + / − 对调">' +
+        flipIcon() + (flipped ? '已换向 · 还原' : '正负极互换') + '</button>' +
+        '<span class="inspector-note">' + (comp.type === 'battery' || comp.type === 'dcsupply' || comp.type === 'generator'
+          ? '换向后电动势方向反转，电路中的电流方向随之反向'
+          : '换向后读数符号反过来，原本反偏的指针会回正') + '</span>';
+    }
     html += '<span class="inspector-spacer"></span><button type="button" class="btn btn-ghost btn-sm" id="insp-rotate">' + SL.icon('rotate-clockwise', '', 15) + '旋转</button>' +
       '<button type="button" class="btn btn-ghost btn-sm" id="insp-delete">' + SL.icon('trash', '', 15) + '删除</button>';
     host.innerHTML = html;
+
+    var flipBtn = SL.$('#insp-flip', host);
+    if (flipBtn) {
+      flipBtn.addEventListener('click', function () {
+        app.board.updateProps(comp.id, { flip: !SL.circuit.isFlipped(comp) }, true);
+        SL.sound.play('click');
+        sync();
+        renderInspector();
+        SL.toast(SL.circuit.isFlipped(comp) ? '已互换正负极' : '已还原正负极', 'info', 1400);
+      });
+    }
 
     SL.$$('[data-res]', host).forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -1631,7 +1691,7 @@
         app.board.updateProps(comp.id, { slider: Number(sliderInput.value) }, true);
         var note = SL.$('#rheostat-note', host);
         if (note) note.textContent = rheostatNoteText(SL.circuit.rheostatInfo(comp, app.board.getScene()));
-        scheduleSync(40);
+        requestSync(true);
       });
     }
     var resistanceInput = SL.$('#resistance-input', host);
@@ -1676,7 +1736,7 @@
         app.board.updateProps(comp.id, { voltage: value }, true);
         var note = SL.$('#generator-voltage-note', host);
         if (note) note.textContent = SL.fmt(value, 1) + ' V（1.5–12）';
-        scheduleSync(40);
+        requestSync(true);
       });
       genVoltageInput.addEventListener('change', function () {
         sync();
@@ -1804,6 +1864,9 @@
 
   function leaveLab() {
     saveProgress();
+    if (app.syncTimer) { clearTimeout(app.syncTimer); app.syncTimer = null; }
+    if (syncTailTimer) { clearTimeout(syncTailTimer); syncTailTimer = null; }
+    if (app.simTimer) { clearTimeout(app.simTimer); app.simTimer = null; }
     if (app.clock) app.clock.stop();
     if (app.board) app.board.destroy && app.board.destroy();
     app.clock = null;
@@ -1834,7 +1897,7 @@
     showHome();
   }
 
-  SL.app = { init: init, openLab: openLab, showHome: showHome, state: app };
+  SL.app = { init: init, openLab: openLab, showHome: showHome, state: app, sync: function () { sync(); } };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

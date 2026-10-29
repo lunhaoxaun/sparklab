@@ -18,7 +18,7 @@
   <div id="out"></div>
   <div id="summary"></div>
 
-  <script src="../assets/js/core/circuit.js?v=52"></script>
+  <script src="../assets/js/core/circuit.js?v=58"></script>
   <script>
   (function () {
     var SL = window.SparkLab;
@@ -564,6 +564,75 @@
       var ok = !!mf && !!mr && near(mf.value, 6 / 101, 1e-3) && mr.value < 0 && mf.overRange === false &&
         mo.overRange === true && ro.warnings.some(function (w) { return w.type === 'overRange' && w.compId === gal.id; });
       return { ok: ok, detail: '正=' + (mf ? mf.value.toFixed(4) : '—') + ' 反=' + (mr ? mr.value.toFixed(4) : '—') + ' 超量程=' + (mo && mo.overRange) };
+    });
+
+    /* 31. 正负极互换：电池换向后电流反向，灯泡仍然发光 */
+    test('电池换向：电流反向、灯泡仍亮', function () {
+      var bat = C('battery', 300, 400, { cells: 2 });
+      var bulb = C('bulb', 600, 400);
+      var scene = {
+        components: [bat, bulb],
+        wires: [W(bat, 'pos', bulb, 'a'), W(bulb, 'b', bat, 'neg')]
+      };
+      var r1 = SL.circuit.solve(scene);
+      var i1 = r1.bulbs[bulb.id].current;
+      bat.props.flip = true;
+      var r2 = SL.circuit.solve(scene);
+      var i2 = r2.bulbs[bulb.id].current;
+      var ok = Math.abs(i1) > 0.02 && near(i2, -i1, 1e-6) && Math.abs(r2.bulbs[bulb.id].ratio - r1.bulbs[bulb.id].ratio) < 1e-6 &&
+        SL.circuit.isFlipped(bat) === true;
+      return { ok: ok, detail: 'I 前=' + i1.toFixed(3) + ' 后=' + i2.toFixed(3) };
+    });
+
+    /* 32. 正负极互换：电流表换向后读数变负 → 判为反接 */
+    test('电流表换向：读数变负并提示反接', function () {
+      var bat = C('battery', 300, 400, { cells: 2 });
+      var amm = C('ammeter', 500, 400, { range: 3 });
+      var res = C('resistor', 700, 400, { resistance: 10 });
+      var scene = {
+        components: [bat, amm, res],
+        wires: [W(bat, 'pos', amm, 'plus'), W(amm, 'minus', res, 'a'), W(res, 'b', bat, 'neg')]
+      };
+      var r1 = SL.circuit.solve(scene);
+      var m1 = r1.meters[amm.id];
+      amm.props.flip = true;
+      var r2 = SL.circuit.solve(scene);
+      var m2 = r2.meters[amm.id];
+      var ok = m1.value > 0.01 && m1.reversed === false &&
+        near(m2.value, -m1.value, 1e-9) && m2.reversed === true &&
+        r2.warnings.some(function (w) { return w.type === 'reverse' && w.compId === amm.id; });
+      return { ok: ok, detail: '前=' + m1.value.toFixed(3) + ' 后=' + m2.value.toFixed(3) + ' 反接=' + m2.reversed };
+    });
+
+    /* 33. 正负极互换：电压表换向后读数取反；学生电源换向后回路电流反向 */
+    test('电压表 / 学生电源换向', function () {
+      var sup = C('dcsupply', 300, 400, { voltage: 6 });
+      var res = C('resistor', 500, 400, { resistance: 10 });
+      var vol = C('voltmeter', 500, 560, { range: 15 });
+      var scene = {
+        components: [sup, res, vol],
+        wires: [
+          W(sup, 'pos', res, 'a'), W(res, 'b', sup, 'neg'),
+          W(res, 'a', vol, 'plus'), W(res, 'b', vol, 'minus')
+        ]
+      };
+      var r1 = SL.circuit.solve(scene);
+      var v1 = r1.meters[vol.id].value;
+      var i1 = r1.components[res.id].voltage;
+      vol.props.flip = true;
+      var r2 = SL.circuit.solve(scene);
+      var v2 = r2.meters[vol.id].value;
+      var ok1 = near(v2, -v1, 1e-6) && near(Math.abs(v1), 6 * 10 / 10.5, 1e-3);
+      vol.props.flip = false;
+      sup.props.flip = true;
+      var r3 = SL.circuit.solve(scene);
+      var i3 = r3.components[res.id].voltage;
+      var ok2 = near(i3, -i1, 1e-6) && Math.abs(i1) > 0.1;
+      /* 非极性元件不受 flip 影响 */
+      var plain = C('resistor', 300, 400, { resistance: 5 });
+      plain.props.flip = true;
+      var ok3 = SL.circuit.isFlipped(plain) === false;
+      return { ok: ok1 && ok2 && ok3, detail: 'U1=' + v1.toFixed(2) + ' U2=' + v2.toFixed(2) + ' I1=' + i1.toFixed(3) + ' I3=' + i3.toFixed(3) };
     });
 
     var summary = document.getElementById('summary');

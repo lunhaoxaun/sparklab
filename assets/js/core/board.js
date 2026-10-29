@@ -279,14 +279,15 @@
     var p = comp.props || {};
     if (comp.type === 'battery') {
       var cells = Math.max(1, Math.min(4, Math.round(p.cells || 2)));
+      var bFlip = !!p.flip;
       body =
         '<rect x="-40" y="-17" width="80" height="34" rx="8" class="comp-body"/>' +
         '<line x1="-22" y1="-10" x2="-22" y2="10" class="battery-plate short"/>' +
         '<line x1="-12" y1="-15" x2="-12" y2="15" class="battery-plate long"/>' +
         '<line x1="2" y1="-10" x2="2" y2="10" class="battery-plate short"/>' +
         '<line x1="12" y1="-15" x2="12" y2="15" class="battery-plate long"/>' +
-        '<text x="30" y="4" class="comp-symbol-text">+</text>' +
-        '<text x="22" y="4" class="comp-symbol-text">−</text>';
+        '<text x="30" y="4" class="comp-symbol-text">' + (bFlip ? '−' : '+') + '</text>' +
+        '<text x="22" y="4" class="comp-symbol-text">' + (bFlip ? '+' : '−') + '</text>';
     } else if (comp.type === 'switch') {
       body =
         '<rect x="-38" y="-20" width="76" height="40" rx="10" class="comp-body"/>' +
@@ -335,12 +336,13 @@
       var supV = Math.max(1.5, Math.min(12, Number(p.voltage) || 3));
       var supInfo = this.result && this.result.supplies ? this.result.supplies[comp.id] : null;
       var supShown = supInfo ? supInfo.voltage : supV;
+      var sFlip = !!p.flip;
       body =
         '<rect x="-44" y="-20" width="88" height="40" rx="8" class="comp-body"/>' +
         '<line x1="-18" y1="-11" x2="-18" y2="11" class="battery-plate short"/>' +
         '<line x1="-10" y1="-15" x2="-10" y2="15" class="battery-plate long"/>' +
-        '<text x="-28" y="5" class="comp-symbol-text">−</text>' +
-        '<text x="30" y="5" class="comp-symbol-text">+</text>' +
+        '<text x="-28" y="5" class="comp-symbol-text">' + (sFlip ? '+' : '−') + '</text>' +
+        '<text x="30" y="5" class="comp-symbol-text">' + (sFlip ? '−' : '+') + '</text>' +
         '<text x="7" y="5" class="comp-value">' + SL.fmt(supShown, 1) + 'V</text>';
     } else if (comp.type === 'switch-spdt') {
       var toC = p.to === 'c';
@@ -475,10 +477,14 @@
   Board.prototype.terminalMarkup = function (comp) {
     var self = this;
     var out = '';
+    /* 正负极互换时，+ / − 的标记跟着换到另一端（接线柱位置不动） */
+    var flipped = SL.circuit.isFlipped ? SL.circuit.isFlipped(comp) : false;
     SL.circuit.TYPES[comp.type].terminals.forEach(function (t) {
       var pos = self.terminalPos(comp, t.id);
-      var pol = t.polarity === '+' ? ' plus' : t.polarity === '-' ? ' minus' : '';
-      out += '<g class="terminal' + pol + '" data-comp="' + comp.id + '" data-terminal="' + t.id + '" transform="translate(' + pos.x + ' ' + pos.y + ')">' +
+      var pol = t.polarity;
+      if (flipped && pol) pol = pol === '+' ? '-' : '+';
+      var cls = pol === '+' ? ' plus' : pol === '-' ? ' minus' : '';
+      out += '<g class="terminal' + cls + '" data-comp="' + comp.id + '" data-terminal="' + t.id + '" transform="translate(' + pos.x + ' ' + pos.y + ')">' +
         '<circle class="terminal-hit" r="13"/><circle class="terminal-dot" r="5.5"/>' +
         '</g>';
     });
@@ -503,17 +509,13 @@
         wiresMarkup += '<path class="wire pending" d="' + this.wirePath(start, this.pointer) + '"/>';
       }
     }
-    this.gWires.innerHTML = wiresMarkup;
+    this.putMarkup('wires', wiresMarkup);
 
-    var compsMarkup = '';
     var termsMarkup = '';
     var labelsMarkup = '';
     this.scene.components.forEach(function (comp) {
-      var isSel = selected && selected.type === 'comp' && selected.id === comp.id;
-      var label = self.labelFor(comp);
-      compsMarkup += self.compMarkup(comp, label, isSel);
       termsMarkup += self.terminalMarkup(comp);
-      var pos = self.terminalPos(comp, SL.circuit.TYPES[comp.type].terminals[0].id);
+      var label = self.labelFor(comp);
       var labelY = (comp.type === 'bulb' ? comp.y + 48 : comp.type === 'ammeter' || comp.type === 'voltmeter' ? comp.y + 58 : comp.y + 34);
       if (comp.type === 'rheostat') labelY = comp.y + 50;
       if (comp.type === 'motor') labelY = comp.y + 50;
@@ -524,9 +526,9 @@
       if (comp.type === 'galvanometer') labelY = comp.y + 58;
       labelsMarkup += '<text class="comp-label" x="' + comp.x + '" y="' + labelY + '">' + label + '</text>';
     });
-    this.gComps.innerHTML = compsMarkup;
-    this.gTerminals.innerHTML = termsMarkup;
-    this.gLabels.innerHTML = labelsMarkup;
+    this.renderComps();
+    this.putMarkup('terminals', termsMarkup, this.gTerminals);
+    this.putMarkup('labels', labelsMarkup, this.gLabels);
     this.renderFlow();
 
     var overlay = '';
@@ -544,40 +546,83 @@
     if (this.pending) {
       overlay += '<text class="board-hint" x="24" y="' + (VIEW_H - 24) + '">点击另一个接线柱完成连接 · 按 Esc 取消</text>';
     }
-    this.gOverlay.innerHTML = overlay;
+    this.putMarkup('overlay', overlay, this.gOverlay);
+  };
+
+  /* 分组级标记缓存：内容没变就不碰 DOM，避免每帧重建整块 SVG
+     （拖动滑片时每帧重排 ~100 个节点会明显掉帧，电流流动动画也会被不断重置） */
+  var GROUP_OF = { wires: 'gWires', comps: 'gComps', terminals: 'gTerminals', labels: 'gLabels', overlay: 'gOverlay' };
+
+  Board.prototype.putMarkup = function (key, markup, group) {
+    this._mk = this._mk || {};
+    if (this._mk[key] === markup) return;
+    this._mk[key] = markup;
+    var node = group || this[GROUP_OF[key]];
+    if (node) node.innerHTML = markup;
+  };
+
+  /* 元件逐个比对：只有外观变了的那个 <g> 才换掉 */
+  Board.prototype.renderComps = function () {
+    var self = this;
+    var selected = this.selected;
+    var cache = this._compCache || (this._compCache = {});
+    var seen = {};
+    if (!this._holder) this._holder = document.createElementNS(this.svg.namespaceURI, 'g');
+    this.scene.components.forEach(function (comp) {
+      seen[comp.id] = true;
+      var isSel = selected && selected.type === 'comp' && selected.id === comp.id;
+      var markup = self.compMarkup(comp, self.labelFor(comp), isSel);
+      if (cache[comp.id] === markup) return;
+      cache[comp.id] = markup;
+      self._holder.innerHTML = markup;
+      var fresh = self._holder.firstChild;
+      if (!fresh) return;
+      var old = self.gComps.querySelector('[data-comp="' + comp.id + '"]');
+      if (old && old.parentNode) old.parentNode.replaceChild(fresh, old);
+      else self.gComps.appendChild(fresh);
+    });
+    Object.keys(cache).forEach(function (id) {
+      if (seen[id]) return;
+      delete cache[id];
+      var node = self.gComps.querySelector('[data-comp="' + id + '"]');
+      if (node && node.parentNode) node.parentNode.removeChild(node);
+    });
   };
 
   Board.prototype.renderFlow = function () {
-    if (!this.result) { this.gFlow.innerHTML = ''; return; }
+    if (!this.result) { this.gFlow.innerHTML = ''; this._flowSig = ''; return; }
     var self = this;
-    var levels = this.result.nodeLevels || {};
-    var terminalNode = this.result.terminalNode || {};
+    var termI = this.result.terminalCurrent || {};
     var maxCurrent = 0;
-    Object.keys(this.result.batteries || {}).forEach(function (id) {
-      maxCurrent = Math.max(maxCurrent, Math.abs(self.result.batteries[id].current || 0));
+    Object.keys(termI).forEach(function (key) {
+      maxCurrent = Math.max(maxCurrent, Math.abs(termI[key] || 0));
     });
-    Object.keys(this.result.supplies || {}).forEach(function (id) {
-      maxCurrent = Math.max(maxCurrent, Math.abs(self.result.supplies[id].current || 0));
-    });
-    Object.keys(this.result.generators || {}).forEach(function (id) {
-      maxCurrent = Math.max(maxCurrent, Math.abs(self.result.generators[id].current || 0));
-    });
-    if (maxCurrent < 0.004) { this.gFlow.innerHTML = ''; return; }
+    if (maxCurrent < 0.004) { this.gFlow.innerHTML = ''; this._flowSig = ''; return; }
     var duration = Math.max(0.7, Math.min(4, 1.6 / Math.max(0.05, maxCurrent)));
-    var markup = '';
+    var flowDur = duration.toFixed(2) + 's';
+    var paths = [];
     this.scene.wires.forEach(function (wire) {
       var a = self.terminalAbs(wire.from);
       var b = self.terminalAbs(wire.to);
       if (!a || !b) return;
-      var na = terminalNode[wire.from.compId + ':' + wire.from.terminalId];
-      var nb = terminalNode[wire.to.compId + ':' + wire.to.terminalId];
-      var la = levels[na], lb = levels[nb];
-      if (la == null || lb == null || la === lb) return;
-      var reverse = la > lb;
-      markup += '<path class="wire-flow' + (reverse ? ' reverse' : '') + '" d="' + self.wirePath(a, b) +
-        '" style="animation-duration:' + duration.toFixed(2) + 's"/>';
+      var out = termI[wire.from.compId + ':' + wire.from.terminalId] || 0;
+      if (Math.abs(out) < 0.0005) return;
+      paths.push({ d: self.wirePath(a, b), reverse: out < 0 });
     });
-    this.gFlow.innerHTML = markup;
+    var sig = paths.map(function (p) { return p.d + (p.reverse ? 'r' : ''); }).join('|');
+    if (sig === this._flowSig) {
+      /* 路径没变，只调速度：保持动画连续，拖动滑片时电流线不会一闪一闪重来 */
+      var kids = this.gFlow.childNodes;
+      for (var i = 0; i < kids.length; i++) {
+        if (kids[i].style) kids[i].style.animationDuration = flowDur;
+      }
+      return;
+    }
+    this._flowSig = sig;
+    this.gFlow.innerHTML = paths.map(function (p) {
+      return '<path class="wire-flow' + (p.reverse ? ' reverse' : '') + '" d="' + p.d +
+        '" style="animation-duration:' + flowDur + '"/>';
+    }).join('');
   };
 
   Board.prototype.svgPoint = function (evt) {

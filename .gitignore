@@ -1,7 +1,11 @@
 # 开发期临时产物
 .screenshots/
+.shots/
 .trae-html-share-packages/
 node_modules/
+.tmpedge*/
+tools/.tmpedge*/
+.tmpedge-dom.html
 
 # 本地离线发布包（根目录归档包不入库，备份走 zip / 远程仓库 tag）
 /*.zip

@@ -30,8 +30,10 @@
         '<rect x="' + (cx - 6) + '" y="-12" width="12" height="5" rx="2" fill="' + C.brass + '"/>' +
         '<text x="' + cx + '" y="9" fill="#e8f3ec" font-size="7" text-anchor="middle">1.5V</text>';
     }
-    body += '<text x="-35" y="4" fill="#ffffff" font-size="12" font-weight="700">+</text>' +
-      '<text x="29" y="4" fill="#ffffff" font-size="12" font-weight="700">−</text>';
+    /* 接线柱：向右为 +（翻转后左右对调） */
+    var flip = !!(comp.props || {}).flip;
+    body += '<text x="-35" y="4" fill="#ffffff" font-size="12" font-weight="700">' + (flip ? '+' : '−') + '</text>' +
+      '<text x="29" y="4" fill="#ffffff" font-size="12" font-weight="700">' + (flip ? '−' : '+') + '</text>';
     return body;
   }
 
@@ -46,8 +48,8 @@
       '<text x="-14" y="5" fill="#7ef0a4" font-size="12" text-anchor="middle" font-family="Consolas, monospace">' + num(shown, 1) + 'V</text>' +
       '<circle cx="26" cy="0" r="9.5" fill="' + C.steel + '" stroke="' + C.steelDark + '" stroke-width="1.2"/>' +
       '<line x1="26" y1="0" x2="26" y2="-7" stroke="' + C.dark + '" stroke-width="2"/>' +
-      '<text x="-37" y="16" fill="' + C.red + '" font-size="8">＋</text>' +
-      '<text x="31" y="16" fill="' + C.black + '" font-size="8">－</text>';
+      '<text x="-37" y="16" fill="' + (((comp.props || {}).flip) ? C.black : C.red) + '" font-size="8">' + (((comp.props || {}).flip) ? '－' : '＋') + '</text>' +
+      '<text x="31" y="16" fill="' + (((comp.props || {}).flip) ? C.red : C.black) + '" font-size="8">' + (((comp.props || {}).flip) ? '＋' : '－') + '</text>';
   }
 
   /* ---------- 开关 ---------- */

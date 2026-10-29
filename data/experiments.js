@@ -23,15 +23,15 @@
         id: 'thermal',
         name: '物理 · 热学',
         icon: 'thermometer',
-        available: true,
-        desc: '物态变化、比热容、内能'
+        available: false,
+        desc: '物态变化、比热容（敬请期待）'
       },
       {
         id: 'optics',
         name: '物理 · 光学',
         icon: 'lens',
-        available: true,
-        desc: '反射、折射、平面镜、凸透镜'
+        available: false,
+        desc: '反射、折射、凸透镜（敬请期待）'
       },
       {
         id: 'chemistry',
@@ -457,8 +457,8 @@
           },
           {
             title: '提升钩码并记录',
-            instruction: '把钩码提升到设定高度（可点「播放」自动提升，也可直接拖动钩码），然后记录一组数据。',
-            hint: '一定要读到「提升到位」再记录，否则绳端移动距离对不上。'
+            instruction: '拖动左栏「提升高度 h」滑片（也可以直接拖动画布里的钩码），把钩码提到设定高度，然后记录一组数据。',
+            hint: 'h 变了，绳端移动距离 s = n·h、有用功和总功都要按新的 h 重算；想一想机械效率会不会跟着变。'
           },
           {
             title: '改变物重再测一次',

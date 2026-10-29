@@ -140,6 +140,32 @@
     }
   };
 
+  /* ---------- 正负极互换（props.flip） ----------
+     元件在画布上的位置不动，只把「哪一端是 +」对调：
+     电池 / 学生电源 / 发电机  → 电动势方向反过来，电路里电流反向
+     电流表 / 电压表 / 灵敏电流计 → 读数符号反过来（原本反偏的变成正偏）
+     终端 id（pos/neg、plus/minus）是几何槽位，翻转后语义交换。 */
+  var FLIPPABLE = { battery: 1, dcsupply: 1, generator: 1, ammeter: 1, voltmeter: 1, galvanometer: 1 };
+
+  function isFlipped(comp) {
+    return !!(comp && comp.props && comp.props.flip && FLIPPABLE[comp.type]);
+  }
+
+  /* 电源类：返回当前实际的 + / − 端点 key */
+  function poleKeys(comp) {
+    var f = isFlipped(comp);
+    return {
+      pos: comp.id + (f ? ':neg' : ':pos'),
+      neg: comp.id + (f ? ':pos' : ':neg')
+    };
+  }
+
+  /* 表类：返回当前实际的 + / − 接线柱（t.id） */
+  function meterPoles(comp) {
+    var f = isFlipped(comp);
+    return { plus: f ? 'minus' : 'plus', minus: f ? 'plus' : 'minus' };
+  }
+
   /* 电阻箱四位旋钮（×1000 / ×100 / ×10 / ×1）的接入电阻 */
   function resistanceBoxValue(props) {
     var digits = (props || {}).digits;
@@ -306,6 +332,19 @@
     return x;
   }
 
+  /* 元件两端的电流方向：in = 电流流入的接线柱，out = 流出的接线柱 */
+  function branchPair(comp, out) {
+    var t = comp.type;
+    if (t === 'battery' || t === 'dcsupply' || t === 'generator') {
+      /* 电源：内部电流从 neg 流向 pos，out.current 记的是「流入 pos」的量 */
+      return { in: 'neg', out: 'pos', I: -(out.current || 0) };
+    }
+    if (t === 'relay' || t === 'switch-spdt' || t === 'voltmeter') return null;
+    var ts = TYPES[t] && TYPES[t].terminals;
+    if (!ts || ts.length !== 2) return null;
+    return { in: ts[0].id, out: ts[1].id, I: out.current || 0 };
+  }
+
   /* 单次求解；ledOn 记录本轮按“导通”处理的 LED，relayOn 记录本轮吸合的继电器 */
   function solvePass(scene, ledOn, relayOn) {
     ledOn = ledOn || {};
@@ -371,8 +410,9 @@
       if (comp.type === 'battery') {
         var cells = Math.max(1, Math.min(4, Math.round(p.cells || 2)));
         var internal = '#BAT:' + comp.id;
-        addV(comp, internal, comp.id + ':neg', cells * 1.5);
-        addR(comp, comp.id + ':pos', internal, cells * 0.5);
+        var bPole = poleKeys(comp);
+        addV(comp, internal, bPole.neg, cells * 1.5);
+        addR(comp, bPole.pos, internal, cells * 0.5);
       } else if (comp.type === 'switch') {
         if (p.closed) addR(comp, comp.id + ':a', comp.id + ':b', SWITCH_R);
       } else if (comp.type === 'bulb') {
@@ -392,8 +432,9 @@
       } else if (comp.type === 'dcsupply') {
         var supplyE = Math.max(1.5, Math.min(12, Number(p.voltage) || 3));
         var supplyInternal = '#SUP:' + comp.id;
-        addV(comp, supplyInternal, comp.id + ':neg', supplyE);
-        addR(comp, comp.id + ':pos', supplyInternal, SUPPLY_R);
+        var sPole = poleKeys(comp);
+        addV(comp, supplyInternal, sPole.neg, supplyE);
+        addR(comp, sPole.pos, supplyInternal, SUPPLY_R);
       } else if (comp.type === 'switch-spdt') {
         var spdtTo = p.to === 'c' ? 'c' : 'b';
         addR(comp, comp.id + ':a', comp.id + ':' + spdtTo, SWITCH_R);
@@ -418,12 +459,13 @@
       } else if (comp.type === 'generator') {
         var genE = Math.max(1.5, Math.min(12, Number(p.voltage) || 3));
         var genInternal = '#GEN:' + comp.id;
+        var gPole = poleKeys(comp);
         if (p.running === false) {
           /* 停止摇动：电动势为零，只剩内阻 */
-          addR(comp, comp.id + ':pos', comp.id + ':neg', GENERATOR_R);
+          addR(comp, gPole.pos, gPole.neg, GENERATOR_R);
         } else {
-          addV(comp, genInternal, comp.id + ':neg', genE);
-          addR(comp, comp.id + ':pos', genInternal, GENERATOR_R);
+          addV(comp, genInternal, gPole.neg, genE);
+          addR(comp, gPole.pos, genInternal, GENERATOR_R);
         }
       } else if (comp.type === 'relay') {
         addR(comp, comp.id + ':coilA', comp.id + ':coilB', RELAY_COIL_R);
@@ -530,6 +572,7 @@
       ok: !failed,
       nodeV: nodeV,
       terminalNode: {},
+      terminalCurrent: {},
       components: {},
       bulbs: {},
       batteries: {},
@@ -559,8 +602,9 @@
 
       if (comp.type === 'battery') {
         var internal = nodeOf('#BAT:' + comp.id);
-        var posNode = nodeOf(comp.id + ':pos');
-        var negNode = nodeOf(comp.id + ':neg');
+        var bKeys = poleKeys(comp);
+        var posNode = nodeOf(bKeys.pos);
+        var negNode = nodeOf(bKeys.neg);
         var cells = Math.max(1, Math.min(4, Math.round((comp.props || {}).cells || 2)));
         var r = cells * 0.5;
         var vPos = nodeV[posNode] || 0;
@@ -571,6 +615,7 @@
         out.voltage = terminalV;
         out.terminalVoltage = terminalV;
         out.emf = cells * 1.5;
+        out.flipped = isFlipped(comp);
         out.externalCurrent = current;
         result.batteries[comp.id] = out;
         var rExt = Math.abs(current) > 1e-6 ? Math.abs(terminalV / current) : Infinity;
@@ -587,28 +632,37 @@
         out.ratio = out.power / BULB_RATED_P;
         result.bulbs[comp.id] = out;
       } else if (comp.type === 'ammeter') {
-        var ia = (out.terminals.plus.voltage - out.terminals.minus.voltage) / AMMETER_R;
+        var aPole = meterPoles(comp);
+        var ia = (out.terminals[aPole.plus].voltage - out.terminals[aPole.minus].voltage) / AMMETER_R;
         out.current = ia;
-        out.voltage = out.terminals.plus.voltage - out.terminals.minus.voltage;
-        result.meters[comp.id] = { kind: 'A', value: ia, range: (comp.props || {}).range || 0.6 };
+        out.voltage = out.terminals[aPole.plus].voltage - out.terminals[aPole.minus].voltage;
+        result.meters[comp.id] = { kind: 'A', value: ia, range: (comp.props || {}).range || 0.6, flipped: isFlipped(comp) };
       } else if (comp.type === 'voltmeter') {
-        var uv = out.terminals.plus.voltage - out.terminals.minus.voltage;
+        var vPole = meterPoles(comp);
+        var uv = out.terminals[vPole.plus].voltage - out.terminals[vPole.minus].voltage;
         out.voltage = uv;
         out.current = uv / VOLTMETER_R;
-        result.meters[comp.id] = { kind: 'V', value: uv, range: (comp.props || {}).range || 3 };
+        result.meters[comp.id] = { kind: 'V', value: uv, range: (comp.props || {}).range || 3, flipped: isFlipped(comp) };
       } else if (comp.type === 'resistor' || comp.type === 'rheostat' || comp.type === 'switch') {
         var ta = out.terminals[Object.keys(out.terminals)[0]];
         var tb = out.terminals[Object.keys(out.terminals)[1]];
         out.voltage = (ta ? ta.voltage : 0) - (tb ? tb.voltage : 0);
+        /* 这三个分支原先只算电压；补上电流，导线的电流方向动画才有依据 */
+        var pairR = comp.type === 'resistor' ? Math.max(0.01, (comp.props || {}).resistance || 10)
+          : comp.type === 'rheostat' ? Math.max(0.01, rheostatInfo(comp, scene).active)
+            : ((comp.props || {}).closed ? SWITCH_R : 0);
+        out.current = pairR > 0 ? out.voltage / pairR : 0;
       } else if (comp.type === 'dcsupply') {
         var supInternal = nodeOf('#SUP:' + comp.id);
-        var supPos = nodeOf(comp.id + ':pos');
-        var supNeg = nodeOf(comp.id + ':neg');
+        var supKeys = poleKeys(comp);
+        var supPos = nodeOf(supKeys.pos);
+        var supNeg = nodeOf(supKeys.neg);
         var supE = Math.max(1.5, Math.min(12, Number((comp.props || {}).voltage) || 3));
         var supCurrent = ((nodeV[supPos] || 0) - (nodeV[supInternal] || 0)) / SUPPLY_R;
         out.current = supCurrent;
         out.voltage = (nodeV[supPos] || 0) - (nodeV[supNeg] || 0);
         out.emf = supE;
+        out.flipped = isFlipped(comp);
         out.terminalVoltage = out.voltage;
         result.supplies[comp.id] = { voltage: out.voltage, current: supCurrent };
       } else if (comp.type === 'switch-spdt') {
@@ -674,8 +728,9 @@
         var genProps = comp.props || {};
         var genRunning = genProps.running !== false;
         var genEmf = genRunning ? Math.max(1.5, Math.min(12, Number(genProps.voltage) || 3)) : 0;
-        var genVPos = out.terminals.pos ? out.terminals.pos.voltage : 0;
-        var genVNeg = out.terminals.neg ? out.terminals.neg.voltage : 0;
+        var genKeys = poleKeys(comp);
+        var genVPos = nodeV[nodeOf(genKeys.pos)] || 0;
+        var genVNeg = nodeV[nodeOf(genKeys.neg)] || 0;
         var genCurrent;
         if (genRunning) {
           var genNode = nodeOf('#GEN:' + comp.id);
@@ -708,18 +763,27 @@
           power: spV * spI
         };
       } else if (comp.type === 'galvanometer') {
-        var galV = (out.terminals.plus ? out.terminals.plus.voltage : 0) -
-          (out.terminals.minus ? out.terminals.minus.voltage : 0);
+        var galPole = meterPoles(comp);
+        var galV = (out.terminals[galPole.plus] ? out.terminals[galPole.plus].voltage : 0) -
+          (out.terminals[galPole.minus] ? out.terminals[galPole.minus].voltage : 0);
         var galI = galV / GALVANOMETER_R;
         out.voltage = galV;
         out.current = galI;
+        out.flipped = isFlipped(comp);
         result.meters[comp.id] = {
           kind: 'G',
           value: galI,
-          range: Number((comp.props || {}).range) || 0.1
+          range: Number((comp.props || {}).range) || 0.1,
+          flipped: isFlipped(comp)
         };
       }
       result.components[comp.id] = out;
+      /* 接线柱电流（正 = 从元件流出），导线的电流方向动画按它判定 */
+      var pair = branchPair(comp, out);
+      if (pair) {
+        result.terminalCurrent[comp.id + ':' + pair.in] = -pair.I;
+        result.terminalCurrent[comp.id + ':' + pair.out] = pair.I;
+      }
     });
 
     /* 电表读数与异常 */
@@ -992,6 +1056,10 @@
     getComp: getComp,
     connectedTerminals: connectedTerminals,
     rheostatInfo: rheostatInfo,
+    FLIPPABLE: FLIPPABLE,
+    isFlipped: isFlipped,
+    poleKeys: poleKeys,
+    meterPoles: meterPoles,
     resetIds: function () { seq = 0; }
   };
 })();

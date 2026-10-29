@@ -51,6 +51,17 @@
           SL.app.state.controls.set('h', 0.3);
           SL.labs[lab].onTick(6, SL.app.state);
         }
+        if (q.get('h')) SL.app.state.controls.set('h', parseFloat(q.get('h')));
+        /* 选中第 n 个元件并打开属性面板（截图核对换向按钮用），?flip=1 再点一下换向 */
+        if (q.get('sel')) {
+          var comps = SL.app.state.board.getScene().components;
+          var target = comps[parseInt(q.get('sel'), 10)] || comps[0];
+          if (target) {
+            SL.app.state.board.options.onInspect(target.id);
+            var flip = document.getElementById('insp-flip');
+            if (flip && q.get('flip')) flip.click();
+          }
+        }
       });
     })();
   </script>

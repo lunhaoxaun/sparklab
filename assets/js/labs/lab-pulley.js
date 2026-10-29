@@ -6,9 +6,15 @@
 
   var meta = SL.data.labsById['pulley'];
   var CX = 520, BEAM_Y = 74, GROUND = 470, PX_PER_M = 320;
-  var rt = { lift: 0, dragging: false };
+  /* lift = 动画中途的实际高度；静止时一律以参数 h 为准（滑片就是钩码高度） */
+  var rt = { lift: 0, dragging: false, animating: false };
 
-  function resetRt() { rt.lift = 0; rt.dragging = false; }
+  function resetRt() { rt.lift = 0; rt.dragging = false; rt.animating = false; }
+
+  function liftOf(v) {
+    if (rt.animating) return Math.max(0, Math.min(rt.lift, v.h || 0.1));
+    return Math.max(0, v.h || 0.1);
+  }
 
   function ropeXs(n) {
     var gap = 46;
@@ -23,7 +29,8 @@
     var c = ctx.calc;
     var n = c.n;
     var xs = ropeXs(n);
-    var rise = (rt.lift / (v.h || 1)) * (v.h * PX_PER_M);
+    var lift = liftOf(v);
+    var rise = lift * PX_PER_M;
     var blockY = 330 - rise;
     var tailDown = 210 + rise;
 
@@ -76,7 +83,7 @@
       stage.line(gx, 330, gx, blockY, { class: 'measure-line' });
       stage.line(gx - 5, 330, gx + 5, 330, { class: 'measure-cap' });
       stage.line(gx - 5, blockY, gx + 5, blockY, { class: 'measure-cap' });
-      stage.text(gx - 9, (330 + blockY) / 2, 'h = ' + SL.fmt(rt.lift, 2) + ' m', { class: 'measure-label', 'text-anchor': 'end' });
+      stage.text(gx - 9, (330 + blockY) / 2, 'h = ' + SL.fmt(lift, 2) + ' m', { class: 'measure-label', 'text-anchor': 'end' });
     }
 
     /* 绳自由端移动距离 */
@@ -85,7 +92,7 @@
       stage.line(sx, 120, sx, 120 + rise * n, { class: 'measure-line measure-line-alt' });
       stage.line(sx - 5, 120, sx + 5, 120, { class: 'measure-cap measure-cap-alt' });
       stage.line(sx - 5, 120 + rise * n, sx + 5, 120 + rise * n, { class: 'measure-cap measure-cap-alt' });
-      stage.text(sx + 6, 120 + rise * n / 2, 's = ' + SL.fmt(rt.lift * n, 2) + ' m', { class: 'measure-label measure-label-alt', 'text-anchor': 'start' });
+      stage.text(sx + 6, 120 + rise * n / 2, 's = ' + SL.fmt(lift * n, 2) + ' m', { class: 'measure-label measure-label-alt', 'text-anchor': 'start' });
     }
 
     /* 拉力箭头 */
@@ -98,17 +105,18 @@
     stage.text(44, 49, n + ' 段绳承担物重　η = W有/W总 = ' + SL.fmt(c.eta, 1) + '%', { class: 'sim-badge-text bal-ok' });
   }
 
-  /* 拖动钩码升降，改变已提升高度 */
+  /* 拖动钩码升降：直接改写参数 h，让指标与滑片始终一致 */
   function bindDrag(ctx) {
     var stage = ctx.stage;
     var active = false;
     stage.svg.style.touchAction = 'none';
     stage.svg.addEventListener('pointerdown', function (evt) {
       var p = stage.toWorld(evt);
-      var rise = (rt.lift / (ctx.values.h || 1)) * (ctx.values.h * PX_PER_M);
+      var rise = liftOf(ctx.values) * PX_PER_M;
       var cy = 330 - rise + 60;
-      if (Math.abs(p.x - CX) < 40 && Math.abs(p.y - cy) < 60) {
+      if (Math.abs(p.x - CX) < 46 && Math.abs(p.y - cy) < 70) {
         active = true;
+        rt.dragging = true;
         stage.svg.setPointerCapture && stage.svg.setPointerCapture(evt.pointerId);
         evt.preventDefault();
       }
@@ -116,12 +124,17 @@
     stage.svg.addEventListener('pointermove', function (evt) {
       if (!active) return;
       var p = stage.toWorld(evt);
-      var risePx = SL.mech.clamp(330 - (p.y - 60), 0, ctx.values.h * PX_PER_M);
-      rt.lift = (risePx / PX_PER_M);
-      ctx.redraw();
+      var risePx = SL.mech.clamp(330 - (p.y - 60), 0, 0.5 * PX_PER_M);
+      var next = Math.round((risePx / PX_PER_M) * 100) / 100;
+      next = Math.max(0.1, Math.min(0.5, next));
+      rt.animating = false;
+      if (Math.abs(next - liftOf(ctx.values)) > 0.005) ctx.set('h', next);
       evt.preventDefault();
     });
-    function end() { active = false; }
+    function end() {
+      active = false;
+      rt.dragging = false;
+    }
     stage.svg.addEventListener('pointerup', end);
     stage.svg.addEventListener('pointercancel', end);
   }
@@ -145,6 +158,8 @@
     rt: rt,
     reset: resetRt,
     canvas: { w: 900, h: 520 },
+    /* 当前提升高度（静止时等于参数 h，播放中为动画进度），自由实验室也用它取读数 */
+    lift: liftOf,
     controls: [
       { key: 'segments', label: '绕法（承担物重的绳段数）', type: 'buttons', options: [
         { value: 2, label: 'n = 2' }, { value: 3, label: 'n = 3' }, { value: 4, label: 'n = 4' }
@@ -159,28 +174,47 @@
     calc: function (values) { return SL.mech.pulley(values); },
     setup: bindDrag,
     animated: { label: '匀速提升' },
-    onTick: function (dt, ctx) {
-      rt.lift = Math.min(rt.lift + 0.12 * dt, ctx.values.h);
-      if (rt.lift >= ctx.values.h - 1e-6 && ctx.clock) ctx.clock.stop();
+    /* 滑片一改 h，钩码立刻跟到新高度（播放中则退让到当前进度以内） */
+    onParam: function (key, ctx) {
+      if (key !== 'h') return;
+      if (ctx.clock && ctx.clock.playing) rt.lift = Math.min(rt.lift, ctx.values.h);
+      else rt.animating = false;
     },
-    onReset: function () { rt.lift = 0; },
+    onTick: function (dt, ctx) {
+      var target = ctx.values.h || 0.1;
+      if (!rt.animating) {
+        /* 播放的第一拍：从 0 开始匀速提到设定高度 */
+        rt.animating = true;
+        rt.lift = 0;
+        return;
+      }
+      rt.lift = Math.min(rt.lift + 0.18 * dt, target);
+      if (rt.lift >= target - 1e-6) {
+        rt.lift = target;
+        rt.animating = false;
+        if (ctx.clock) ctx.clock.stop();
+      }
+    },
+    onReset: function () { rt.lift = 0; rt.animating = false; },
     draw: draw,
     readouts: function (c, v) {
+      var lift = liftOf(v);
       return [
         { label: '绳端拉力 F', value: c.F, unit: 'N', digits: 2, accent: true },
-        { label: '绳端移动 s', value: rt.lift * c.n, unit: 'm', digits: 2, note: 's = n·h' },
-        { label: '提升高度 h', value: rt.lift, unit: 'm', digits: 2 },
-        { label: '有用功 W有', value: c.load * rt.lift, unit: 'J', digits: 2, note: 'W有 = G·h' },
-        { label: '总功 W总', value: c.F * rt.lift * c.n, unit: 'J', digits: 2, note: 'W总 = F·s' },
-        { label: '机械效率 η', value: c.eta, unit: '%', digits: 1, accent: true, note: 'W有 / W总' }
+        { label: '绳端移动 s', value: lift * c.n, unit: 'm', digits: 2, note: 's = n·h' },
+        { label: '提升高度 h', value: lift, unit: 'm', digits: 2 },
+        { label: '有用功 W有', value: c.load * lift, unit: 'J', digits: 2, note: 'W有 = G·h' },
+        { label: '总功 W总', value: c.F * lift * c.n, unit: 'J', digits: 2, note: 'W总 = F·s' },
+        { label: '机械效率 η', value: c.eta, unit: '%', digits: 1, accent: true, note: 'W有 / W总（与 h 无关）' }
       ];
     },
     warnings: function () { return []; },
     measure: function (ctx) {
       var c = ctx.calc;
       var v = ctx.values;
-      if (rt.lift < (v.h || 0.1) * 0.9) {
-        SL.toast('请先把钩码提升到设定高度，再记录数据', 'warn');
+      var lift = liftOf(v);
+      if (!(lift > 0)) {
+        SL.toast('先把提升高度 h 调到 0.1 m 以上，再记录数据', 'warn');
         return null;
       }
       return {
@@ -188,11 +222,11 @@
         segments: c.n,
         load: v.loadN,
         moving: v.movingN,
-        h: Number(rt.lift.toFixed(2)),
+        h: Number(lift.toFixed(2)),
         force: Number(c.F.toFixed(2)),
-        s: Number((rt.lift * c.n).toFixed(2)),
-        wUse: Number((c.load * rt.lift).toFixed(2)),
-        wTotal: Number((c.F * rt.lift * c.n).toFixed(2)),
+        s: Number((lift * c.n).toFixed(2)),
+        wUse: Number((c.load * lift).toFixed(2)),
+        wTotal: Number((c.F * lift * c.n).toFixed(2)),
         eta: Number(c.eta.toFixed(1))
       };
     },

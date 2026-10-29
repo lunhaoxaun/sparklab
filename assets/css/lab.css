@@ -478,9 +478,23 @@ body.is-drop-active .board-host {
   stroke-width: 2.6;
   stroke-linecap: round;
   transform-origin: 100px 100px;
-  transition: transform .2s ease;
+  transform-box: view-box;
+  transition: transform .14s cubic-bezier(.33, 1, .68, 1);
+  will-change: transform;
 }
 .dial-hub { fill: #35506b; }
+.meter-flip {
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: rgba(42, 99, 232, .12);
+  color: var(--primary-dark);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+/* .meter-warn 自己带 display:flex，会把 hidden 的 UA 规则盖掉，显式补一条 */
+.meter-warn[hidden], .meter-flip[hidden] { display: none; }
 .dial-min, .dial-max { font-size: 9px; fill: #8a9aae; }
 .dial-flag { font-size: 10px; font-weight: 700; fill: var(--danger); }
 .meter-readout {
@@ -548,6 +562,29 @@ body.is-drop-active .board-host {
   font-variant-numeric: tabular-nums;
 }
 .inspector-spacer { flex: 1; min-width: 4px; }
+/* 正负极互换 */
+.flip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(122, 146, 180, .3);
+  background: rgba(255, 255, 255, .82);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, color .16s ease;
+}
+.flip-btn:hover { border-color: var(--primary); color: var(--primary-dark); }
+.flip-btn.is-on {
+  background: rgba(42, 99, 232, .14);
+  border-color: rgba(42, 99, 232, .4);
+  color: var(--primary-dark);
+}
+.flip-btn:focus-visible { outline: none; box-shadow: var(--focus); }
 .chip-group { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .chip {
   min-height: 28px;
@@ -1155,11 +1192,12 @@ input[type="number"].slider-input {
 }
 .wire-flow {
   fill: none;
-  stroke: var(--accent, #f08a3c);
-  stroke-width: 3;
+  /* 固定用琥珀色：--accent 在各实验里是蓝色，会和导线同色看不见 */
+  stroke: #f08a3c;
+  stroke-width: 3.2;
   stroke-linecap: round;
   stroke-dasharray: 8 14;
-  opacity: .9;
+  opacity: .95;
   pointer-events: none;
   animation: flow-dash 1.2s linear infinite;
 }

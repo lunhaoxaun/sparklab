@@ -266,6 +266,97 @@
     App.openLab('lever', 'guided');
     ok('无动画的实验不显示倍速按钮', !document.querySelector('[data-speed="2"]'));
 
+    /* ---------- 8. 正负极一键互换（属性面板按钮 → 引擎 → 画布 / 表盘） ---------- */
+    App.openLab('sandbox', 'free');
+    var bd = App.state.board;
+    var bat = bd.addComponent('battery', 320, 300, { cells: 2 });
+    var amm = bd.addComponent('ammeter', 560, 300, { range: 3 });
+    var bul = bd.addComponent('bulb', 780, 300, {});
+    bd.setScene({
+      components: [bat, amm, bul],
+      wires: [
+        { id: 'tw1', from: { compId: bat.id, terminalId: 'pos' }, to: { compId: amm.id, terminalId: 'plus' } },
+        { id: 'tw2', from: { compId: amm.id, terminalId: 'minus' }, to: { compId: bul.id, terminalId: 'a' } },
+        { id: 'tw3', from: { compId: bul.id, terminalId: 'b' }, to: { compId: bat.id, terminalId: 'neg' } }
+      ]
+    });
+    App.sync();
+    bd.render();
+    var i0 = App.state.result.bulbs[bul.id].current;
+    ok('串联电路建立：灯泡有电流', Math.abs(i0) > 0.02, 'I=' + i0.toFixed(3));
+
+    var needle0 = document.querySelector('[data-needle="' + amm.id + '"]');
+    ok('仪表区渲染出指针节点', !!needle0);
+    App.sync();
+    var needle1 = document.querySelector('[data-needle="' + amm.id + '"]');
+    ok('非结构性变化复用同一个指针节点（不整块重建）', needle1 === needle0);
+
+    /* 换量程：指针角度要跟着变（结构重建属正常，量程按钮本身就在卡片里） */
+    var ang0 = needle1.style.transform;
+    bd.updateProps(amm.id, { range: 0.6 }, true);
+    App.sync();
+    bd.render();
+    var needle2 = document.querySelector('[data-needle="' + amm.id + '"]');
+    ok('换量程后指针角度改变', needle2.style.transform !== ang0, ang0 + ' → ' + needle2.style.transform);
+
+    bd.updateProps(amm.id, { range: 3 }, true);
+    App.sync();
+    bd.render();
+
+    /* 元件逐个比对：只换外观变了的那个节点 */
+    var batNode = document.querySelector('.comp[data-comp="' + bat.id + '"]');
+    var ammNode = document.querySelector('.comp[data-comp="' + amm.id + '"]');
+    var flowNode = document.querySelector('.wire-flow');
+    bd.updateProps(bat.id, { cells: 1 }, true);
+    App.sync();
+    bd.render();
+    ok('外观没变的元件节点被复用', document.querySelector('.comp[data-comp="' + bat.id + '"]') === batNode);
+    ok('读数变了的电表节点被替换', document.querySelector('.comp[data-comp="' + amm.id + '"]') !== ammNode);
+    ok('改电池节数后电表读数跟着变', Math.abs(App.state.result.meters[amm.id].value) > 0.1,
+      'I=' + App.state.result.meters[amm.id].value.toFixed(3));
+    var flowNow = document.querySelector('.wire-flow');
+    ok('电流线路径不变时只改速度、不重建节点', flowNow === flowNode && !!flowNode,
+      'before=' + (flowNode ? 'yes' : 'null') + ' now=' + (flowNow ? 'yes' : 'null') +
+      ' nodes=' + Object.keys(App.state.result.nodeLevels || {}).length +
+      ' batI=' + (Object.keys(App.state.result.batteries || {}).map(function (k) { return App.state.result.batteries[k].current.toFixed(3); }).join('/')) +
+      ' wires=' + bd.getScene().wires.length);
+
+    /* 属性面板的一键换向按钮 */
+    bd.options.onInspect(bat.id);
+    var flipBtn = document.getElementById('insp-flip');
+    ok('电池属性面板有「正负极互换」按钮', !!flipBtn && flipBtn.textContent.indexOf('正负极互换') !== -1,
+      flipBtn ? flipBtn.textContent.trim() : 'null');
+    var beforeI = App.state.result.bulbs[bul.id].current;
+    flipBtn.click();
+    bd.render();
+    var afterI = App.state.result.bulbs[bul.id].current;
+    ok('点按钮后电池换向：回路电流反向', near(afterI, -beforeI, 1e-9) && Math.abs(beforeI) > 0.02,
+      beforeI.toFixed(3) + ' → ' + afterI.toFixed(3));
+    ok('换向后属性面板按钮变成「还原」', document.getElementById('insp-flip').textContent.indexOf('已换向') !== -1);
+    var posTerm = document.querySelector('.terminal[data-comp="' + bat.id + '"][data-terminal="pos"]');
+    var negTerm = document.querySelector('.terminal[data-comp="' + bat.id + '"][data-terminal="neg"]');
+    ok('换向后接线柱 + − 标记互换',
+      posTerm.classList.contains('minus') && negTerm.classList.contains('plus'),
+      posTerm.getAttribute('class') + ' / ' + negTerm.getAttribute('class'));
+
+    /* 电流表换向：读数变负 → 表盘提示反接 */
+    bd.options.onInspect(amm.id);
+    var ammFlip = document.getElementById('insp-flip');
+    ok('电流表也有换向按钮', !!ammFlip);
+    var amBefore = App.state.result.meters[amm.id].value;
+    var revRowBefore = document.querySelector('[data-warn-rev="' + amm.id + '"]').hidden;
+    ok('电池换向后电流表指针已反偏（提示可见）', amBefore < 0 && revRowBefore === false,
+      'I=' + amBefore.toFixed(3));
+    ammFlip.click();
+    bd.render();
+    var am = App.state.result.meters[amm.id];
+    ok('电流表换向后读数符号翻转、反接提示消失',
+      near(am.value, -amBefore, 1e-9) && am.value > 0 && am.reversed === false && am.flipped === true,
+      amBefore.toFixed(3) + ' → ' + am.value.toFixed(3));
+    ok('表盘出现「已换向」标签',
+      !document.querySelector('[data-flip="' + amm.id + '"]').hidden &&
+      document.querySelector('[data-warn-rev="' + amm.id + '"]').hidden);
+
     flush();
     }
     if (document.readyState === 'complete') run();

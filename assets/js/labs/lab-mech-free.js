@@ -62,9 +62,11 @@
     });
   });
 
-  function currentLift() {
-    var rt = SL.labs.pulley && SL.labs.pulley.rt;
-    return rt ? rt.lift || 0 : 0;
+  function currentLift(values) {
+    var lab = SL.labs.pulley;
+    if (!lab) return 0;
+    if (lab.lift) return lab.lift(values || {});
+    return lab.rt ? lab.rt.lift || 0 : 0;
   }
 
   SL.labs['mech-free'] = {
@@ -144,9 +146,9 @@
       }
 
       if (v.device === 'pulley') {
-        var lift = currentLift();
+        var lift = currentLift(v);
         if (lift < 0.02) {
-          SL.toast('先把钩码提起来（拖动物体或点「播放」），再记录数据', 'warn');
+          SL.toast('先把「提升高度 h」调到 0.1 m 以上，再记录数据', 'warn');
           return null;
         }
         row.device = '滑轮组';
