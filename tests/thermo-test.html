@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>热学实验自测</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+  <link rel="stylesheet" href="../assets/css/lab.css">
+  <link rel="stylesheet" href="../assets/css/sim.css">
+  <style>
+    body { padding: 20px; font-family: ui-monospace, Consolas, monospace; }
+    .row { padding: 4px 0; font-size: 13px; }
+    .pass { color: #2fa36b; }
+    .fail { color: #e05252; }
+    .detail { color: #8aa0b6; margin-left: 10px; }
+    #summary { margin-top: 16px; font-size: 15px; font-weight: 700; }
+    #view-root { position: absolute; left: -9999px; top: 0; width: 1280px; }
+    #topbar { display: none; }
+  </style>
+</head>
+<body>
+  <h1>热学实验自测（水沸腾、比热容、自由实验室）</h1>
+  <div id="out"></div>
+  <div id="summary"></div>
+  <header class="topbar" id="topbar"></header>
+  <main class="view-root" id="view-root"></main>
+
+  <script src="../assets/icons/sprite.js"></script>
+  <script src="../assets/js/core/utils.js"></script>
+  <script src="../data/experiments.js"></script>
+  <script src="../assets/js/core/simkit.js"></script>
+  <script src="../assets/js/core/circuit.js"></script>
+  <script src="../assets/js/core/skins.js"></script>
+  <script src="../assets/js/core/board.js"></script>
+  <script src="../assets/js/core/meters.js"></script>
+  <script src="../assets/js/core/formula.js"></script>
+  <script src="../assets/js/core/records.js"></script>
+  <script src="../assets/js/sims/mech.js"></script>
+  <script src="../assets/js/sims/thermo.js"></script>
+  <script src="../assets/js/labs/lab-series.js"></script>
+  <script src="../assets/js/labs/lab-ohm-r.js"></script>
+  <script src="../assets/js/labs/lab-ohm-law.js"></script>
+  <script src="../assets/js/labs/lab-free.js"></script>
+  <script src="../assets/js/labs/lab-lever.js"></script>
+  <script src="../assets/js/labs/lab-pulley.js"></script>
+  <script src="../assets/js/labs/lab-buoyancy.js"></script>
+  <script src="../assets/js/labs/lab-mech-free.js"></script>
+  <script src="../assets/js/labs/lab-thermo-boiling.js"></script>
+  <script src="../assets/js/labs/lab-thermo-heatcap.js"></script>
+  <script src="../assets/js/labs/lab-thermo-free.js"></script>
+  <script src="../assets/js/ui/home.js"></script>
+  <script src="../assets/js/app.js"></script>
+
+  <script>
+  window.addEventListener('load', function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var total = 0, passed = 0;
+
+    function test(name, fn) {
+      total += 1;
+      var ok = false, detail = '';
+      try {
+        var res = fn();
+        ok = res === true || (res && res.ok);
+        if (res && res.detail) detail = res.detail;
+      } catch (e) {
+        detail = '异常：' + e.message;
+      }
+      if (ok) passed += 1;
+      var row = document.createElement('div');
+      row.className = 'row ' + (ok ? 'pass' : 'fail');
+      row.innerHTML = (ok ? 'PASS ' : 'FAIL ') + total + '. ' + name +
+        (detail ? '<span class="detail">' + detail + '</span>' : '');
+      out.appendChild(row);
+    }
+
+    function near(a, b, tol) { return Math.abs(a - b) <= tol; }
+    function ctxOf(id, values, rows) {
+      var l = SL.labs[id];
+      var v = Object.assign({}, l.defaults, values || {});
+      return { values: v, calc: l.calc(v), rows: rows || [], state: { allAnswered: false }, mode: 'guided' };
+    }
+
+    /* ---------- 一、水沸腾引擎 ---------- */
+    test('有效功率 = 额定功率 × 热效率（不盖盖 62%）', function () {
+      var p = SL.thermo.effectivePower({ power: 500, cover: false });
+      var pc = SL.thermo.effectivePower({ power: 500, cover: true });
+      return { ok: near(p, 310, 1e-9) && near(pc, 425, 1e-9), detail: p + ' / ' + pc };
+    });
+
+    test('100 g 水 500 W 加热到 100 ℃ 约 108 s（Q = mcΔT）', function () {
+      var rt = { t: 0, temp: 20, vapor: 0, heat: 0, maxTemp: 20, plateauT: 0 };
+      var first = null;
+      for (var i = 0; i < 400; i++) {
+        SL.thermo.tickBoiling(0.5, { power: 500, mass: 100, cover: false }, rt);
+        if (first == null && rt.temp >= 99.99) first = rt.t;
+      }
+      return { ok: first != null && near(first, 108.4, 10), detail: first == null ? '未沸腾' : first.toFixed(1) + ' s' };
+    });
+
+    test('沸腾后继续吸热，温度保持 100 ℃，汽化量增长', function () {
+      var rt = { t: 0, temp: 20, vapor: 0, heat: 0, maxTemp: 20, plateauT: 0 };
+      for (var i = 0; i < 300; i++) SL.thermo.tickBoiling(0.5, { power: 500, mass: 100, cover: false }, rt);
+      var c = SL.thermo.boiling({ power: 500, mass: 100, cover: false }, rt);
+      var vaporBefore = rt.vapor;
+      for (var k = 0; k < 10; k++) SL.thermo.tickBoiling(1, { power: 500, mass: 100, cover: false }, rt);
+      var c2 = SL.thermo.boiling({ power: 500, mass: 100, cover: false }, rt);
+      return { ok: c.temp === 100 && c2.temp === 100 && c2.vapor > vaporBefore,
+        detail: 'T=' + c2.temp + ' 汽化 ' + vaporBefore.toFixed(2) + '→' + c2.vapor.toFixed(2) + ' g' };
+    });
+
+    test('质量越大，加热到沸腾所需时间越长', function () {
+      function need(mass) {
+        var rt = { t: 0, temp: 20, vapor: 0, heat: 0, maxTemp: 20, plateauT: 0 };
+        for (var i = 0; i < 800; i++) {
+          SL.thermo.tickBoiling(0.5, { power: 500, mass: mass, cover: false }, rt);
+          if (rt.temp >= 99.99) return rt.t;
+        }
+        return Infinity;
+      }
+      var a = need(100), b = need(200);
+      return { ok: b > a * 1.8, detail: a.toFixed(1) + ' s / ' + b.toFixed(1) + ' s' };
+    });
+
+    test('比热容：相同质量与热源，食用油的 Δt 约为水的 2 倍', function () {
+      var rt = { t: 0, ta: 20, tb: 20 };
+      for (var i = 0; i < 20; i++) {
+        SL.thermo.tickHeatCapacity(1, { materialA: 'water', materialB: 'oil', mass: 100, power: 300 }, rt);
+      }
+      var c = SL.thermo.heatCapacity({ materialA: 'water', materialB: 'oil', mass: 100, power: 300 }, rt);
+      return { ok: near(c.ratio, 2, 0.03) && near(c.heatRatio, 0.5, 1e-9),
+        detail: 'ΔtA=' + c.dTA.toFixed(2) + ' ΔtB=' + c.dTB.toFixed(2) + ' 比=' + c.ratio.toFixed(2) };
+    });
+
+    test('冰在 0 ℃ 熔化平台，海波在 48 ℃ 熔化平台', function () {
+      function plateau(material) {
+        var values = { material: material, mass: 100, power: 500 };
+        var rt = { t: 0, temp: -10, melted: 0, heat: 0 };
+        for (var i = 0; i < 400; i++) {
+          SL.thermo.tickMelting(0.5, values, rt);
+          if (rt.melted > 0) break;
+        }
+        return SL.thermo.melting(values, rt);
+      }
+      var ice = plateau('ice');
+      var hypo = plateau('hypo');
+      return { ok: ice.temp === 0 && ice.progress > 0 && hypo.temp === 48 && hypo.progress > 0,
+        detail: '冰 ' + ice.temp + ' ℃ ' + ice.progress.toFixed(0) + '% / 海波 ' + hypo.temp + ' ℃ ' + hypo.progress.toFixed(0) + '%' };
+    });
+
+    /* ---------- 二、沸腾实验的引导判定 ---------- */
+    test('沸腾第 1 步：加热 20 s 后温度超过 30 ℃', function () {
+      var l = SL.labs['thermo-boiling'];
+      l.reset();
+      var v = { power: 500, mass: 100, cover: false };
+      for (var i = 0; i < 20; i++) l.onTick(1, { values: v, rows: [], state: {} });
+      var ctx = { values: v, calc: l.calc(v), rows: [], state: { allAnswered: false } };
+      return { ok: l.meta.steps[0].check(ctx) === true, detail: l.calc(v).temp.toFixed(1) + ' ℃' };
+    });
+
+    test('沸腾第 2、3 步：到 100 ℃ 后出现 ≥5 s 的温度平台', function () {
+      var l = SL.labs['thermo-boiling'];
+      l.reset();
+      var v = { power: 500, mass: 100, cover: false };
+      for (var i = 0; i < 130; i++) l.onTick(1, { values: v, rows: [], state: {} });
+      var ctx = { values: v, calc: l.calc(v), rows: [], state: { allAnswered: false } };
+      var c = ctx.calc;
+      return { ok: l.meta.steps[1].check(ctx) === true && l.meta.steps[2].check(ctx) === true,
+        detail: 'max=' + c.maxTemp + ' 平台=' + c.plateau.toFixed(1) + ' s' };
+    });
+
+    test('沸腾记录行含功率、质量、时间、温度、状态', function () {
+      var c = ctxOf('thermo-boiling', { power: 500, mass: 100 });
+      var row = SL.labs['thermo-boiling'].measure({ values: c.values, calc: c.calc, rows: [] });
+      return { ok: row && row.power === 500 && row.mass === 100 && row.temp >= 20 && typeof row.state === 'string',
+        detail: JSON.stringify(row) };
+    });
+
+    /* ---------- 三、热学自由实验室 ---------- */
+    test('热学自由实验室：3 套装置、3 套参数齐全', function () {
+      var free = SL.labs['thermo-free'];
+      var ids = free.freeDevices.map(function (d) { return d.id; });
+      return { ok: ids.length === 3 && ids.indexOf('melting') !== -1 && !!free.parts && !!free.parts.melting,
+        detail: ids.join(',') };
+    });
+
+    test('默认（水沸腾）只显示沸腾参数，不显示熔化材料', function () {
+      var free = SL.labs['thermo-free'];
+      var shown = free.controls.filter(function (d) { return !d.when || d.when(free.defaults); });
+      var keys = shown.map(function (d) { return d.key; });
+      return { ok: keys.indexOf('power') !== -1 && keys.indexOf('material') === -1,
+        detail: keys.join(',') };
+    });
+
+    test('三套装置 calc 都不抛错，measure 都返回通用记录行', function () {
+      var free = SL.labs['thermo-free'];
+      var bad = [];
+      ['thermo-boiling', 'thermo-heatcap', 'melting'].forEach(function (id) {
+        try {
+          var v = Object.assign({}, free.defaults, { device: id });
+          var c = free.calc(v);
+          var row = free.measure({ values: v, calc: c, rows: [], state: {} });
+          if (!row || !row.device || !row.result) bad.push(id);
+        } catch (e) {
+          bad.push(id + ':' + e.message);
+        }
+      });
+      return { ok: bad.length === 0, detail: bad.join(',') || '3/3 正常' };
+    });
+
+    test('热学板块已开放，3 个实验（2 教材 + 1 自由）', function () {
+      var sub = SL.data.subjectById['thermal'];
+      var labs = SL.data.labs.filter(function (l) { return l.subject === 'thermal'; });
+      var free = labs.filter(function (l) { return l.free; });
+      var allMeta = labs.every(function (l) {
+        return l.kind === 'sim' && l.name && l.short && l.accent && l.equipment && l.columns &&
+          (l.free ? l.steps.length === 0 : l.steps.length >= 4 && l.conclusions.length >= 3);
+      });
+      return { ok: sub.available === true && labs.length === 3 && free.length === 1 && allMeta,
+        detail: 'labs=' + labs.length + ' free=' + (free[0] && free[0].id) };
+    });
+
+    test('热学教材实验的引导步骤都带 check 函数', function () {
+      var bad = [];
+      ['thermo-boiling', 'thermo-heatcap'].forEach(function (id) {
+        SL.labs[id].meta.steps.forEach(function (s, i) {
+          if (typeof s.check !== 'function') bad.push(id + '#' + i);
+        });
+      });
+      return { ok: bad.length === 0, detail: bad.join(',') || '全部有 check' };
+    });
+
+    /* ---------- 四、界面渲染 ---------- */
+    test('打开水沸腾：控件、画布、读数、播放按钮、T–t 图', function () {
+      var App = SL.app;
+      App.openLab('thermo-boiling', 'guided');
+      var host = document.getElementById('controls-host');
+      var canvas = document.querySelector('.sim-canvas');
+      var meters = document.getElementById('meters-host');
+      var extra = document.getElementById('extra-host');
+      var okAll = !!host && host.children.length >= 3 &&
+        !!canvas && canvas.querySelectorAll('*').length > 20 &&
+        !!meters && meters.textContent.indexOf('水的温度') !== -1 &&
+        !!document.getElementById('sim-play-btn') &&
+        !!extra && extra.textContent.indexOf('温度—时间图像') !== -1;
+      return { ok: okAll, detail: (host ? host.children.length + ' 控件 / ' : '') +
+        (canvas ? canvas.querySelectorAll('*').length + ' 节点' : '') + (extra ? ' / 图像已渲染' : '') };
+    });
+
+    test('打开热学自由实验室：3 个装置按钮与自由说明', function () {
+      SL.app.openLab('thermo-free', 'free');
+      var host = document.getElementById('controls-host');
+      var guide = document.getElementById('guide-panel');
+      var text = (guide && guide.textContent) || '';
+      return { ok: !!host && host.textContent.indexOf('晶体熔化') !== -1 && text.indexOf('热学自由实验室') !== -1,
+        detail: host ? host.textContent.replace(/\s+/g, ' ').slice(0, 40) : 'null' };
+    });
+
+    var summary = document.getElementById('summary');
+    summary.textContent = (passed === total ? 'PASS ' : 'FAIL ') + passed + ' / ' + total;
+    summary.className = passed === total ? 'pass' : 'fail';
+    document.title = (passed === total ? 'PASS ' : 'FAIL ') + passed + '/' + total;
+    window.__testDone = true;
+  });
+  </script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>物理统一实验室自测</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+  <link rel="stylesheet" href="../assets/css/lab.css">
+  <link rel="stylesheet" href="../assets/css/sim.css">
+  <style>
+    body { padding: 20px; font-family: ui-monospace, Consolas, monospace; }
+    .row { padding: 4px 0; font-size: 13px; }
+    .pass { color: #2fa36b; }
+    .fail { color: #e05252; }
+    .detail { color: #8aa0b6; margin-left: 10px; }
+    #summary { margin-top: 16px; font-size: 15px; font-weight: 700; }
+    #view-root { position: absolute; left: -9999px; top: 0; width: 1280px; }
+    #topbar { display: none; }
+  </style>
+</head>
+<body>
+  <h1>物理统一实验室自测（力 / 热 / 光 委托 + 电学桥接）</h1>
+  <div id="out"></div>
+  <div id="summary"></div>
+  <header class="topbar" id="topbar"></header>
+  <main class="view-root" id="view-root"></main>
+
+  <script src="../assets/icons/sprite.js"></script>
+  <script src="../assets/js/core/utils.js"></script>
+  <script src="../data/experiments.js"></script>
+  <script src="../assets/js/core/simkit.js"></script>
+  <script src="../assets/js/core/circuit.js"></script>
+  <script src="../assets/js/core/skins.js"></script>
+  <script src="../assets/js/core/board.js"></script>
+  <script src="../assets/js/core/meters.js"></script>
+  <script src="../assets/js/core/formula.js"></script>
+  <script src="../assets/js/core/records.js"></script>
+  <script src="../assets/js/sims/mech.js"></script>
+  <script src="../assets/js/sims/thermo.js"></script>
+  <script src="../assets/js/sims/optics.js"></script>
+  <script src="../assets/js/labs/lab-series.js"></script>
+  <script src="../assets/js/labs/lab-ohm-r.js"></script>
+  <script src="../assets/js/labs/lab-ohm-law.js"></script>
+  <script src="../assets/js/labs/lab-free.js"></script>
+  <script src="../assets/js/labs/lab-lever.js"></script>
+  <script src="../assets/js/labs/lab-pulley.js"></script>
+  <script src="../assets/js/labs/lab-buoyancy.js"></script>
+  <script src="../assets/js/labs/lab-mech-free.js"></script>
+  <script src="../assets/js/labs/lab-thermo-boiling.js"></script>
+  <script src="../assets/js/labs/lab-thermo-heatcap.js"></script>
+  <script src="../assets/js/labs/lab-thermo-free.js"></script>
+  <script src="../assets/js/labs/lab-optics-reflection.js"></script>
+  <script src="../assets/js/labs/lab-optics-lens.js"></script>
+  <script src="../assets/js/labs/lab-optics-free.js"></script>
+  <script src="../assets/js/labs/lab-physics-free.js"></script>
+  <script src="../assets/js/ui/home.js"></script>
+  <script src="../assets/js/app.js"></script>
+
+  <script>
+  window.addEventListener('load', function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var total = 0, passed = 0;
+
+    function test(name, fn) {
+      total += 1;
+      var ok = false, detail = '';
+      try {
+        var res = fn();
+        ok = res === true || (res && res.ok);
+        if (res && res.detail) detail = res.detail;
+      } catch (e) {
+        detail = '异常：' + e.message;
+      }
+      if (ok) passed += 1;
+      var row = document.createElement('div');
+      row.className = 'row ' + (ok ? 'pass' : 'fail');
+      row.innerHTML = (ok ? 'PASS ' : 'FAIL ') + total + '. ' + name +
+        (detail ? '<span class="detail">' + detail + '</span>' : '');
+      out.appendChild(row);
+    }
+
+    var free = SL.labs['physics-free'];
+    var DEVICES = ['lever', 'pulley', 'buoyancy',
+      'thermo-boiling', 'thermo-heatcap', 'melting',
+      'optics-reflection', 'plane-mirror', 'optics-lens'];
+
+    /* ---------- 一、装置清单 ---------- */
+    test('物理 · 综合板块已开放，只有 1 个自由实验室', function () {
+      var sub = SL.data.subjectById['physics'];
+      var labs = SL.data.labs.filter(function (l) { return l.subject === 'physics'; });
+      return { ok: sub && sub.available === true && labs.length === 1 && labs[0].free === true,
+        detail: labs.map(function (l) { return l.id; }).join(',') };
+    });
+
+    test('统一装置清单 = 力 3 + 热 3 + 光 3 + 电学入口', function () {
+      var ids = free.freeDevices.map(function (d) { return d.value; });
+      return { ok: ids.length === 10 && ids.indexOf('electricity') !== -1 &&
+        DEVICES.every(function (id) { return ids.indexOf(id) !== -1; }), detail: ids.join(',') };
+    });
+
+    test('统一清单来自三个学科自由实验室（不是写死映射）', function () {
+      var groups = free.groups;
+      var total9 = groups.reduce(function (n, g) { return n + (g.freeDevices || []).length; }, 0);
+      return { ok: groups.length === 3 && total9 === 9 &&
+        groups[0].id === 'mech-free' && groups[1].id === 'thermo-free' && groups[2].id === 'optics-free',
+        detail: groups.map(function (g) { return g.id; }).join(' + ') };
+    });
+
+    test('默认装置为杠杆，且参数面板只显示杠杆参数', function () {
+      var shown = free.controls.filter(function (d) { return !d.when || d.when(free.defaults); });
+      var keys = shown.map(function (d) { return d.key; });
+      return { ok: free.defaults.device === 'lever' && keys.indexOf('leftArm') !== -1 &&
+        keys.indexOf('material') === -1 && keys.indexOf('focal') === -1, detail: keys.join(',') };
+    });
+
+    /* ---------- 二、九套装置委托 ---------- */
+    test('九套装置 calc 全部可算，且与学科自由实验室一致', function () {
+      var bad = [];
+      DEVICES.forEach(function (id) {
+        try {
+          var v = Object.assign({}, free.defaults, { device: id });
+          var a = free.calc(v);
+          var groupLab = free.groups.filter(function (g) {
+            return (g.freeDevices || []).some(function (d) { return d.id === id; });
+          })[0];
+          var b = groupLab.calc(v);
+          if (!a || !b) bad.push(id);
+        } catch (e) {
+          bad.push(id + ':' + e.message);
+        }
+      });
+      return { ok: bad.length === 0, detail: bad.join(',') || '9/9 委托正常' };
+    });
+
+    test('力学装置记录转发：杠杆返回“杠杆”行', function () {
+      var v = Object.assign({}, free.defaults, { device: 'lever', leftCount: 2, leftArm: 3, rightCount: 3, rightArm: 2 });
+      var row = free.measure({ values: v, calc: free.calc(v), rows: [], state: {} });
+      return { ok: row && row.device === '杠杆' && row.result.indexOf('平衡') === 0, detail: row && row.result };
+    });
+
+    test('热学装置记录转发：熔化返回“晶体熔化”行', function () {
+      var v = Object.assign({}, free.defaults, { device: 'melting' });
+      var row = free.measure({ values: v, calc: free.calc(v), rows: [], state: {} });
+      return { ok: row && row.device === '晶体熔化' && row.result.indexOf('温度') === 0, detail: row && row.result };
+    });
+
+    test('光学装置记录转发：平面镜返回“平面镜成像”行', function () {
+      var v = Object.assign({}, free.defaults, { device: 'plane-mirror' });
+      var row = free.measure({ values: v, calc: free.calc(v), rows: [], state: {} });
+      return { ok: row && row.device === '平面镜成像' && row.result.indexOf('像距') === 0, detail: row && row.result };
+    });
+
+    test('读数 / 提示 / 附加面板 都随装置切换', function () {
+      var vThermo = Object.assign({}, free.defaults, { device: 'thermo-boiling' });
+      var cThermo = free.calc(vThermo);
+      var ro = free.readouts(cThermo, vThermo);
+      var warn = free.warnings(cThermo, vThermo);
+      var vOptics = Object.assign({}, free.defaults, { device: 'optics-lens' });
+      var rules = document.createElement('div');
+      free.renderExtra(rules, [], vOptics);
+      return { ok: ro && ro.length >= 4 && ro[0].label === '水的温度' && warn.length >= 1 &&
+        rules.textContent.indexOf('凸透镜成像规律') !== -1,
+        detail: ro.length + ' 项读数 / ' + warn.length + ' 条提示' };
+    });
+
+    /* ---------- 三、电学桥接 ---------- */
+    test('电学装置：calc 返回桥接标记，measure 返回 null 不写脏数据', function () {
+      var v = Object.assign({}, free.defaults, { device: 'electricity' });
+      var c = free.calc(v);
+      var row = free.measure({ values: v, calc: c, rows: [], state: {} });
+      var ro = free.readouts(c, v);
+      return { ok: c.bridge === true && row === null && ro.length === 3 && ro[0].text.indexOf('电学') !== -1,
+        detail: 'bridge=' + c.bridge + ' row=' + row };
+    });
+
+    test('电学模式下显示“打开全自由电学实验室”入口按钮', function () {
+      var shown = free.controls.filter(function (d) { return !d.when || d.when({ device: 'electricity' }); });
+      var keys = shown.map(function (d) { return d.key; });
+      return { ok: keys.indexOf('openCircuit') !== -1 && keys.indexOf('leftArm') === -1, detail: keys.join(',') };
+    });
+
+    /* ---------- 四、界面渲染与切换 ---------- */
+    test('打开物理自由实验室：装置下拉、画布、读数', function () {
+      SL.app.openLab('physics-free', 'free');
+      var host = document.getElementById('controls-host');
+      var canvas = document.querySelector('.sim-canvas');
+      var meters = document.getElementById('meters-host');
+      var guide = document.getElementById('guide-panel');
+      return { ok: !!host && host.querySelector('select[data-ctrl="device"]') &&
+        !!canvas && canvas.querySelectorAll('*').length > 20 &&
+        !!meters && meters.textContent.indexOf('F₁') !== -1 &&
+        (guide.textContent || '').indexOf('物理自由实验室') !== -1,
+        detail: (host ? host.querySelector('select[data-ctrl="device"]').options.length + ' 个装置' : 'null') +
+          ' / ' + (canvas ? canvas.querySelectorAll('*').length + ' 节点' : 'null') };
+    });
+
+    function switchTo(id, label, canvasNeedle, metersNeedle, next) {
+      try {
+        SL.app.state.controls.set('device', id);
+      } catch (e) {
+        test('切换到 ' + label, function () { throw e; });
+        next();
+        return;
+      }
+      window.setTimeout(function () {
+        var canvas = document.querySelector('.sim-canvas');
+        var meters = document.getElementById('meters-host');
+        test('切换到 ' + label + '：画布与读数同步重建', function () {
+          return { ok: !!canvas && canvas.textContent.indexOf(canvasNeedle) !== -1 &&
+            !!meters && meters.textContent.indexOf(metersNeedle) !== -1,
+            detail: canvas ? canvas.textContent.replace(/\s+/g, ' ').slice(0, 30) : 'null' };
+        });
+        next();
+      }, 400);
+    }
+
+    switchTo('melting', '晶体熔化', '熔点', '熔化进度', function () {
+      switchTo('electricity', '电学实验', '电学实验使用独立电路引擎', '电学', function () {
+        var summary = document.getElementById('summary');
+        summary.textContent = (passed === total ? 'PASS ' : 'FAIL ') + passed + ' / ' + total;
+        summary.className = passed === total ? 'pass' : 'fail';
+        document.title = (passed === total ? 'PASS ' : 'FAIL ') + passed + '/' + total;
+        window.__testDone = true;
+      });
+    });
+  });
+  </script>
+</body>
+</html>

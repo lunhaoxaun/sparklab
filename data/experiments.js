@@ -23,15 +23,22 @@
         id: 'thermal',
         name: '物理 · 热学',
         icon: 'thermometer',
-        available: false,
-        desc: '物态变化、比热容（敬请期待）'
+        available: true,
+        desc: '物态变化、比热容'
       },
       {
         id: 'optics',
         name: '物理 · 光学',
         icon: 'lens',
-        available: false,
-        desc: '反射、折射、凸透镜（敬请期待）'
+        available: true,
+        desc: '反射、凸透镜成像'
+      },
+      {
+        id: 'physics',
+        name: '物理 · 综合',
+        icon: 'atom',
+        available: true,
+        desc: '电、力、热、光自由切换'
       },
       {
         id: 'chemistry',
@@ -595,6 +602,386 @@
           { icon: 'pulley', label: '滑轮组' },
           { icon: 'beaker', label: '烧杯与液体' },
           { icon: 'gauge', label: '弹簧测力计' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'device', label: '装置' },
+          { key: 'summary', label: '实验条件' },
+          { key: 'result', label: '主要读数' }
+        ],
+        steps: [],
+        conclusions: []
+      },
+
+      /* ==================== 热学 ==================== */
+      {
+        id: 'thermo-boiling',
+        subject: 'thermal',
+        kind: 'sim',
+        name: '探究水沸腾时温度变化的特点',
+        short: '用相同的热源给水加热，观察沸腾前后温度的变化，找出水的沸点与沸腾的条件。',
+        tag: '八年级 · 热学',
+        time: '约 16 分钟',
+        accent: '#c2410c',
+        equipment: [
+          { icon: 'thermometer', label: '温度计' },
+          { icon: 'flame', label: '电热器' },
+          { icon: 'beaker', label: '烧杯与水' },
+          { icon: 'ruler', label: '计时器' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'power', label: '功率 P/W' },
+          { key: 'mass', label: '水的质量/g' },
+          { key: 'time', label: '加热时间/s' },
+          { key: 'temp', label: '温度/℃', digits: 1 },
+          { key: 'state', label: '状态' }
+        ],
+        steps: [
+          {
+            title: '开始加热，观察升温',
+            instruction: '把加热功率调到 500 W 左右，点击左栏「播放」，观察水的温度怎样随时间升高。',
+            hint: '水在沸腾前，温度会一直升高。'
+          },
+          {
+            title: '加热到 100 ℃',
+            instruction: '继续加热，直到温度计的示数接近 100 ℃，观察水中开始出现大量气泡。',
+            hint: '标准气压下水的沸点是 100 ℃。'
+          },
+          {
+            title: '沸腾时继续加热',
+            instruction: '水沸腾后不要停止加热，观察温度计的示数是否继续升高。',
+            hint: '沸腾时继续吸热，但温度保持不变。'
+          },
+          {
+            title: '记录数据并归纳',
+            instruction: '至少记录两组不同时刻的数据，然后回答下方问题，归纳沸腾的特点与条件。',
+            hint: '比较沸腾前后温度的变化，再看温度—时间图像上的平台。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'tb1',
+            label: '水沸腾时继续吸热，温度',
+            suffix: '（填“升高”“降低”或“不变”）。',
+            type: 'keyword',
+            keywords: ['不变'],
+            reference: '不变。沸腾是剧烈的汽化现象，继续吸热但温度保持在沸点。'
+          },
+          {
+            id: 'tb2',
+            label: '标准气压下，水的沸点是',
+            suffix: '℃。',
+            type: 'number',
+            answer: 100,
+            tolerance: 2,
+            reference: '100 ℃。液体的沸点与气压有关，气压越低沸点越低。'
+          },
+          {
+            id: 'tb3',
+            label: '液体沸腾的条件是：温度达到沸点，并且继续',
+            suffix: '（填“吸热”或“放热”）。',
+            type: 'keyword',
+            keywords: ['吸热'],
+            reference: '吸热。达到沸点后若停止吸热，沸腾就会停止。'
+          }
+        ]
+      },
+
+      {
+        id: 'thermo-heatcap',
+        subject: 'thermal',
+        kind: 'sim',
+        name: '比较不同物质的吸热能力',
+        short: '用相同的热源给相同质量的水和食用油加热，比较它们升高的温度，认识比热容。',
+        tag: '八年级 · 热学',
+        time: '约 15 分钟',
+        accent: '#b45309',
+        equipment: [
+          { icon: 'beaker', label: '相同烧杯 ×2' },
+          { icon: 'flame', label: '相同热源' },
+          { icon: 'thermometer', label: '温度计 ×2' },
+          { icon: 'ruler', label: '天平' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'materialA', label: '物质 A' },
+          { key: 'materialB', label: '物质 B' },
+          { key: 'mass', label: '质量/g' },
+          { key: 'power', label: '功率/W' },
+          { key: 'time', label: '加热时间/s' },
+          { key: 'dTA', label: 'ΔtA /℃', digits: 1 },
+          { key: 'dTB', label: 'ΔtB /℃', digits: 1 },
+          { key: 'ratio', label: 'ΔtB/ΔtA', digits: 2 }
+        ],
+        steps: [
+          {
+            title: '设置相同的实验条件',
+            instruction: '两只烧杯装相同质量的水和食用油（默认 100 g），用相同的热源加热。',
+            hint: '只有质量与热源相同，升高的温度才能直接比较。'
+          },
+          {
+            title: '开始加热，比较升温快慢',
+            instruction: '点击「播放」，观察两支温度计的示数，哪一支升得更快？',
+            hint: '食用油的温度升得比水快。'
+          },
+          {
+            title: '记录相同时刻的温度',
+            instruction: '至少记录两组数据，比较相同加热时间内水和食用油升高的温度。',
+            hint: '相同时间内，食用油升高的温度约为水的 2 倍。'
+          },
+          {
+            title: '计算并归纳比热容',
+            instruction: '根据记录的数据回答下方问题，理解比热容的物理意义。',
+            hint: 'Q = cmΔt，水的比热容是 4.2×10³ J/(kg·℃)。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'hc1',
+            label: '相同质量的水和食用油升高相同的温度，水吸收的热量比食用油',
+            suffix: '（填“多”或“少”）。',
+            type: 'keyword',
+            keywords: ['多'],
+            reference: '多。水的比热容比食用油大，升高相同温度需要吸收更多热量。'
+          },
+          {
+            id: 'hc2',
+            label: '水的比热容约为 c水 =',
+            suffix: '×10³ J/(kg·℃)。',
+            type: 'number',
+            answer: 4.2,
+            tolerance: 0.1,
+            reference: '4.2×10³ J/(kg·℃)，表示 1 kg 水温度升高 1 ℃ 吸收 4.2×10³ J 的热量。'
+          },
+          {
+            id: 'hc3',
+            label: '比热容是物质的一种',
+            suffix: '（填“特性”或“状态”）。',
+            type: 'keyword',
+            keywords: ['特性', '属性'],
+            reference: '特性。不同物质的比热容一般不同，它反映物质吸热或放热的本领。'
+          }
+        ]
+      },
+
+      {
+        id: 'thermo-free',
+        subject: 'thermal',
+        kind: 'sim',
+        name: '热学自由实验室',
+        short: '水沸腾、比热容、晶体熔化三套装置随时切换，功率、质量、材料全部开放，无步骤、不限组数。',
+        tag: '自由实验 · 不限步骤',
+        time: '不限时',
+        accent: '#7c5cff',
+        free: true,
+        freeNote: '沸腾 / 比热容 / 熔化 随意切换 · 参数不限',
+        equipment: [
+          { icon: 'thermometer', label: '温度计' },
+          { icon: 'flame', label: '热源' },
+          { icon: 'beaker', label: '烧杯与试管' },
+          { icon: 'ruler', label: '计时器' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'device', label: '装置' },
+          { key: 'summary', label: '实验条件' },
+          { key: 'result', label: '主要读数' }
+        ],
+        steps: [],
+        conclusions: []
+      },
+
+      /* ==================== 光学 ==================== */
+      {
+        id: 'optics-reflection',
+        subject: 'optics',
+        kind: 'sim',
+        name: '探究光的反射规律',
+        short: '转动光屏改变入射角，测量入射角与反射角，再翻折光屏验证三线共面与光路可逆。',
+        tag: '八年级 · 光学',
+        time: '约 14 分钟',
+        accent: '#2563eb',
+        equipment: [
+          { icon: 'lens', label: '平面镜' },
+          { icon: 'ruler', label: '量角器与光屏' },
+          { icon: 'atom', label: '激光笔' },
+          { icon: 'settings', label: '可翻折光屏' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'incidence', label: '入射角 i/°' },
+          { key: 'reflection', label: '反射角 r/°' },
+          { key: 'deviation', label: 'i 与 r 夹角/°' },
+          { key: 'relation', label: '关系' }
+        ],
+        steps: [
+          {
+            title: '改变入射角',
+            instruction: '拖动「入射角」滑块，让激光从不同角度射到平面镜上的 O 点，观察反射光线的方向。',
+            hint: '入射角是入射光线与法线的夹角，不是与镜面的夹角。'
+          },
+          {
+            title: '读出入射角与反射角',
+            instruction: '读出每次的入射角 i 与反射角 r，点击「记录当前数据」，至少记录 3 组。',
+            hint: '量角器的零刻度线要对准法线。'
+          },
+          {
+            title: '翻折光屏验证三线共面',
+            instruction: '把光屏右半面向后翻折，观察反射光线是否还能出现在光屏上。',
+            hint: '翻折后看不到反射光线，说明三线在同一平面内。'
+          },
+          {
+            title: '归纳反射规律',
+            instruction: '根据记录的数据回答下方问题，归纳光的反射定律。',
+            hint: '比较每一组 i 与 r 的大小。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'or1',
+            label: '光反射时，反射角',
+            suffix: '（填“等于”“大于”或“小于”）入射角。',
+            type: 'keyword',
+            keywords: ['等于', '相等'],
+            reference: '等于。反射角等于入射角，即 r = i。'
+          },
+          {
+            id: 'or2',
+            label: '入射光线、反射光线和法线',
+            suffix: '（填“在”或“不在”）同一平面内。',
+            type: 'keyword',
+            keywords: ['在', '同一平面', '共面'],
+            reference: '在。翻折光屏后反射光线消失，证明三线共面。'
+          },
+          {
+            id: 'or3',
+            label: '让光线沿原反射光线方向射向镜面，反射光线会沿原入射光线方向射出，这说明光路是',
+            suffix: '（填“可逆”或“不可逆”）的。',
+            type: 'keyword',
+            keywords: ['可逆'],
+            reference: '可逆。反射时光路是可逆的。'
+          }
+        ]
+      },
+
+      {
+        id: 'optics-lens',
+        subject: 'optics',
+        kind: 'sim',
+        name: '探究凸透镜成像的规律',
+        short: '在光具座上改变物距，观察凸透镜成实像、虚像的条件，归纳 u 与 f 的关系。',
+        tag: '八年级 · 光学',
+        time: '约 18 分钟',
+        accent: '#0f766e',
+        equipment: [
+          { icon: 'lens', label: '凸透镜' },
+          { icon: 'ruler', label: '光具座' },
+          { icon: 'atom', label: '蜡烛 / LED 光源' },
+          { icon: 'settings', label: '光屏' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'focal', label: '焦距 f/cm' },
+          { key: 'u', label: '物距 u/cm' },
+          { key: 'v', label: '像距 v/cm', digits: 1 },
+          { key: 'magnification', label: '放大率', digits: 2 },
+          { key: 'imageNature', label: '像的性质' }
+        ],
+        steps: [
+          {
+            title: 'u > 2f：观察缩小的实像',
+            instruction: '保持焦距 f = 10 cm，把物距调到 30 cm（u > 2f），观察像的位置、大小和正倒。',
+            hint: 'u > 2f 时，像在 f 与 2f 之间，是倒立、缩小的实像。'
+          },
+          {
+            title: 'f < u < 2f：观察放大的实像',
+            instruction: '把物距调到 15 cm（f < u < 2f），观察像的位置、大小和正倒。',
+            hint: 'f < u < 2f 时，像在 2f 以外，是倒立、放大的实像。'
+          },
+          {
+            title: 'u < f：观察正立的虚像',
+            instruction: '把物距调到 6 cm（u < f），从透镜另一侧观察像，注意光屏上是否能看到像。',
+            hint: 'u < f 时成正立、放大的虚像，虚像不能用光屏承接。'
+          },
+          {
+            title: '记录数据并归纳',
+            instruction: '把三种情况分别记录，回答下方问题，归纳凸透镜成像规律。',
+            hint: '比较物距与 f、2f 的关系，再看像的性质。'
+          }
+        ],
+        conclusions: [
+          {
+            id: 'ol1',
+            label: '当 u > 2f 时，凸透镜成倒立、',
+            suffix: '（填“放大”“缩小”或“等大”）的实像。',
+            type: 'keyword',
+            keywords: ['缩小'],
+            reference: '缩小。照相机就是根据这一原理工作的。'
+          },
+          {
+            id: 'ol2',
+            label: '当 f < u < 2f 时，凸透镜成倒立、',
+            suffix: '（填“放大”或“缩小”）的实像。',
+            type: 'keyword',
+            keywords: ['放大'],
+            reference: '放大。投影仪、幻灯机根据这一原理工作。'
+          },
+          {
+            id: 'ol3',
+            label: '当 u < f 时，凸透镜成',
+            suffix: '（填“正立”或“倒立”）的虚像。',
+            type: 'keyword',
+            keywords: ['正立'],
+            reference: '正立、放大的虚像，放大镜就是根据这一原理工作的。'
+          }
+        ]
+      },
+
+      {
+        id: 'optics-free',
+        subject: 'optics',
+        kind: 'sim',
+        name: '光学自由实验室',
+        short: '光的反射、平面镜成像、凸透镜成像三套装置随时切换，入射角、物距、焦距全部开放。',
+        tag: '自由实验 · 不限步骤',
+        time: '不限时',
+        accent: '#7c5cff',
+        free: true,
+        freeNote: '反射 / 平面镜成像 / 凸透镜 随意切换',
+        equipment: [
+          { icon: 'lens', label: '透镜与平面镜' },
+          { icon: 'ruler', label: '光具座' },
+          { icon: 'atom', label: '光源' },
+          { icon: 'settings', label: '光屏' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'device', label: '装置' },
+          { key: 'summary', label: '实验条件' },
+          { key: 'result', label: '主要读数' }
+        ],
+        steps: [],
+        conclusions: []
+      },
+
+      /* ==================== 物理 · 综合 ==================== */
+      {
+        id: 'physics-free',
+        subject: 'physics',
+        kind: 'sim',
+        name: '物理自由实验室',
+        short: '电、力、热、光四科物理装置集中在一个实验台：杠杆、滑轮、浮力、沸腾、比热容、熔化、反射、平面镜、凸透镜随意切换，电学一键跳转。',
+        tag: '自由实验 · 不限步骤',
+        time: '不限时',
+        accent: '#7c5cff',
+        free: true,
+        freeNote: '电、力、热、光 装置合一 · 参数不限',
+        equipment: [
+          { icon: 'seesaw', label: '力学装置' },
+          { icon: 'thermometer', label: '热学装置' },
+          { icon: 'lens', label: '光学装置' },
+          { icon: 'circuit-battery', label: '电学入口' }
         ],
         columns: [
           { key: 'group', label: '组次' },

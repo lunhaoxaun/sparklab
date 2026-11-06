@@ -141,6 +141,8 @@
   function openLab(labId, mode) {
     var lab = SL.labs[labId];
     if (!lab) { SL.toast('实验不存在', 'warn'); return; }
+    if (app.clock) { app.clock.stop(); app.clock = null; }
+    if (app.simTimer) { clearTimeout(app.simTimer); app.simTimer = null; }
     app.lab = lab;
     app.kind = lab.kind || 'circuit';
     app.mode = lab.meta.free || mode === 'free' ? 'free' : 'guided';

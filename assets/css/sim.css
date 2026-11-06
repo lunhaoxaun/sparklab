@@ -422,6 +422,50 @@
 
 .chem-tag-no { fill: #b4573f; font-size: 12.5px; font-weight: 700; }
 
+/* ---------- 热学：加热—温度 ---------- */
+.thermo-heater-base { fill: #475569; }
+.thermo-coil { stroke-linecap: round; }
+.thermo-beaker { fill-opacity: .55; }
+.thermo-water { fill-opacity: .8; }
+.thermo-bubble { fill: rgba(255, 255, 255, .7); stroke: rgba(150, 200, 225, .8); stroke-width: 1; }
+.thermo-steam { fill: none; stroke: #e2e8f0; stroke-width: 2.2; opacity: .55; }
+.thermo-thermo { fill: #f8fbff; stroke: #9fb4c7; stroke-width: 1.4; }
+.thermo-thermo-fill { fill-opacity: .9; }
+.thermo-tick { fill: #8a9caf; font-size: 10.5px; }
+.thermo-label { fill: #5a6b83; font-size: 12px; font-weight: 600; }
+.thermo-badge-text { font-size: 13px; font-weight: 600; }
+.thermo-value { fill: #1f2d3d; font-size: 14px; }
+
+/* ---------- 光学：反射与凸透镜 ---------- */
+.optics-bench { fill: #cbd5e1; stroke: #94a3b8; stroke-width: 1; }
+.optics-mirror { fill: #94a3b8; stroke: #64748b; stroke-width: 1.2; }
+.optics-hatch { stroke: #b6c3d0; stroke-width: 1; }
+.optics-normal { stroke-dasharray: 6 5; }
+.optics-ray { stroke-linecap: round; }
+.optics-ray-reflected { stroke-linecap: round; }
+.optics-ray-virtual { stroke-dasharray: 6 5; stroke-linecap: round; }
+.optics-angle-arc { fill: none; stroke-width: 2; opacity: .65; }
+.optics-angle-label { font-size: 12.5px; font-weight: 700; }
+.optics-protractor { fill: none; stroke: #cbd5e1; stroke-width: 1.2; }
+.optics-lens { fill-opacity: .55; stroke: #3b82f6; stroke-width: 2; }
+.optics-lens-glint { fill: none; stroke: #60a5fa; stroke-width: 1.2; opacity: .55; }
+.optics-focus-label { fill: #0f766e; font-size: 12px; font-weight: 700; }
+.optics-object { stroke: #b45309; stroke-width: 3; }
+.optics-image { stroke: #0f766e; stroke-width: 3; }
+.optics-image-virtual { stroke: #0f766e; stroke-width: 2.4; }
+
+.lens-rule-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.lens-rule-table th,
+.lens-rule-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--line); }
+.lens-rule-table th { color: #5a6b83; font-weight: 600; font-size: 11.5px; }
+.lens-rule-table tr.active td { background: #ecfdf5; color: #0f766e; font-weight: 600; }
+.lens-rule-list { display: flex; flex-direction: column; gap: 7px; font-size: 12px; line-height: 1.6; color: #3b4a5c; }
+
+/* ---------- 物理 · 综合：电学桥接 ---------- */
+.physics-bridge-card { fill: #ffffff; stroke: #c7d2fe; stroke-width: 1.5; }
+.physics-bridge-title { font-size: 19px; font-weight: 700; }
+.physics-bridge-text { font-size: 13px; font-weight: 600; }
+
 /* ---------- 窄屏 ---------- */
 @media (max-width: 900px) {
   .sim-palette { position: static; }

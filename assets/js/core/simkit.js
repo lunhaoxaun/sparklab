@@ -432,6 +432,21 @@
     };
   }
 
+  /* ---------- 自由实验室：按装置给控件打 when ---------- */
+  function byDevice(device, defs) {
+    return (defs || []).map(function (def) {
+      var copy = {};
+      Object.keys(def).forEach(function (key) { copy[key] = def[key]; });
+      copy.when = function (values) { return values.device === device; };
+      return copy;
+    });
+  }
+
+  function onlyDevice(device, def) {
+    def.when = function (values) { return values.device === device; };
+    return def;
+  }
+
   SL.sim = {
     svgEl: svgEl,
     Stage: Stage,
@@ -440,6 +455,8 @@
     Clock: Clock,
     Readouts: Readouts,
     drag: drag,
-    niceTicks: niceTicks
+    niceTicks: niceTicks,
+    byDevice: byDevice,
+    onlyDevice: onlyDevice
   };
 })();

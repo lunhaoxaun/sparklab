@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>光学实验自测</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+  <link rel="stylesheet" href="../assets/css/lab.css">
+  <link rel="stylesheet" href="../assets/css/sim.css">
+  <style>
+    body { padding: 20px; font-family: ui-monospace, Consolas, monospace; }
+    .row { padding: 4px 0; font-size: 13px; }
+    .pass { color: #2fa36b; }
+    .fail { color: #e05252; }
+    .detail { color: #8aa0b6; margin-left: 10px; }
+    #summary { margin-top: 16px; font-size: 15px; font-weight: 700; }
+    #view-root { position: absolute; left: -9999px; top: 0; width: 1280px; }
+    #topbar { display: none; }
+  </style>
+</head>
+<body>
+  <h1>光学实验自测（光的反射、凸透镜成像、自由实验室）</h1>
+  <div id="out"></div>
+  <div id="summary"></div>
+  <header class="topbar" id="topbar"></header>
+  <main class="view-root" id="view-root"></main>
+
+  <script src="../assets/icons/sprite.js"></script>
+  <script src="../assets/js/core/utils.js"></script>
+  <script src="../data/experiments.js"></script>
+  <script src="../assets/js/core/simkit.js"></script>
+  <script src="../assets/js/core/circuit.js"></script>
+  <script src="../assets/js/core/skins.js"></script>
+  <script src="../assets/js/core/board.js"></script>
+  <script src="../assets/js/core/meters.js"></script>
+  <script src="../assets/js/core/formula.js"></script>
+  <script src="../assets/js/core/records.js"></script>
+  <script src="../assets/js/sims/mech.js"></script>
+  <script src="../assets/js/sims/optics.js"></script>
+  <script src="../assets/js/labs/lab-series.js"></script>
+  <script src="../assets/js/labs/lab-ohm-r.js"></script>
+  <script src="../assets/js/labs/lab-ohm-law.js"></script>
+  <script src="../assets/js/labs/lab-free.js"></script>
+  <script src="../assets/js/labs/lab-lever.js"></script>
+  <script src="../assets/js/labs/lab-pulley.js"></script>
+  <script src="../assets/js/labs/lab-buoyancy.js"></script>
+  <script src="../assets/js/labs/lab-mech-free.js"></script>
+  <script src="../assets/js/labs/lab-optics-reflection.js"></script>
+  <script src="../assets/js/labs/lab-optics-lens.js"></script>
+  <script src="../assets/js/labs/lab-optics-free.js"></script>
+  <script src="../assets/js/ui/home.js"></script>
+  <script src="../assets/js/app.js"></script>
+
+  <script>
+  window.addEventListener('load', function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var total = 0, passed = 0;
+
+    function test(name, fn) {
+      total += 1;
+      var ok = false, detail = '';
+      try {
+        var res = fn();
+        ok = res === true || (res && res.ok);
+        if (res && res.detail) detail = res.detail;
+      } catch (e) {
+        detail = '异常：' + e.message;
+      }
+      if (ok) passed += 1;
+      var row = document.createElement('div');
+      row.className = 'row ' + (ok ? 'pass' : 'fail');
+      row.innerHTML = (ok ? 'PASS ' : 'FAIL ') + total + '. ' + name +
+        (detail ? '<span class="detail">' + detail + '</span>' : '');
+      out.appendChild(row);
+    }
+
+    function near(a, b, tol) { return Math.abs(a - b) <= tol; }
+    function ctxOf(id, values, rows) {
+      var l = SL.labs[id];
+      var v = Object.assign({}, l.defaults, values || {});
+      return { values: v, calc: l.calc(v), rows: rows || [], state: { allAnswered: false }, mode: 'guided' };
+    }
+
+    /* ---------- 一、光的反射 ---------- */
+    test('反射角等于入射角：45° → r = 45°，夹角 90°', function () {
+      var c = SL.optics.reflection({ incidence: 45, fold: false });
+      return { ok: c.i === 45 && c.r === 45 && c.deviation === 90 && c.coplanar === true,
+        detail: 'i=' + c.i + ' r=' + c.r + ' 夹角=' + c.deviation };
+    });
+
+    test('入射角改变后反射角同步改变（20° / 60°）', function () {
+      var a = SL.optics.reflection({ incidence: 20 });
+      var b = SL.optics.reflection({ incidence: 60 });
+      return { ok: a.r === 20 && b.r === 60 && a.deviation === 140 && b.deviation === 60,
+        detail: a.deviation + '° / ' + b.deviation + '°' };
+    });
+
+    test('光屏翻折后反射光线不可见，三线不再共面', function () {
+      var folded = SL.optics.reflection({ incidence: 45, fold: true });
+      return { ok: folded.reflectedVisible === false && folded.coplanar === false,
+        detail: folded.text };
+    });
+
+    test('反射第 1 步要求改变过入射角，第 3 步要求翻折光屏', function () {
+      var l = SL.labs['optics-reflection'];
+      l.reset();
+      var ctx = ctxOf('optics-reflection', { incidence: 45, fold: false });
+      var before = l.meta.steps[0].check(ctx);
+      l.onParam('incidence', ctx);
+      var after = l.meta.steps[0].check(ctx);
+      var noFold = l.meta.steps[2].check(ctx);
+      l.onParam('fold', ctxOf('optics-reflection', { fold: true }));
+      var yesFold = l.meta.steps[2].check(ctx);
+      return { ok: before === false && after === true && noFold === false && yesFold === true,
+        detail: '改角 ' + before + '→' + after + ' 翻折 ' + noFold + '→' + yesFold };
+    });
+
+    test('反射记录行含入射角、反射角、夹角与关系', function () {
+      var c = ctxOf('optics-reflection', { incidence: 50 });
+      var row = SL.labs['optics-reflection'].measure({ values: c.values, calc: c.calc, rows: [] });
+      return { ok: row && row.incidence === 50 && row.reflection === 50 && row.relation === 'r = i',
+        detail: JSON.stringify(row) };
+    });
+
+    /* ---------- 二、平面镜成像 ---------- */
+    test('平面镜成像：像距 = 物距，像高 = 物高，正立等大虚像', function () {
+      var c = SL.optics.planeMirror({ distance: 15, height: 4 });
+      return { ok: c.u === 15 && c.v === 15 && c.imageH === 4 && c.sameSize === true && c.virtual === true,
+        detail: c.text };
+    });
+
+    /* ---------- 三、凸透镜成像 ---------- */
+    test('u > 2f：f=10 u=30 → v=15，倒立缩小实像，放大率 0.5', function () {
+      var c = SL.optics.lens({ focal: 10, u: 30, height: 4 });
+      return { ok: near(c.v, 15, 1e-9) && near(c.m, 0.5, 1e-9) && c.key === 'u>2f' &&
+        c.nature === '倒立、缩小的实像' && c.real === true,
+        detail: 'v=' + c.v + ' m=' + c.m + ' ' + c.nature };
+    });
+
+    test('u = 2f：f=10 u=20 → v=20，倒立等大实像', function () {
+      var c = SL.optics.lens({ focal: 10, u: 20, height: 4 });
+      return { ok: near(c.v, 20, 1e-9) && c.sameSize === true && c.key === 'u=2f',
+        detail: 'v=' + c.v + ' ' + c.nature };
+    });
+
+    test('f < u < 2f：f=10 u=15 → v=30，倒立放大实像', function () {
+      var c = SL.optics.lens({ focal: 10, u: 15, height: 4 });
+      return { ok: near(c.v, 30, 1e-9) && near(c.m, 2, 1e-9) && c.key === 'f<u<2f' && c.real === true,
+        detail: 'v=' + c.v + ' m=' + c.m };
+    });
+
+    test('u = f：不成像（折射光线平行射出）', function () {
+      var c = SL.optics.lens({ focal: 10, u: 10, height: 4 });
+      return { ok: c.noImage === true && c.v === null && c.key === 'u=f', detail: c.distanceText };
+    });
+
+    test('u < f：f=10 u=5 → 同侧正立放大虚像', function () {
+      var c = SL.optics.lens({ focal: 10, u: 5, height: 4 });
+      return { ok: near(c.v, -10, 1e-9) && c.upright === true && c.real === false && c.key === 'u<f',
+        detail: 'v=' + c.v + ' ' + c.nature };
+    });
+
+    test('五个成像区间的判定边界正确', function () {
+      var f = 10;
+      var keys = [21, 20, 15, 10, 5].map(function (u) { return SL.optics.classify(u, f, null).key; });
+      return { ok: keys.join(',') === 'u>2f,u=2f,f<u<2f,u=f,u<f', detail: keys.join(',') };
+    });
+
+    test('凸透镜第 1–3 步分别要求缩小实像、放大实像、虚像三类数据', function () {
+      var l = SL.labs['optics-lens'];
+      var small = [{ focal: 10, u: 30, magnification: 0.5, imageNature: '倒立、缩小的实像' }];
+      var big = small.concat([{ focal: 10, u: 15, magnification: 2, imageNature: '倒立、放大的实像' }]);
+      var virt = big.concat([{ focal: 10, u: 5, magnification: 2, imageNature: '正立、放大的虚像' }]);
+      return { ok: l.meta.steps[0].check({ rows: small, values: {}, state: {} }) === true &&
+        l.meta.steps[1].check({ rows: big, values: {}, state: {} }) === true &&
+        l.meta.steps[2].check({ rows: virt, values: {}, state: {} }) === true,
+        detail: '缩小/放大/虚像 判定均通过' };
+    });
+
+    test('凸透镜记录行：u=f 时像距记为“—”', function () {
+      var c = ctxOf('optics-lens', { focal: 10, u: 10 });
+      var row = SL.labs['optics-lens'].measure({ values: c.values, calc: c.calc, rows: [] });
+      return { ok: row && row.v === '—' && row.magnification === '—', detail: JSON.stringify(row) };
+    });
+
+    /* ---------- 四、光学自由实验室 ---------- */
+    test('光学自由实验室：3 套装置（反射 / 平面镜 / 凸透镜）', function () {
+      var free = SL.labs['optics-free'];
+      var ids = free.freeDevices.map(function (d) { return d.id; });
+      return { ok: ids.length === 3 && ids.indexOf('plane-mirror') !== -1 && !!free.parts['plane-mirror'],
+        detail: ids.join(',') };
+    });
+
+    test('默认（反射）只显示反射参数', function () {
+      var free = SL.labs['optics-free'];
+      var keys = free.controls.filter(function (d) { return !d.when || d.when(free.defaults); })
+        .map(function (d) { return d.key; });
+      return { ok: keys.indexOf('incidence') !== -1 && keys.indexOf('distance') === -1,
+        detail: keys.join(',') };
+    });
+
+    test('三套装置 calc 都不抛错，measure 都返回通用记录行', function () {
+      var free = SL.labs['optics-free'];
+      var bad = [], names = [];
+      ['optics-reflection', 'plane-mirror', 'optics-lens'].forEach(function (id) {
+        try {
+          var v = Object.assign({}, free.defaults, { device: id });
+          var c = free.calc(v);
+          var row = free.measure({ values: v, calc: c, rows: [], state: {} });
+          if (!row || !row.device || !row.result) bad.push(id);
+          else names.push(row.device);
+        } catch (e) {
+          bad.push(id + ':' + e.message);
+        }
+      });
+      return { ok: bad.length === 0 && names.indexOf('平面镜成像') !== -1,
+        detail: bad.join(',') || names.join(' / ') };
+    });
+
+    test('光学板块已开放，3 个实验（2 教材 + 1 自由）', function () {
+      var sub = SL.data.subjectById['optics'];
+      var labs = SL.data.labs.filter(function (l) { return l.subject === 'optics'; });
+      var free = labs.filter(function (l) { return l.free; });
+      var allMeta = labs.every(function (l) {
+        return l.kind === 'sim' && l.name && l.short && l.accent && l.equipment && l.columns &&
+          (l.free ? l.steps.length === 0 : l.steps.length >= 4 && l.conclusions.length >= 3);
+      });
+      return { ok: sub.available === true && labs.length === 3 && free.length === 1 && allMeta,
+        detail: 'labs=' + labs.length + ' free=' + (free[0] && free[0].id) };
+    });
+
+    test('反射与凸透镜实验的引导步骤都带 check 函数', function () {
+      var bad = [];
+      ['optics-reflection', 'optics-lens'].forEach(function (id) {
+        SL.labs[id].meta.steps.forEach(function (s, i) {
+          if (typeof s.check !== 'function') bad.push(id + '#' + i);
+        });
+      });
+      return { ok: bad.length === 0, detail: bad.join(',') || '全部有 check' };
+    });
+
+    /* ---------- 五、界面渲染 ---------- */
+    test('打开凸透镜成像：控件、画布、读数、规律表', function () {
+      var App = SL.app;
+      App.openLab('optics-lens', 'guided');
+      var host = document.getElementById('controls-host');
+      var canvas = document.querySelector('.sim-canvas');
+      var meters = document.getElementById('meters-host');
+      var extra = document.getElementById('extra-host');
+      var okAll = !!host && host.children.length >= 3 &&
+        !!canvas && canvas.querySelectorAll('*').length > 20 &&
+        !!meters && meters.textContent.indexOf('像距') !== -1 &&
+        !!extra && extra.textContent.indexOf('凸透镜成像规律') !== -1;
+      return { ok: okAll, detail: (host ? host.children.length + ' 控件 / ' : '') +
+        (canvas ? canvas.querySelectorAll('*').length + ' 节点' : '') + (extra ? ' / 规律表已渲染' : '') };
+    });
+
+    test('打开光学自由实验室：3 个装置按钮与自由说明', function () {
+      SL.app.openLab('optics-free', 'free');
+      var host = document.getElementById('controls-host');
+      var guide = document.getElementById('guide-panel');
+      var text = (guide && guide.textContent) || '';
+      return { ok: !!host && host.textContent.indexOf('平面镜成像') !== -1 && text.indexOf('光学自由实验室') !== -1,
+        detail: host ? host.textContent.replace(/\s+/g, ' ').slice(0, 40) : 'null' };
+    });
+
+    var summary = document.getElementById('summary');
+    summary.textContent = (passed === total ? 'PASS ' : 'FAIL ') + passed + ' / ' + total;
+    summary.className = passed === total ? 'pass' : 'fail';
+    document.title = (passed === total ? 'PASS ' : 'FAIL ') + passed + '/' + total;
+    window.__testDone = true;
+  });
+  </script>
+</body>
+</html>

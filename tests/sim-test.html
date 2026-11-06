@@ -32,6 +32,8 @@
   <script src="../assets/js/core/formula.js"></script>
   <script src="../assets/js/core/records.js"></script>
   <script src="../assets/js/sims/mech.js"></script>
+  <script src="../assets/js/sims/thermo.js"></script>
+  <script src="../assets/js/sims/optics.js"></script>
   <script src="../assets/js/labs/lab-series.js"></script>
   <script src="../assets/js/labs/lab-ohm-r.js"></script>
   <script src="../assets/js/labs/lab-ohm-law.js"></script>
@@ -40,6 +42,13 @@
   <script src="../assets/js/labs/lab-pulley.js"></script>
   <script src="../assets/js/labs/lab-buoyancy.js"></script>
   <script src="../assets/js/labs/lab-mech-free.js"></script>
+  <script src="../assets/js/labs/lab-thermo-boiling.js"></script>
+  <script src="../assets/js/labs/lab-thermo-heatcap.js"></script>
+  <script src="../assets/js/labs/lab-thermo-free.js"></script>
+  <script src="../assets/js/labs/lab-optics-reflection.js"></script>
+  <script src="../assets/js/labs/lab-optics-lens.js"></script>
+  <script src="../assets/js/labs/lab-optics-free.js"></script>
+  <script src="../assets/js/labs/lab-physics-free.js"></script>
   <script src="../assets/js/ui/home.js"></script>
   <script src="../assets/js/app.js"></script>
 
@@ -167,9 +176,20 @@
       return l.kind === 'sim' && l.columns.length >= 4 &&
         (l.free ? (l.steps.length === 0 && l.conclusions.length === 0) : (l.steps.length >= 4 && l.conclusions.length >= 3));
     }));
-    ok('热学/光学板块也预留给自由实验室位次', ['mechanics'].every(function (s) {
-      return SL.data.labs.some(function (l) { return l.subject === s && l.free; });
-    }), '力学已有 free 实验');
+    var thLabs = SL.data.labs.filter(function (l) { return l.subject === 'thermal'; });
+    var opLabs = SL.data.labs.filter(function (l) { return l.subject === 'optics'; });
+    var phLabs = SL.data.labs.filter(function (l) { return l.subject === 'physics'; });
+    ok('热学板块已开放：2 教材实验 + 1 自由实验室', thLabs.length === 3 &&
+      thLabs.filter(function (l) { return l.free; }).length === 1,
+      thLabs.map(function (l) { return l.id; }).join(','));
+    ok('光学板块已开放：2 教材实验 + 1 自由实验室', opLabs.length === 3 &&
+      opLabs.filter(function (l) { return l.free; }).length === 1,
+      opLabs.map(function (l) { return l.id; }).join(','));
+    ok('物理综合板块：1 个统一自由实验室', phLabs.length === 1 && phLabs[0].free === true &&
+      phLabs[0].id === 'physics-free', phLabs.map(function (l) { return l.id; }).join(','));
+    ok('统一实验室装置清单 = 力 3 + 热 3 + 光 3 + 电学入口',
+      SL.labs['physics-free'] && SL.labs['physics-free'].freeDevices.length === 10,
+      SL.labs['physics-free'] ? SL.labs['physics-free'].freeDevices.length + ' 项' : 'null');
 
     /* ---------- 4.5 力学自由实验室 ---------- */
     var freeLab = SL.labs['mech-free'];
@@ -236,8 +256,26 @@
       ok('hall 标题切换为力学', document.querySelector('.hall-head h2').textContent.indexOf('力学') !== -1,
         document.querySelector('.hall-head h2').textContent);
       var th = document.querySelector('[data-subject="thermal"]');
-      ok('热学板块未开放时按钮置灰并标“敬请期待”',
-        th.classList.contains('disabled') && th.textContent.indexOf('敬请期待') !== -1);
+      ok('热学板块已开放，按钮不再置灰', !!th && !th.classList.contains('disabled'));
+      th.click();
+      ok('切到热学后显示 3 个实验卡', document.querySelectorAll('.lab-card').length === 3,
+        document.querySelectorAll('.lab-card').length + ' 个');
+      ok('热学卡片含水沸腾与自由实验室',
+        document.querySelector('.lab-grid-home').textContent.indexOf('水沸腾') !== -1 &&
+        document.querySelector('.lab-grid-home').textContent.indexOf('自由实验室') !== -1);
+      var op = document.querySelector('[data-subject="optics"]');
+      ok('光学板块已开放，按钮不再置灰', !!op && !op.classList.contains('disabled'));
+      op.click();
+      ok('切到光学后显示 3 个实验卡', document.querySelectorAll('.lab-card').length === 3,
+        document.querySelectorAll('.lab-card').length + ' 个');
+      ok('光学卡片含凸透镜与自由实验室',
+        document.querySelector('.lab-grid-home').textContent.indexOf('凸透镜') !== -1 &&
+        document.querySelector('.lab-grid-home').textContent.indexOf('自由实验室') !== -1);
+      var ph = document.querySelector('[data-subject="physics"]');
+      ok('物理综合板块有入口按钮', !!ph);
+      ph.click();
+      ok('切到物理综合显示 1 个统一自由实验室', document.querySelectorAll('.lab-card').length === 1,
+        document.querySelectorAll('.lab-card').length + ' 个');
       /* 临时插入一个「已开放但还没有实验」的板块，验证占位提示仍然存在 */
       SL.data.subjects.push({ id: 'tmp-empty', name: '占位测试', icon: 'atom', available: true, desc: 'x' });
       SL.data.subjectById['tmp-empty'] = SL.data.subjects[SL.data.subjects.length - 1];

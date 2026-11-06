@@ -9,50 +9,36 @@
   var meta = SL.data.labsById['mech-free'];
 
   var DEVICES = ['lever', 'pulley', 'buoyancy'];
+  var FREE_DEVICES = [
+    { id: 'lever', label: '杠杆' },
+    { id: 'pulley', label: '滑轮组' },
+    { id: 'buoyancy', label: '浮力' }
+  ];
   var LIQUID_LABEL = { water: '水', salt: '盐水', alcohol: '酒精' };
   var SOLID_LABEL = { alu: '铝块', iron: '铁块', wood: '木块' };
 
   function mounted(values) { return SL.labs[values.device] || SL.labs.lever; }
 
-  /* 给某套装置的控件统一打上 when（只有选中该装置时才显示） */
-  function tagged(device, defs) {
-    return (defs || []).map(function (def) {
-      var copy = {};
-      Object.keys(def).forEach(function (key) { copy[key] = def[key]; });
-      copy.when = function (values) { return values.device === device; };
-      return copy;
-    });
-  }
-
-  function shownOnly(device, def) {
-    def.when = function (values) { return values.device === device; };
-    return def;
-  }
-
   var controls = [{
     key: 'device',
     label: '实验装置',
     type: 'buttons',
-    options: [
-      { value: 'lever', label: '杠杆' },
-      { value: 'pulley', label: '滑轮组' },
-      { value: 'buoyancy', label: '浮力' }
-    ],
+    options: FREE_DEVICES.map(function (d) { return { value: d.id, label: d.label }; }),
     note: '切换装置会换掉整套参数，已有记录仍在记录单里'
   }]
-    .concat(tagged('lever', SL.labs.lever.controls))
-    .concat([shownOnly('lever', {
+    .concat(SL.sim.byDevice('lever', SL.labs.lever.controls))
+    .concat([SL.sim.onlyDevice('lever', {
       key: 'hookMass', label: '单个钩码质量', type: 'buttons',
       options: [{ value: 25, label: '25 g' }, { value: 50, label: '50 g' }, { value: 100, label: '100 g' }],
       note: '钩码变重，两侧力矩同时变大，平衡条件不变'
     })])
-    .concat(tagged('pulley', SL.labs.pulley.controls))
-    .concat([shownOnly('pulley', {
+    .concat(SL.sim.byDevice('pulley', SL.labs.pulley.controls))
+    .concat([SL.sim.onlyDevice('pulley', {
       key: 'friction', label: '每段绳的摩擦阻力', type: 'range',
       min: 0, max: 0.12, step: 0.01, unit: 'N', digits: 2,
       note: '摩擦越大，额外功越多，机械效率越低'
     })])
-    .concat(tagged('buoyancy', SL.labs.buoyancy.controls));
+    .concat(SL.sim.byDevice('buoyancy', SL.labs.buoyancy.controls));
 
   var defaults = { device: 'lever' };
   DEVICES.forEach(function (id) {
@@ -76,6 +62,7 @@
     canvas: { w: 900, h: 520 },
     controls: controls,
     defaults: defaults,
+    freeDevices: FREE_DEVICES,
     rebuildOn: ['device'],
 
     freeGuide: {
