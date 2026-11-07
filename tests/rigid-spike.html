@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>刚体沙盒原型验证</title>
+  <style>
+    body { margin: 0; padding: 20px; font-family: ui-monospace, Consolas, monospace; background: #f7faff; }
+    h1 { font-size: 17px; margin: 0 0 12px; }
+    #out { font-size: 13px; line-height: 1.8; margin-bottom: 14px; }
+    .pass { color: #2fa36b; }
+    .fail { color: #e05252; }
+    .scenes { display: flex; gap: 12px; flex-wrap: wrap; }
+    canvas { background: #fff; border: 1px solid #dbe4ef; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>刚体沙盒原型：堆叠 / 天平倾斜 / 天平叠天平</h1>
+  <div id="out"></div>
+  <div class="scenes" id="scenes"></div>
+
+  <script src="../assets/js/vendor/matter.min.js"></script>
+  <script>
+  window.addEventListener('load', function () {
+    var M = window.Matter;
+    var out = document.getElementById('out');
+    var total = 0, passed = 0;
+    var lines = [];
+
+    function test(name, fn) {
+      total += 1;
+      var ok = false, detail = '';
+      try {
+        var res = fn();
+        ok = !!(res && res.ok);
+        detail = (res && res.detail) || '';
+      } catch (e) { detail = '异常：' + e.message; }
+      if (ok) passed += 1;
+      lines.push((ok ? 'PASS ' : 'FAIL ') + total + '. ' + name + (detail ? '  [' + detail + ']' : ''));
+    }
+    function finite(n) { return isFinite(n); }
+    function scene() {
+      var engine = M.Engine.create({ gravity: { x: 0, y: 1 } });
+      engine.positionIterations = 12;
+      engine.velocityIterations = 10;
+      engine.constraintIterations = 6;
+      return engine;
+    }
+    function step(engine, n) {
+      for (var i = 0; i < n; i++) M.Engine.update(engine, 1000 / 60);
+    }
+    function allFinite(bodies) {
+      return bodies.every(function (b) {
+        return finite(b.position.x) && finite(b.position.y) && finite(b.angle) && finite(b.velocity.x);
+      });
+    }
+
+    /* ---------- 1. 三箱堆叠 ---------- */
+    var engineA = scene();
+    var ground = M.Bodies.rectangle(260, 390, 460, 20, { isStatic: true, render: { fillStyle: '#c4cfdc' } });
+    var boxes = [350, 310, 270].map(function (y, i) {
+      return M.Bodies.rectangle(260, y, 40, 40, {
+        friction: 0.8, frictionStatic: 1, restitution: 0, density: 0.002,
+        render: { fillStyle: ['#6f9ed8', '#84b5e8', '#a2c9ef'][i] }
+      });
+    });
+    M.Composite.add(engineA.world, [ground].concat(boxes));
+    step(engineA, 600);
+    var drift = Math.max.apply(null, boxes.map(function (b) { return Math.abs(b.position.x - 260); }));
+    var ordered = boxes[0].position.y > boxes[1].position.y && boxes[1].position.y > boxes[2].position.y;
+    test('三箱堆叠 10 s 后顺序不变、水平漂移 < 2 px', function () {
+      return { ok: ordered && drift < 2 && allFinite(boxes) && boxes.every(function (b) { return b.speed < 0.5; }),
+        detail: 'drift=' + drift.toFixed(2) + ' px, y=' + boxes.map(function (b) { return b.position.y.toFixed(1); }).join('/') };
+    });
+
+    /* ---------- 天平构件 ----------
+       横梁是一根独立刚体，中心用零长度铰链固定在支架上；
+       两只托盘用点约束「挂」在横梁两端（bodyA=横梁，bodyB=托盘），
+       靠自身重力保持水平 —— 与真实托盘天平一致，砝码不会随横梁倾斜而滑落。
+       横梁下方加静态止挡柱，模拟机架限位：托盘下沉 12 px 即被托住（约 6° 上限）。 */
+    function makeBalance(engine, cx, pivotY, opts) {
+      opts = opts || {};
+      var arm = opts.arm || 120;
+      var beamH = opts.beamH || 8;
+      var panW = opts.panW || 100;
+      var panH = 10;
+      var hang = opts.hang == null ? 50 : opts.hang;
+      var beam = M.Bodies.rectangle(cx, pivotY, arm * 2, beamH, {
+        density: 0.0015, friction: 0.8, render: { fillStyle: '#5b6b80' }
+      });
+      M.Composite.add(engine.world, beam);
+      var bal = {
+        beam: beam, cx: cx, pivotY: pivotY, arm: arm, hang: hang, panH: panH,
+        panTopY: pivotY + hang - panH / 2, panL: null, panR: null, stops: [], links: []
+      };
+      bal.pivot = M.Constraint.create({
+        pointA: { x: cx, y: pivotY }, bodyB: beam, pointB: { x: 0, y: 0 },
+        length: 0, stiffness: 1, damping: 0.05
+      });
+      M.Composite.add(engine.world, bal.pivot);
+      [-1, 1].forEach(function (side) {
+        var pan = M.Bodies.rectangle(cx + side * arm, pivotY + hang, panW, panH, {
+          density: 0.002, friction: 0.9, render: { fillStyle: '#8fa6c0' }
+        });
+        /* 托盘挂在横梁端点：连接点随横梁转动，托盘靠重力保持水平 */
+        var link = M.Constraint.create({
+          bodyA: beam, pointA: { x: side * arm, y: 0 },
+          bodyB: pan, pointB: { x: 0, y: -hang },
+          length: 0, stiffness: 1, damping: 0.2
+        });
+        M.Composite.add(engine.world, [pan, link]);
+        bal.links.push(link);
+        if (side < 0) bal.panL = pan; else bal.panR = pan;
+      });
+      if (opts.stops !== false) {
+        var stopTop = pivotY + hang + panH / 2 + 12;
+        [-1, 1].forEach(function (side) {
+          var stop = M.Bodies.rectangle(cx + side * arm, stopTop + 5, panW - 10, 10, {
+            isStatic: true, friction: 0.5, render: { fillStyle: '#c8d2e0' }
+          });
+          bal.stops.push(stop);
+          M.Composite.add(engine.world, stop);
+        });
+      }
+      return bal;
+    }
+    function addWeight(engine, cx, surfaceY, w, h, density, color) {
+      var body = M.Bodies.rectangle(cx, surfaceY - h / 2, w, h, {
+        density: density, friction: 0.8, frictionStatic: 1, restitution: 0,
+        render: { fillStyle: color || '#e0a33e' }
+      });
+      M.Composite.add(engine.world, body);
+      return body;
+    }
+
+    /* ---------- 2. 天平受力倾斜 ---------- */
+    var engineB = scene();
+    var bal = makeBalance(engineB, 260, 120);
+    var heavy = addWeight(engineB, 140, bal.panTopY, 40, 34, 0.01, '#d9822b');
+    var light = addWeight(engineB, 380, bal.panTopY, 20, 20, 0.01, '#7fb36b');
+    step(engineB, 600);
+    var angleDeg = Math.abs(bal.beam.angle * 180 / Math.PI);
+    var leftLower = bal.panL.position.y > bal.panR.position.y;
+    test('天平加重后梁倾斜 3°–30°，重的一侧下沉', function () {
+      return { ok: angleDeg > 3 && angleDeg < 30 && leftLower && allFinite([bal.beam]),
+        detail: 'angle=' + angleDeg.toFixed(1) + '°, 左盘 y=' + bal.panL.position.y.toFixed(1) +
+          ', 右盘 y=' + bal.panR.position.y.toFixed(1) };
+    });
+
+    /* ---------- 3. 天平上再放天平 ----------
+       第二天平 = 一块底座（替代立柱）+ 横梁 + 悬挂托盘，整体放在第一天平左盘上。
+       右盘放等质量配重，使第一天平保持水平。 */
+    /* 第二天平必须整体落在「大盘以上、大横梁以下」的空隙里：
+       大盘面 165、大横梁底 124，可用高度约 41 px，所以底座做矮（56×20），
+       横梁抬到 141，托盘挂在 156，避免与大横梁/大盘穿模。 */
+    var engineC = scene();
+    var big = makeBalance(engineC, 260, 120);
+    var smallBase = M.Bodies.rectangle(140, big.panTopY - 10, 56, 20, {
+      density: 0.003, friction: 0.9, render: { fillStyle: '#7c5cff' }
+    });
+    M.Composite.add(engineC.world, smallBase);
+    var smallPivotY = big.panTopY - 24;      /* 梁底边离底座顶面 1 px */
+    var small = makeBalance(engineC, 140, smallPivotY, {
+      arm: 70, beamH: 6, panW: 60, hang: 15, stops: false
+    });
+    var hinge = M.Constraint.create({
+      bodyA: smallBase, pointA: { x: 140 - smallBase.position.x, y: smallPivotY - smallBase.position.y },
+      bodyB: small.beam, pointB: { x: 0, y: 0 },
+      length: 0, stiffness: 1, damping: 0.05
+    });
+    M.Composite.add(engineC.world, hinge);
+    /* 配重：与第二天平（底座 + 横梁 + 两只托盘）总质量相同 */
+    var smallMass = smallBase.mass + small.beam.mass + small.panL.mass + small.panR.mass;
+    addWeight(engineC, 380, big.panTopY, 40, 30, smallMass / (40 * 30), '#d9822b');
+
+    var contactAt120 = false, supportGap = null, bigAngleDeg = 0;
+    for (var i = 0; i < 900; i++) {
+      M.Engine.update(engineC, 1000 / 60);
+      if (i === 119) {
+        contactAt120 = Math.abs(smallBase.position.x - big.panL.position.x) < 22 &&
+          Math.abs((smallBase.position.y + 10) - (big.panL.position.y - 5)) < 4;
+      }
+      if (i === 899) {
+        supportGap = (big.panL.position.y - 5) - (smallBase.position.y + 10);
+        bigAngleDeg = big.beam.angle * 180 / Math.PI;
+      }
+    }
+    var bodiesC = [big.beam, big.panL, big.panR, smallBase, small.beam];
+    test('天平叠天平：第二天平被左盘托住、不穿透、无 NaN', function () {
+      return { ok: contactAt120 && finite(supportGap) && supportGap < 40 && supportGap > -8 &&
+        allFinite(bodiesC) && Math.abs(big.beam.angle) < 0.6,
+        detail: '120 步接触=' + contactAt120 + ', 最终间隙=' + (finite(supportGap) ? supportGap.toFixed(1) : 'NaN') +
+          ' px, 大梁角=' + bigAngleDeg.toFixed(1) + '°, 小梁角=' + (small.beam.angle * 180 / Math.PI).toFixed(1) + '°' };
+    });
+
+    /* ---------- 4. 性能下限 ---------- */
+    var engineD = scene();
+    var floorD = M.Bodies.rectangle(450, 690, 880, 20, { isStatic: true });
+    var pile = [];
+    for (var p = 0; p < 25; p++) {
+      pile.push(M.Bodies.rectangle(450 + (p % 5) * 4, 660 - Math.floor(p / 5) * 34, 32, 32, { density: 0.002 }));
+    }
+    M.Composite.add(engineD.world, [floorD].concat(pile));
+    var perfMs = performance.now();
+    step(engineD, 600);
+    perfMs = performance.now() - perfMs;
+    test('25 个刚体 × 600 步同步求解 < 800 ms', function () {
+      return { ok: perfMs < 800 && allFinite(pile), detail: perfMs.toFixed(0) + ' ms' };
+    });
+
+    /* ---------- 渲染三帧 ----------
+       注意：不能把已运行过的 engine 传进 Render.create（会深拷贝循环引用导致栈溢出），
+       先创建渲染器再挂 engine。 */
+    [[engineA, '堆叠'], [engineB, '天平倾斜'], [engineC, '天平叠天平']].forEach(function (item) {
+      try {
+        var box = document.createElement('div');
+        var render = M.Render.create({
+          options: { width: 520, height: 420, wireframes: false, background: '#ffffff', pixelRatio: 1 }
+        });
+        render.engine = item[0];
+        box.appendChild(render.canvas);
+        box.appendChild(document.createTextNode(item[1]));
+        document.getElementById('scenes').appendChild(box);
+        M.Render.world(render);
+      } catch (e) {
+        lines.push('FAIL 渲染 ' + item[1] + '：' + e.message);
+      }
+    });
+
+    out.innerHTML = lines.map(function (l) {
+      return '<div class="' + (l.indexOf('PASS') === 0 ? 'pass' : 'fail') + '">' + l + '</div>';
+    }).join('');
+    document.title = (passed === total ? 'PASS ' : 'FAIL ') + passed + '/' + total;
+  });
+  </script>
+</body>
+</html>
