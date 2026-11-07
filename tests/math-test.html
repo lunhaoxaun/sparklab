@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>数学绘图器引擎自测</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+  <style>
+    body { font-family: var(--font); background: #eef2f9; color: var(--ink); padding: 20px; }
+    h1 { font-size: 16px; margin: 0 0 10px; }
+    #out { font: 12.5px/1.75 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
+    .pass { color: #1a7a4f; }
+    .fail { color: #c0392b; font-weight: 700; }
+    #summary { margin-top: 14px; font-size: 15px; font-weight: 700; }
+    /* 离屏容器仍保留 400×300 的布局尺寸，渲染器靠 parent.clientWidth/Height 取画布大小 */
+    #host { position: absolute; left: -9999px; top: 0; width: 420px; height: 320px; }
+    #stagewrap { width: 400px; height: 300px; }
+    #stagewrap canvas { width: 100%; height: 100%; display: block; }
+  </style>
+</head>
+<body>
+  <h1>数学绘图器自测（表达式 · 几何 · 判断脚本 · 视口 · 渲染 · 帮助页）</h1>
+  <div id="out">运行中…</div>
+  <div id="summary"></div>
+  <div id="host"></div>
+
+  <script src="../assets/js/core/utils.js"></script>
+  <script src="../assets/js/math/expr.js"></script>
+  <script src="../assets/js/math/geometry.js"></script>
+  <script src="../assets/js/math/script.js"></script>
+  <script src="../assets/js/math/help.js"></script>
+  <script src="../assets/js/math/render.js"></script>
+  <script>
+  (function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var summary = document.getElementById('summary');
+    var lines = [];
+    var pass = 0, fail = 0;
+
+    function esc(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function ok(name, cond, detail) {
+      if (cond) { pass += 1; lines.push('PASS  ' + name + (detail ? '  [' + detail + ']' : '')); }
+      else { fail += 1; lines.push('FAIL  ' + name + (detail ? '  [' + detail + ']' : '')); }
+    }
+    function near(a, b, tol) { return typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= (tol == null ? 1e-9 : tol); }
+    function num(n) { return typeof n === 'number' && !isNaN(n); }
+    function flush() {
+      out.innerHTML = lines.map(function (l) {
+        return '<span class="' + (l.indexOf('PASS') === 0 ? 'pass' : 'fail') + '">' + esc(l) + '</span>';
+      }).join('\n') + '\n\n合计：' + pass + ' 通过 / ' + fail + ' 失败';
+      summary.textContent = fail ? (fail + ' 项失败') : (pass + ' 项全部通过');
+      document.title = fail ? 'FAIL ' + fail : 'PASS ' + pass + '/' + (pass + fail);
+      window.__testDone = true;
+    }
+
+    function run() {
+      var E = SL.math.expr, G = SL.math.geometry, S = SL.math.script,
+          H = SL.math.help, R = SL.math.render;
+
+      ok('六个数学模块都已导出', !!(E && G && S && H && R && R.create),
+        'expr=' + !!E + ' geometry=' + !!G + ' script=' + !!S + ' help=' + !!H + ' render=' + !!R);
+
+      /* ================= 一、表达式引擎 ================= */
+      function ev(src, x, params) {
+        var c = E.compile(src);
+        return c.ok ? c.eval(x, params || {}) : NaN;
+      }
+      ok('表达式 x^2-2x+1 @2 = 1', near(ev('x^2-2x+1', 2), 1), String(ev('x^2-2x+1', 2)));
+      ok('表达式 2x 隐式乘法 @3 = 6', near(ev('2x', 3), 6), String(ev('2x', 3)));
+      ok('表达式 3(x+1) @2 = 9', near(ev('3(x+1)', 2), 9), String(ev('3(x+1)', 2)));
+      ok('表达式 (x+1)(x-1) @3 = 8', near(ev('(x+1)(x-1)', 3), 8), String(ev('(x+1)(x-1)', 3)));
+      ok('表达式 2^3^2 = 512（^ 右结合）', near(ev('2^3^2', 0), 512), String(ev('2^3^2', 0)));
+      ok('表达式 -2^2 = -4（一元负号低于幂）', near(ev('-2^2', 0), -4), String(ev('-2^2', 0)));
+      ok('表达式 sin(pi/2) ≈ 1（弧度）', near(ev('sin(pi/2)', 0), 1, 1e-9), String(ev('sin(pi/2)', 0)));
+      ok('表达式 sind(30) ≈ 0.5（角度）', near(ev('sind(30)', 0), 0.5, 1e-9), String(ev('sind(30)', 0)));
+      var cParam = E.compile('a*x+b');
+      ok('表达式 a*x+b 的 freeVars 含 a、b 且不含 x',
+        cParam.ok && cParam.freeVars.indexOf('a') >= 0 && cParam.freeVars.indexOf('b') >= 0 &&
+        cParam.freeVars.indexOf('x') < 0, JSON.stringify(cParam.freeVars));
+      ok('带参数求值 a*x+b @4 (a=2,b=3) = 11', near(cParam.eval(4, { a: 2, b: 3 }), 11),
+        String(cParam.eval(4, { a: 2, b: 3 })));
+      var bad = E.compile('1+');
+      ok("表达式 '1+' 编译失败且 error 带 line/col",
+        bad.ok === false && !!bad.error && num(bad.error.line) && num(bad.error.col),
+        bad.error ? (bad.error.message + ' @' + bad.error.line + ':' + bad.error.col) : 'ok=true');
+      ok('表达式 sqrt(-1) = NaN（定义域外）', isNaN(ev('sqrt(-1)', 0)), String(ev('sqrt(-1)', 0)));
+
+      /* ================= 二、几何对象模型 ================= */
+      function scene() { return G.defaultScene(); }
+      function pts(s, list) {
+        return list.map(function (p) { return G.addPoint(s, p[0], p[1]); });
+      }
+      function countType(s, t) {
+        return s.objects.filter(function (o) { return o.type === t; }).length;
+      }
+
+      var s1 = scene();
+      var q1 = pts(s1, [[0, 0], [1, 1], [0, 1], [1, 0]]);
+      var l1 = G.addLine(s1, q1[0].id, q1[1].id);
+      var l2 = G.addLine(s1, q1[2].id, q1[3].id);
+      var x1 = G.addIntersection(s1, l1.id, l2.id, 0);
+      G.recompute(s1);
+      ok('几何 线-线交点 = (0.5, 0.5)，标签 X 前缀',
+        near(x1.x, 0.5) && near(x1.y, 0.5) && /^X\d+$/.test(x1.label),
+        '(' + x1.x + ',' + x1.y + ') label=' + x1.label);
+
+      var s2 = scene();
+      var q2 = pts(s2, [[0, 0], [1, 0], [0, 1], [1, 1]]);
+      var p1 = G.addLine(s2, q2[0].id, q2[1].id);
+      var p2 = G.addLine(s2, q2[2].id, q2[3].id);
+      var xp = G.addIntersection(s2, p1.id, p2.id, 0);
+      ok('几何 平行线无交点（NaN）', isNaN(xp.x) && isNaN(xp.y), 'x=' + xp.x + ' y=' + xp.y);
+
+      var s3 = scene();
+      var q3 = pts(s3, [[0, 0], [2, 0], [-3, 0], [3, 0]]);
+      var cir3 = G.addCircle(s3, q3[0].id, q3[1].id);
+      var lin3 = G.addLine(s3, q3[2].id, q3[3].id);
+      var c0 = G.addIntersection(s3, lin3.id, cir3.id, 0);
+      var c0b = G.addIntersection(s3, lin3.id, cir3.id, 1);
+      ok('几何 线-圆两个交点 index 0/1 = (-2,0) / (2,0)',
+        near(c0.x, -2) && near(c0.y, 0) && near(c0b.x, 2) && near(c0b.y, 0),
+        'i0=(' + c0.x + ',' + c0.y + ') i1=(' + c0b.x + ',' + c0b.y + ') labels=' + c0.label + ',' + c0b.label);
+
+      var s4 = scene();
+      var q4 = pts(s4, [[0, 0], [1, 0], [2, 0]]);
+      var cc1 = G.addCircle(s4, q4[0].id, q4[1].id);
+      var cc2 = G.addCircle(s4, q4[1].id, q4[2].id);
+      var y0 = G.addIntersection(s4, cc1.id, cc2.id, 0);
+      var y1 = G.addIntersection(s4, cc1.id, cc2.id, 1);
+      ok('几何 圆-圆两交点 y ≈ ±0.8660254、x = 0.5',
+        near(y0.x, 0.5) && near(Math.abs(y0.y), 0.8660254, 1e-6) &&
+        near(y1.x, 0.5) && near(Math.abs(y1.y), 0.8660254, 1e-6) && y0.y * y1.y < 0,
+        'i0=(' + y0.x + ',' + y0.y + ') i1=(' + y1.x + ',' + y1.y + ')');
+
+      var s5 = scene();
+      var q5 = pts(s5, [[0, 0], [1, 0], [2, -1], [2, 1]]);
+      var g1 = G.addSegment(s5, q5[0].id, q5[1].id);
+      var g2 = G.addSegment(s5, q5[2].id, q5[3].id);
+      var xg = G.addIntersection(s5, g1.id, g2.id, 0);
+      ok('几何 线段范围过滤（延长线交点不算）返回 NaN', isNaN(xg.x) && isNaN(xg.y),
+        'x=' + xg.x + ' y=' + xg.y);
+
+      var s6 = scene();
+      var q6 = pts(s6, [[0, 0], [4, 2]]);
+      var mid = G.addMidpoint(s6, q6[0].id, q6[1].id);
+      ok('几何 中点 = (2, 1)，标签 M 前缀',
+        near(mid.x, 2) && near(mid.y, 1) && /^M\d+$/.test(mid.label),
+        '(' + mid.x + ',' + mid.y + ') label=' + mid.label);
+
+      var s7 = scene();
+      var q7 = pts(s7, [[0, 0], [1, 2], [3, 1]]);
+      var ref = G.addSegment(s7, q7[0].id, q7[1].id);
+      var perp = G.addPerpendicular(s7, q7[2].id, ref.id);
+      var para = G.addParallel(s7, q7[2].id, ref.id);
+      var mp = G.measure(perp, s7), mq = G.measure(para, s7);
+      ok('几何 垂线斜率 -0.5 / 平行线斜率 2',
+        near(mp.slope, -0.5) && near(mq.slope, 2),
+        'perp=' + mp.slope + ' parallel=' + mq.slope);
+
+      var s8 = scene();
+      var q8 = pts(s8, [[0, 0], [4, 0], [0, 3]]);
+      var poly = G.addPolygon(s8, [q8[0].id, q8[1].id, q8[2].id]);
+      var m8 = G.measure(poly, s8);
+      ok('几何 三角形面积 6、周长 12', near(m8.area, 6) && near(m8.perimeter, 12),
+        'area=' + m8.area + ' perimeter=' + m8.perimeter);
+
+      var s9 = scene();
+      var q9 = pts(s9, [[0, 0], [3, 4]]);
+      var seg9 = G.addSegment(s9, q9[0].id, q9[1].id);
+      var len0 = G.measure(seg9, s9).length;
+      G.setProp(q9[1], 'x', 6, s9);
+      G.recompute(s9);
+      var len1 = G.measure(seg9, s9).length;
+      ok('几何 移动自由点后线段长度重算 5 → √52',
+        near(len0, 5) && len1 > len0 && near(len1, Math.sqrt(52), 1e-9),
+        'before=' + len0 + ' after=' + len1);
+
+      var s10 = scene();
+      var q10 = pts(s10, [[0, 0], [2, 0], [0, 2]]);
+      G.addSegment(s10, q10[0].id, q10[1].id);
+      G.addMidpoint(s10, q10[0].id, q10[1].id);
+      G.addPolygon(s10, [q10[0].id, q10[1].id, q10[2].id]);
+      var removed = G.removeObject(s10, q10[0].id);
+      ok('几何 删除点 A 级联清掉线段/中点/多边形，保留 B、C',
+        removed.length >= 4 && countType(s10, 'point') === 2 &&
+        countType(s10, 'segment') === 0 && countType(s10, 'midpoint') === 0 &&
+        countType(s10, 'polygon') === 0,
+        'removed=' + removed.length + ' 剩余点=' + countType(s10, 'point'));
+
+      /* ================= 三、C++ 判断脚本 ================= */
+      var BC = { name: 'BC', type: 'segment', num: 1, color: '#000000', length: 5, slope: 0.75, visible: true, ok: false, msg: '' };
+      var A = { name: 'A', type: 'point', x: 0, y: 0 };
+      var B = { name: 'B', type: 'point', x: 3, y: 4 };
+      var C = { name: 'C', type: 'point', x: 3, y: 0 };
+      var OBJ = { BC: BC, A: A, B: B, C: C };
+      var RO = { name: 1, type: 1, length: 1, slope: 1 };
+      function proxy(d, readonly) {
+        return {
+          get: function (p) { return Object.prototype.hasOwnProperty.call(d, p) ? d[p] : undefined; },
+          set: function (p, v) {
+            if (readonly[p]) throw new Error('属性只读: ' + p);
+            if (!Object.prototype.hasOwnProperty.call(d, p)) throw new Error('对象没有属性: ' + p);
+            d[p] = v;
+          },
+          call: function (m) { throw new Error('对象没有方法: ' + m); }
+        };
+      }
+      var bridge = {
+        resolve: function (n) { return OBJ[n] ? proxy(OBJ[n], RO) : undefined; },
+        isObjectName: function (n) { return !!OBJ[n]; }
+      };
+      function runS(src, opts) { return S.run(src, bridge, opts); }
+
+      var r1 = runS('int n = 2; if (n == 2) { pass("ok"); } else { fail("no"); }');
+      ok('脚本 int/if/else → pass("ok")', r1.ok && r1.results.length === 1 && r1.results[0].kind === 'pass',
+        'ok=' + r1.ok + ' results=' + JSON.stringify(r1.results));
+
+      var r2 = runS('double s=0; for(int i=1;i<=5;i++){ s+=i; } print(s);');
+      ok('脚本 for 求和 = 15（print 输出）',
+        r2.ok && r2.logs.length === 1 && r2.logs[0].level === 'print' && r2.logs[0].text === '15',
+        JSON.stringify(r2.logs));
+
+      var r3a = runS('while (false) {}');
+      var r3b = runS('while (true) {}', { maxLoop: 200 });
+      ok('脚本 while(false) 正常结束；while(true) 触发循环预算',
+        r3a.ok === true && r3b.ok === false && !!r3b.error &&
+        r3b.error.message.indexOf('循环次数') >= 0 && num(r3b.error.line),
+        'false→ok=' + r3a.ok + '；true→' + (r3b.error && r3b.error.message));
+
+      BC.num = 1; BC.color = '#000000';
+      var r4 = runS('BC.num = 2; BC.color = "red";');
+      ok('脚本 写入 BC.num / BC.color 并读回代理',
+        r4.ok && BC.num === 2 && BC.color === 'red' && proxy(BC, RO).get('color') === 'red',
+        'num=' + BC.num + ' color=' + BC.color);
+
+      BC.color = '#000000'; BC.num = 2;
+      var r5 = runS('if (BC.num == 2) BC.color = "red";');
+      ok('脚本 用户原始示例 if (BC.num == 2) BC.color = "red"; 生效',
+        r5.ok && BC.color === 'red', 'ok=' + r5.ok + ' color=' + BC.color);
+
+      var r6 = runS('print(near(0.1+0.2, 0.3));');
+      ok('脚本 near(0.1+0.2, 0.3) = true',
+        r6.ok && r6.logs.length === 1 && r6.logs[0].text === 'true', JSON.stringify(r6.logs));
+
+      var r7 = runS('Foo.x = 1;');
+      ok('脚本 未定义对象 Foo 报错且带 line/col',
+        r7.ok === false && !!r7.error && num(r7.error.line) && num(r7.error.col) &&
+        r7.error.message.indexOf('Foo') >= 0,
+        r7.error ? (r7.error.message + ' @' + r7.error.line + ':' + r7.error.col) : 'ok=true');
+
+      var r8 = runS('BC.name = "X";');
+      ok('脚本 只读属性写入被拒绝（代理抛错转成 run 错误）',
+        r8.ok === false && !!r8.error && BC.name === 'BC',
+        r8.error ? r8.error.message : 'ok=true');
+
+      /* ================= 四、视口变换 ================= */
+      var host = document.getElementById('host');
+      var wrap = document.createElement('div');
+      wrap.id = 'stagewrap';
+      var canvas = document.createElement('canvas');
+      wrap.appendChild(canvas);
+      host.appendChild(wrap);
+
+      var vs = G.defaultScene();
+      vs.view = { cx: 0, cy: 0, pxPerUnit: 48 };
+      vs.expressions = [{ id: 'e1', name: 'f', expr: 'x^2-2x-1', color: '#2a63e8', visible: true }];
+      var vp = pts(vs, [[-2, 0], [2, 1], [0, 3]]);
+      G.addSegment(vs, vp[0].id, vp[1].id);
+      G.addCircle(vs, vp[0].id, vp[1].id);
+      G.addPolygon(vs, [vp[0].id, vp[1].id, vp[2].id]);
+      var renderer = R.create(canvas, vs, vs.view);
+      var resizeErr = null;
+      try { renderer.resize(); } catch (e) { resizeErr = e.message; }
+      ok('视口 400×300 容器 resize 成功，DPR 位图尺寸正确',
+        !resizeErr && canvas.width === Math.round(400 * (window.devicePixelRatio || 1)) &&
+        canvas.height === Math.round(300 * (window.devicePixelRatio || 1)),
+        resizeErr || ('canvas=' + canvas.width + 'x' + canvas.height + ' dpr=' + (window.devicePixelRatio || 1)));
+
+      var o = renderer.toScreen(0, 0);
+      ok('视口 toScreen(0,0) 为画布中心 (200,150)', near(o.x, 200) && near(o.y, 150),
+        '(' + o.x + ',' + o.y + ')');
+
+      var sp = renderer.toScreen(1.5, -2.5);
+      var back = renderer.toWorld(sp.x, sp.y);
+      ok('视口 toWorld(toScreen(1.5,-2.5)) 往返误差 < 1e-6',
+        near(back.x, 1.5, 1e-6) && near(back.y, -2.5, 1e-6),
+        '(' + back.x + ',' + back.y + ')');
+
+      var w0 = renderer.toWorld(260, 90);
+      renderer.zoomAt(260, 90, 1.75);
+      var w1 = renderer.toWorld(260, 90);
+      ok('视口 zoomAt(260,90,1.75) 后光标世界坐标不变',
+        near(w0.x, w1.x, 1e-6) && near(w0.y, w1.y, 1e-6) && near(vs.view.pxPerUnit, 84),
+        'before=(' + w0.x + ',' + w0.y + ') after=(' + w1.x + ',' + w1.y + ') scale=' + vs.view.pxPerUnit);
+
+      /* ================= 五、渲染与命中 ================= */
+      var drawErr = null;
+      try { renderer.draw(); renderer.fit(); renderer.draw(); } catch (e) { drawErr = e.message; }
+      ok('渲染 默认场景（曲线+点+线段+圆+多边形）draw()/fit() 不抛异常',
+        !drawErr && vs.objects.length === 6, drawErr || ('objects=' + vs.objects.length));
+
+      var at = renderer.toScreen(vp[0].x, vp[0].y);
+      var hit = renderer.pick(at.x, at.y);
+      var miss = renderer.pick(2, 2);
+      ok('渲染 pick 命中点 A，空白角落返回 null',
+        !!hit && hit.kind === 'point' && hit.id === vp[0].id && !miss,
+        'hit=' + JSON.stringify(hit) + ' miss=' + JSON.stringify(miss));
+
+      /* ================= 六、帮助页 ================= */
+      ok('帮助 QUICKREF_HTML 非空且含运算符/函数速查',
+        typeof H.QUICKREF_HTML === 'string' && H.QUICKREF_HTML.length > 200 &&
+        H.QUICKREF_HTML.indexOf('near') >= 0,
+        'len=' + (H.QUICKREF_HTML || '').length);
+
+      var dlg = H.open();
+      var overlay = document.querySelector('.modal-overlay');
+      ok('帮助 open() 生成 .modal-overlay 并返回 close',
+        !!dlg && !!overlay && typeof dlg.close === 'function' &&
+        dlg.body.querySelectorAll('details').length === 10,
+        'overlay=' + !!overlay + ' sections=' + (dlg ? dlg.body.querySelectorAll('details').length : 0));
+      if (dlg && typeof dlg.close === 'function') dlg.close();
+
+      /* SL.modal 的 close 有 180ms 退场动画，等它移除遮罩后再收尾 */
+      window.setTimeout(function () {
+        ok('帮助 关闭后 .modal-overlay 已移除', !document.querySelector('.modal-overlay'),
+          'remaining=' + document.querySelectorAll('.modal-overlay').length);
+        renderer.destroy();
+        flush();
+      }, 260);
+    }
+
+    try { run(); }
+    catch (e) {
+      ok('测试脚本未抛出未捕获异常', false, (e && e.message) + ' | ' + ((e && e.stack) || '').split('\n').slice(0, 3).join(' / '));
+      flush();
+    }
+  })();
+  </script>
+</body>
+</html>

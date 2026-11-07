@@ -33,7 +33,8 @@
     calcMode: 'row',
     calcEditing: null,
     syncTimer: null,
-    keyHandler: null
+    keyHandler: null,
+    math: null
   };
 
   /* 器材库分组：按「电源 → 控制 → 用电器 → 仪表」的教学顺序排布 */
@@ -97,6 +98,7 @@
 
   /* ---------- 首页 ---------- */
   function showHome() {
+    disposeMath();
     app.view = 'home';
     app.lab = null;
     app.board = null;
@@ -123,6 +125,7 @@
   }
 
   function saveProgress() {
+    if (app.kind === 'math') return;   /* 数学工作台自己用 SL.KEYS.math 存场景 */
     if (!app.lab) return;
     var all = SL.storage.get(SL.KEYS.progress, {});
     if (!all || typeof all !== 'object') all = {};
@@ -147,6 +150,7 @@
     if (app.clock) { app.clock.stop(); app.clock = null; }
     if (app.simTimer) { clearTimeout(app.simTimer); app.simTimer = null; }
     disposeRigid();
+    disposeMath();                 /* 切换实验前先收掉数学工作台的事件/画布 */
     app.lab = lab;
     app.kind = lab.kind || 'circuit';
     app.mode = lab.meta.free || mode === 'free' ? 'free' : 'guided';
@@ -203,7 +207,24 @@
     document.addEventListener('keydown', app.keyHandler);
   }
 
+  /* ---------- 数学绘图器（S6） ----------
+     工作台完全由 SL.math.lab 自己构建 DOM / 画布 / 事件；实验壳只负责挂载、
+     在切换与离开时先 save 再 destroy，其余引导/记录/读数逻辑一律不参与。 */
+  function renderMathLab() {
+    var host = root();
+    host.innerHTML = '';
+    app.math = SL.math.lab.mount(host, { lab: app.lab, onLeave: leaveLab });
+  }
+
+  function disposeMath() {
+    if (app.math) {
+      app.math.destroy();
+      app.math = null;
+    }
+  }
+
   function renderLab() {
+    if (app.kind === 'math') { renderMathLab(); return; }
     if (app.kind === 'sim') { renderSimLab(); return; }
     if (app.kind === 'rigid') { renderRigidLab(); return; }
     if (app.kind === 'combo') { renderComboLab(); return; }
@@ -2724,6 +2745,7 @@
   function onKeydown(e) {
     var tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (app.kind === 'math') return;   /* 数学工作台自己处理 Esc / Delete 等快捷键 */
     if (app.kind === 'rigid') {
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
@@ -2815,6 +2837,7 @@
   }
 
   function leaveLab() {
+    if (app.math) { app.math.save(); disposeMath(); }
     saveProgress();
     if (app.syncTimer) { clearTimeout(app.syncTimer); app.syncTimer = null; }
     if (syncTailTimer) { clearTimeout(syncTailTimer); syncTailTimer = null; }

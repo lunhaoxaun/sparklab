@@ -1,0 +1,621 @@
+/* ==========================================================
+   数学绘图器 · 工作台样式（math.css）
+   版式：左 300px（函数 / 几何工具 / 对象列表）
+         中 auto（工具条 + Canvas + 状态条）
+         右 380px（参数 / 属性 / C++ 判断脚本）
+   说明：只作用于 .math-* 与 .expr-* / .geom-* / .obj-* / .param-*
+         / .prop-* / .script-* / .judge-* 等本页命名空间，
+         全局 .btn / .panel / --ink 等来自 main.css，不重复定义。
+   ========================================================== */
+
+/* ---------- 页面框架 ---------- */
+.math-view {
+  max-width: 1720px;
+  margin: 0 auto;
+  padding: 16px 20px 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  --accent: var(--primary);
+}
+
+.math-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px 10px 10px;
+  border-radius: var(--radius);
+  background: linear-gradient(158deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .5));
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow), var(--shadow-in);
+}
+.math-head-main { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.math-head h1 {
+  font-size: clamp(16px, 1.5vw, 20px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.math-tag {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--primary-dark);
+  background: rgba(255, 255, 255, .78);
+  border: 1px solid rgba(255, 255, 255, .92);
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+}
+.math-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- 三栏 ---------- */
+.math-body {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 380px;
+  gap: 16px;
+  align-items: start;
+}
+.math-left,
+.math-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.math-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* 左/右栏里的面板比实验台更紧凑 */
+.math-left .panel,
+.math-side .panel { padding: 12px 13px; }
+.math-left .panel-head,
+.math-side .panel-head { margin-bottom: 8px; }
+.math-panel-hint {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+
+/* ---------- 画布区 ---------- */
+.math-canvas-wrap {
+  position: relative;
+  width: 100%;
+  height: clamp(420px, 64vh, 760px);
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--glass-edge);
+  background: #fbfcff;
+  box-shadow: var(--shadow), var(--shadow-in);
+  touch-action: none;
+}
+.math-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+.math-canvas.is-grab { cursor: grab; }
+.math-canvas.is-panning { cursor: grabbing; }
+.math-canvas.is-pointing { cursor: pointer; }
+
+.math-stagebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 7px 12px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .66);
+  border: 1px solid rgba(255, 255, 255, .9);
+  box-shadow: 0 1px 3px rgba(16, 34, 62, .06), inset 0 1px 0 #fff;
+  font-size: 12px;
+  color: var(--muted);
+}
+.math-coord {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  min-width: 150px;
+}
+.math-stagebar .zoom-pct {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--primary-dark);
+  font-weight: 600;
+}
+.math-zoom-btns { display: inline-flex; gap: 2px; }
+.math-zoom-btns .tool-btn { min-width: 28px; justify-content: center; }
+
+/* ---------- 工具条 ---------- */
+.math-tools {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+  padding: 5px 6px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .66);
+  border: 1px solid rgba(255, 255, 255, .9);
+  box-shadow: 0 1px 3px rgba(16, 34, 62, .07), inset 0 1px 0 #fff;
+}
+.math-tools .tool-btn {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: 600 12px/1 var(--font);
+  cursor: pointer;
+  transition: background .14s ease, color .14s ease, box-shadow .14s ease;
+}
+.math-tools .tool-btn:hover { background: rgba(255, 255, 255, .96); color: var(--ink); }
+.math-tools .tool-btn.is-active {
+  background: rgba(42, 99, 232, .14);
+  color: var(--primary-dark);
+  box-shadow: inset 0 0 0 1px rgba(42, 99, 232, .2);
+}
+.math-tools .tool-btn:disabled { opacity: .42; cursor: not-allowed; }
+.math-tools .tool-btn:focus-visible { outline: none; box-shadow: var(--focus); }
+.math-tools .tool-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: rgba(122, 146, 180, .28);
+}
+
+/* ---------- 函数输入与列表 ---------- */
+.expr-input { display: flex; gap: 6px; }
+.expr-input input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .9);
+  color: var(--ink);
+  font: 13px/1.4 var(--mono);
+}
+.expr-input input::placeholder { color: var(--faint); }
+.expr-input input:focus {
+  outline: none;
+  border-color: rgba(42, 99, 232, .5);
+  box-shadow: var(--focus);
+}
+.expr-input .btn { flex: none; }
+
+.expr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  max-height: 216px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.expr-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, .55);
+  cursor: pointer;
+  transition: background .14s ease, border-color .14s ease;
+}
+.expr-item:hover { background: rgba(255, 255, 255, .92); }
+.expr-item.is-active {
+  border-color: rgba(42, 99, 232, .32);
+  background: rgba(42, 99, 232, .07);
+}
+.expr-item.is-off .expr-body,
+.expr-item.is-off .expr-name { opacity: .45; }
+.expr-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .9);
+}
+.expr-name {
+  flex: none;
+  font: 600 12px/1.3 var(--mono);
+  color: var(--primary-dark);
+}
+.expr-body {
+  flex: 1;
+  min-width: 0;
+  font: 12px/1.4 var(--mono);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.expr-actions { display: flex; gap: 1px; flex: none; }
+
+/* 小图标按钮（显示开关 / 删除 / 颜色） */
+.math-icon-btn {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+  transition: background .14s ease, color .14s ease;
+}
+.math-icon-btn:hover { background: rgba(42, 99, 232, .1); color: var(--primary-dark); }
+.math-icon-btn.is-off { color: #b6c2d2; }
+.math-icon-btn.is-danger:hover { background: var(--danger-soft); color: var(--danger); }
+.math-icon-btn:focus-visible { outline: none; box-shadow: var(--focus); }
+
+/* ---------- 几何工具网格 ---------- */
+.geom-tools {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.geom-tools .tool-btn {
+  min-height: 32px;
+  padding: 0 6px;
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .66);
+  color: var(--muted);
+  font: 600 12px/1 var(--font);
+  cursor: pointer;
+  transition: all .14s ease;
+}
+.geom-tools .tool-btn:hover {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 2px 8px -4px rgba(16, 34, 62, .5);
+}
+.geom-tools .tool-btn.is-active {
+  background: rgba(42, 99, 232, .14);
+  border-color: rgba(42, 99, 232, .3);
+  color: var(--primary-dark);
+}
+.geom-tools .tool-btn:focus-visible { outline: none; box-shadow: var(--focus); }
+
+/* ---------- 对象列表 ---------- */
+.obj-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-top: 8px;
+}
+.obj-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 7px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: background .14s ease, border-color .14s ease;
+}
+.obj-item:hover { background: rgba(255, 255, 255, .9); }
+.obj-item.is-active {
+  border-color: rgba(42, 99, 232, .3);
+  background: rgba(42, 99, 232, .07);
+}
+.obj-item.is-hidden .obj-label,
+.obj-item.is-hidden .obj-type { opacity: .45; }
+.obj-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .9);
+}
+.obj-label {
+  min-width: 0;
+  font: 600 12px/1.4 var(--mono);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.obj-type {
+  font-size: 11px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.obj-actions { display: flex; gap: 1px; }
+
+.math-empty {
+  margin: 6px 0 0;
+  padding: 12px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 11px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+/* ---------- 参数区 ---------- */
+.param-list { display: flex; flex-direction: column; gap: 8px; }
+.param-row {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) 58px;
+  align-items: center;
+  gap: 8px;
+}
+.param-name {
+  font: 600 12px/1.4 var(--mono);
+  color: var(--primary-dark);
+}
+.param-slider {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.param-slider:focus-visible { outline: none; box-shadow: var(--focus); border-radius: 6px; }
+.param-value {
+  text-align: right;
+  font: 12px/1.4 var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.param-value input {
+  width: 100%;
+  height: 26px;
+  padding: 0 4px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .9);
+  color: var(--ink);
+  font: 12px/1 var(--mono);
+  text-align: right;
+}
+.param-value input:focus {
+  outline: none;
+  border-color: rgba(42, 99, 232, .5);
+  box-shadow: var(--focus);
+}
+
+/* ---------- 属性区 ---------- */
+.prop-grid {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 6px 10px;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.prop-key { color: var(--muted); font-size: 12px; }
+.prop-val {
+  min-width: 0;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prop-val.is-readonly { color: var(--faint); }
+.prop-input,
+.prop-select {
+  width: 100%;
+  height: 28px;
+  padding: 0 7px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .92);
+  color: var(--ink);
+  font: 12px/1 var(--mono);
+}
+.prop-select { font-family: var(--font); }
+.prop-input:focus,
+.prop-select:focus {
+  outline: none;
+  border-color: rgba(42, 99, 232, .5);
+  box-shadow: var(--focus);
+}
+.prop-color {
+  width: 100%;
+  height: 28px;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .92);
+  cursor: pointer;
+}
+
+/* ---------- 脚本区 ---------- */
+.script-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.script-toolbar .btn { flex: none; }
+.script-auto {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.script-auto input { accent-color: var(--primary); }
+
+.script-editor {
+  display: block;
+  width: 100%;
+  min-height: 180px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #f7f9fd;
+  color: var(--ink);
+  font: 12.5px/1.65 var(--mono);
+  tab-size: 2;
+  resize: vertical;
+}
+.script-editor::placeholder { color: var(--faint); }
+.script-editor:focus {
+  outline: none;
+  border-color: rgba(42, 99, 232, .5);
+  background: #fff;
+  box-shadow: var(--focus);
+}
+.script-editor.has-error { border-color: rgba(217, 75, 75, .45); }
+
+.script-status {
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font: 12px/1.6 var(--mono);
+  background: rgba(217, 75, 75, .08);
+  border: 1px solid rgba(217, 75, 75, .22);
+  color: #a63333;
+}
+.script-status[hidden] { display: none; }
+.script-status.is-ok {
+  background: rgba(31, 157, 100, .09);
+  border-color: rgba(31, 157, 100, .22);
+  color: #14684a;
+}
+
+.script-output {
+  margin-top: 8px;
+  max-height: 190px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(15, 28, 46, .035);
+  border: 1px solid rgba(122, 146, 180, .16);
+  font: 12px/1.7 var(--mono);
+  color: var(--ink);
+}
+.script-line { display: flex; gap: 6px; }
+.script-line-text { white-space: pre-wrap; word-break: break-word; }
+.script-line.is-warn { color: #a26a13; }
+.script-line.is-error { color: #a63333; }
+.script-line.is-dim { color: var(--faint); }
+
+.judge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+.judge-item { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.5; }
+.judge-pass,
+.judge-fail {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.judge-pass {
+  color: #14684a;
+  background: rgba(31, 157, 100, .12);
+  border: 1px solid rgba(31, 157, 100, .26);
+}
+.judge-fail {
+  color: #a63333;
+  background: rgba(217, 75, 75, .1);
+  border: 1px solid rgba(217, 75, 75, .26);
+}
+.judge-text { min-width: 0; color: var(--ink); word-break: break-word; }
+
+.script-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.script-summary .badge {
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(42, 99, 232, .1);
+  color: var(--primary-dark);
+  font-weight: 700;
+}
+
+.script-quickref {
+  margin-top: 10px;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+.script-quickref > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  list-style: none;
+}
+.script-quickref > summary::-webkit-details-marker { display: none; }
+.script-quickref > summary::before { content: "＋ "; color: var(--primary); }
+.script-quickref[open] > summary::before { content: "－ "; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 1180px) {
+  .math-body { grid-template-columns: 260px minmax(0, 1fr) 320px; }
+  .math-left .panel,
+  .math-side .panel { padding: 11px 12px; }
+}
+
+@media (max-width: 980px) {
+  .math-body {
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+    gap: 12px;
+  }
+  .math-side {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 12px;
+  }
+  .math-side > .panel.is-script { grid-column: 1 / -1; }
+  .math-canvas-wrap { height: clamp(380px, 56vh, 640px); }
+}
+
+@media (max-width: 720px) {
+  .math-view { padding: 12px 12px 26px; }
+  .math-body { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .math-left,
+  .math-side { grid-column: 1 / -1; }
+  .math-side { grid-template-columns: minmax(0, 1fr); }
+  .math-tools { gap: 2px; }
+  .math-tools .tool-btn { padding: 0 8px; }
+  .math-canvas-wrap { height: clamp(320px, 52vh, 520px); }
+  .expr-list { max-height: 180px; }
+  .obj-list { max-height: 200px; }
+  .script-editor { min-height: 150px; }
+}

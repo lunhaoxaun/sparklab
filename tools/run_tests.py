@@ -5,7 +5,7 @@ BASE = "http://127.0.0.1:8901/tests/"
 pages = sys.argv[1:] or ["circuit-test.html", "board-test.html", "lab-test.html",
                          "records-test.html", "formula-test.html", "chem-test.html", "bio-test.html",
                          "thermo-test.html", "optics-test.html", "physics-test.html", "bench-test.html",
-                         "rigid-test.html", "sim-test.html", "ui-test.html"]
+                         "rigid-test.html", "sim-test.html", "math-test.html", "ui-test.html"]
 WORK = os.path.join(tempfile.gettempdir(), "sparklab-tests")
 ATTEMPTS = 3   # 无头浏览器偶尔在脚本没下完时就 dump（表现为 SL.xxx undefined），重试即可
 

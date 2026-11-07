@@ -53,6 +53,13 @@
         icon: 'dna',
         available: true,
         desc: '显微镜、细胞、光合、酶'
+      },
+      {
+        id: 'math',
+        name: '数学',
+        icon: 'chart-line',
+        available: true,
+        desc: '函数图像、几何构造与判断脚本'
       }
     ],
 
@@ -1722,6 +1729,28 @@
         ],
         steps: [],
         conclusions: []
+      },
+
+      {
+        id: 'math-board',
+        subject: 'math',
+        kind: 'math',
+        name: '数学绘图器',
+        short: '函数图像与几何构造在同一个画布，拖动点线圆即时变化，并用 C++ 风格脚本实时判断图形关系。',
+        tag: '自由实验 · 函数与几何',
+        time: '不限时',
+        accent: '#7c5cff',
+        free: true,
+        freeNote: '函数绘图 · 几何构造 · C++ 判断',
+        equipment: [
+          { icon: 'chart-line', label: '函数图像' },
+          { icon: 'ruler', label: '几何构造' },
+          { icon: 'zoom-in', label: '缩放与测量' },
+          { icon: 'settings', label: 'C++ 判断脚本' }
+        ],
+        columns: [],
+        steps: [],
+        conclusions: []
       }
     ]
   };
@@ -1730,4 +1759,16 @@
   SL.data.labs.forEach(function (lab) { SL.data.labsById[lab.id] = lab; });
   SL.data.subjectById = {};
   SL.data.subjects.forEach(function (s) { SL.data.subjectById[s.id] = s; });
+
+  /* 数学绘图器没有独立的 lab-*.js 装置模块：整个工作台由 SL.math.lab 自己挂载。
+     app.openLab 统一从 SL.labs 取实验壳，这里登记一个最小壳（meta 指向同一份元数据），
+     使 openLab / 卡片点击 / 返回大厅走和其余 27 个实验完全一样的链路。 */
+  SL.labs = SL.labs || {};
+  SL.labs['math-board'] = {
+    id: 'math-board',
+    kind: 'math',
+    meta: SL.data.labsById['math-board'],
+    defaults: {},
+    reset: function () {}
+  };
 })();

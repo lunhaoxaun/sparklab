@@ -4,7 +4,7 @@
   var SL = (window.SparkLab = window.SparkLab || {});
 
   /* 版本号：界面顶栏、首页页脚与「关于」中展示 */
-  SL.VERSION = '2.10.0';
+  SL.VERSION = '2.11.0';
   SL.VERSION_DATE = '2026-11-07';
   SL.BRAND = '星火理化生实验室';
 
@@ -85,7 +85,8 @@
     records: 'sparklab:v1:records',
     progress: 'sparklab:v1:progress',
     settings: 'sparklab:v1:settings',
-    calc: 'sparklab:v1:calc'
+    calc: 'sparklab:v1:calc',
+    math: 'sparklab:v1:math'
   };
 
   SL.storage = (function () {
