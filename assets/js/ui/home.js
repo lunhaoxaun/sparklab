@@ -21,7 +21,7 @@
     var pct = prog.total ? Math.round((prog.done / prog.total) * 100) : 0;
     var count = SL.records.count(lab.id);
     var equipment = lab.equipment.map(function (item) {
-      return '<span class="equip-chip">' + SL.icon(item.icon, '', 16) + item.label + '</span>';
+      return '<span class="equip-chip">' + SL.apparatus(item.icon, 16) + item.label + '</span>';
     }).join('');
     var progressBlock = prog.free
       ? '<div class="lab-progress"><div class="progress-info"><span>' + (lab.freeNote || '自由探究 · 参数不限') + '</span>' +
@@ -35,7 +35,7 @@
         '<button class="btn btn-ghost" type="button" data-mode="free" data-lab="' + lab.id + '">' + SL.icon('settings', '', 16) + '自由探究</button>';
     return '<article class="lab-card" data-lab="' + lab.id + '" style="--accent:' + lab.accent + '">' +
       '<div class="lab-card-top">' +
-      '<span class="lab-icon">' + SL.icon(lab.equipment[0].icon, '', 26) + '</span>' +
+      '<span class="lab-icon">' + SL.apparatus(lab.equipment[0].icon, 26) + '</span>' +
       '<div class="lab-card-meta"><span class="lab-tag">' + lab.tag + '</span><span class="lab-time">' + SL.icon('player-play', '', 13) + lab.time + '</span></div>' +
       '</div>' +
       '<h3 class="lab-title">' + lab.name + '</h3>' +
@@ -202,7 +202,8 @@
         '<p class="muted">v1.0.0 首个完整版 · v1.1.0 一键美化 · v1.2.0 撤回/重做 · v1.3.0 画布缩放与变阻器接线校验 · v1.4.0 全自由实验室与变阻器电阻判断修复 · v1.5.0 补齐初中电学常用元件 · v1.6.0 双套元件外观可切换 · v1.7.0 新增发电机、继电器、扬声器、灵敏电流计 · v1.8.0 在线版增加离线包下载入口 · v2.1.0 引入仿真引擎、学科墙扩展到力学/热学/光学，新增杠杆平衡、滑轮组机械效率、浮力探究三个力学实验 · v2.2.0 新增力学自由实验室：三套装置合一、参数全开 · v2.3.0 参考真实实验台重做交互：器材库分组缩略图与拖拽放置、对齐吸附辅助线、画布平移与元件复制、实验台浮动工具条（网格/标注/矢量/倍速/全屏）、记录单可删单行 · v2.4.0 记录单支持 Excel 公式（汇总行 / 计算列）、界面改为液态玻璃与工具站式排布、导线上的电流流动动画 · v2.4.1 电表/电源一键互换正负极、表针改为平滑连续转动（拖动滑片时读数跟手）、修复滑轮组「提升高度 h」滑片无效、电流流动动画恢复显示</p><p class="muted">v2.5.0 新增化学板块：氧气的实验室制取与性质、探究燃烧的条件、电解水、酸碱中和反应与指示剂，以及化学自由实验室（八种试剂任意混合，实时给出颜色/气泡/沉淀与方程式）；产品更名为「星火理化生实验室」</p><p class="muted">v2.6.0 新增生物板块：练习使用显微镜（对光/放片/调焦/换高倍镜）、观察动、植物细胞的结构（可点选结构看功能）、探究光合作用需要光和二氧化碳、探究唾液淀粉酶对淀粉的消化作用，以及生物自由实验室（六种玻片 × 三种目镜 × 三种物镜自由观察）</p>' +
         '<p class="muted">v2.7.0 新增热学板块：探究水沸腾时温度变化的特点、比较不同物质的吸热能力，以及热学自由实验室（沸腾 / 比热容 / 晶体熔化三套装置合一）</p>' +
         '<p class="muted">v2.8.0 新增光学板块：探究光的反射规律、探究凸透镜成像的规律，以及光学自由实验室；同时新增「物理 · 综合」板块的物理自由实验室（力、热、光九套装置合一，电学一键跳转全自由电学实验室）</p>' +
-        '<p class="muted">v2.9.0 新增「力学 · 自由刚体沙盒」：内置 Matter.js 刚体引擎（离线内置、按固定步长求解），托盘天平、可叠放的小天平、物块、砝码、斜面与挡板都能自由摆放，真实碰撞、堆叠、铰接倾斜；天平给出一左一右的力矩读数并按两端力矩判断平衡，可以试「天平上再放一台天平」</p></section>' +
+        '<p class="muted">v2.9.0 新增「力学 · 自由刚体沙盒」：内置 Matter.js 刚体引擎（离线内置、按固定步长求解），托盘天平、可叠放的小天平、物块、砝码、斜面与挡板都能自由摆放，真实碰撞、堆叠、铰接倾斜；天平给出一左一右的力矩读数并按两端力矩判断平衡，可以试「天平上再放一台天平」</p>' +
+        '<p class="muted">v2.9.1 视觉重做：实验台上的器材按真实器材的样子重画（铸铁机座、钢横梁与刀口、分度盘与指针、铝托盘与吊线、木纹物块、黄铜砝码），图标改为一套手绘器材线稿，实验台改为暖白色台面</p></section>' +
         '<section class="about-block"><h3>图标素材</h3><p>界面与元件图标来自 <strong>Tabler Icons</strong>（MIT License），已下载并内联到本项目，运行时不访问网络。</p>' +
         '<p class="muted">https://github.com/tabler/tabler-icons</p></section>' +
         '<section class="about-block"><h3>自绘素材</h3><p>滑动变阻器、单刀开关、导线与电流动画由本项目按教材标准画法自绘；力学、化学、生物实验的舞台图形（杠杆、滑轮、烧杯、锥形瓶、刻度管、显微镜视野等）同样为自绘。</p></section>' +

@@ -549,7 +549,7 @@
 
     var cards = (lab.devices || []).map(function (d) {
       return '<button type="button" class="device-card" data-device="' + d.id + '">' +
-        '<span class="device-thumb">' + SL.icon(d.icon, '', 22) + '</span>' +
+        '<span class="device-thumb">' + SL.apparatus(d.icon, 30) + '</span>' +
         '<span class="device-text"><strong>' + d.label + '</strong><em>' + d.desc + '</em></span>' +
         '</button>';
     }).join('');

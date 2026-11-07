@@ -100,11 +100,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(680px 340px at 50% 0%, #ffffff 0%, #f7faff 68%, #eff4fb 100%);
+  background: transparent;   /* 纸面交给 SVG 自己铺，避免宿主比画布高时露出一条色带 */
 }
-.sim-canvas { width: 100%; height: auto; max-height: 68vh; display: block; overflow: visible; }
+.sim-canvas {
+  width: 100%; height: auto; max-height: 68vh; display: block; overflow: visible;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fffdf8 0%, #fbf6ea 100%);
+}
 /* 参考网格与图层显隐（对应实验台工具条上的「网格 / 标注 / 矢量」） */
-.sim-grid line { stroke: rgba(42, 99, 232, .06); stroke-width: 1; }
+.sim-grid line { stroke: rgba(122, 100, 68, .085); stroke-width: 1; }
+.board-host.sim-stage-host .sim-canvas {
+  /* 让纸面铺满整块工作区：元素框撑满宿主，viewBox 仍按比例居中，
+     否则宿主比画布高时会露出一条白边，看着像图被截断 */
+  width: 100%; height: 100%; max-height: none; align-self: stretch;
+}
 .sim-canvas.hide-grid .sim-grid,
 .sim-canvas.hide-grid .level-guide,
 .sim-canvas.hide-grid .level-label { display: none; }
@@ -129,11 +138,11 @@
   stroke-linejoin: round;
 }
 .sim-badge { fill: #fff; stroke: #dbe4ef; stroke-width: 1; }
-.sim-badge.bal-ok { fill: #eaf7f0; stroke: #b9e3cc; }
-.sim-badge.bal-no { fill: #fdf0e8; stroke: #f3d0b6; }
+.sim-badge.bal-ok { fill: #eff5e7; stroke: #cbdcb8; }
+.sim-badge.bal-no { fill: #fbeee0; stroke: #e8cbaa; }
 .sim-badge-text { font-size: 13px; font-weight: 600; fill: var(--ink); }
-.sim-badge-text.bal-ok { fill: #1d7a50; }
-.sim-badge-text.bal-no { fill: #a4531f; }
+.sim-badge-text.bal-ok { fill: #3d6b39; }
+.sim-badge-text.bal-no { fill: #96501d; }
 .drag-ring { fill: none; stroke: #9fb6cd; stroke-width: 1.2; stroke-dasharray: 4 5; opacity: .55; }
 .force-arrow { stroke: #c0392b; stroke-width: 2.4; fill: none; }
 .force-label { fill: #a4331f; font-size: 12.5px; font-weight: 600; }
@@ -468,30 +477,90 @@
 
 /* ---------- 刚体沙盒（mech-sandbox） ----------
    画布图形按 element class 上色，颜色不写内联属性：
-   CSS 的 fill 会覆盖元素上的 fill="…"，两者混用必然出现「改不动颜色」。 */
-.rb-body { stroke: #4a5a6e; stroke-width: 1.2; stroke-linejoin: round; fill: #b9c6d8; }
-.rb-static { fill: #cbd5e1; }
-.rb-floor { fill: #cdd8e5; stroke: #a9b8c9; }
-.rb-wall { fill: #e6edf5; stroke: none; }
-.rb-base { fill: #b3c1d3; stroke: #7d8fa6; }
-.rb-column { fill: #c2cddc; stroke: #7d8fa6; }
-.rb-beam { fill: #5b6b80; stroke: #3a4859; }
-.rb-panL, .rb-panR { fill: #8fa6c0; stroke: #4d5f78; }
-.rb-stopL, .rb-stopR { fill: #dbe3ec; stroke: #96a7bb; }
-.rb-post { fill: #c9d4e1; stroke: #9aabbe; }
-.rb-ramp { fill: #d8c3a5; stroke: #a8875f; }
-.rb-wallDevice { fill: #d8c3a5; stroke: #a8875f; }
-.rb-prop { fill: #bfae95; stroke: #9a8569; }
-.rb-block { fill: #e3a94a; stroke: #b27f28; }
-.rb-tone0 { fill: #e3a94a; stroke: #b27f28; }
-.rb-tone1 { fill: #7fb36b; stroke: #5a8c49; }
-.rb-tone2 { fill: #6f9ed8; stroke: #4a76ac; }
-.rb-body.is-sel { stroke: #7c5cff; stroke-width: 2.4; }
+   CSS 的 fill 会覆盖元素上的 fill="…"，两者混用必然出现「改不动颜色」。
+   材质用 <defs> 里的渐变（#rb-*），一件器材 = 底色多边形 + 局部坐标的细节组。 */
+.rb-body { stroke: #5a6673; stroke-width: 1; stroke-linejoin: round; }
+.rb-deco { pointer-events: none; }
+
+/* 实验台面：有厚度的一块台板 */
+.rb-floor { fill: url(#rb-bench); stroke: #c2b191; }
+.rb-bench-top { fill: #fffaf1; opacity: .8; }
+.rb-bench-edge { fill: #c6b492; opacity: .85; }
+
+/* 天平机座：铸铁，倒角 + 铭牌 + 调节螺母 */
+.rb-base { fill: url(#rb-iron); stroke: #2f3740; }
+.rb-bevel { fill: none; stroke: rgba(255, 255, 255, .22); stroke-width: 1; }
+.rb-nameplate { fill: #aab5c0; stroke: #6f7a86; stroke-width: .6; }
+.rb-knob { fill: url(#rb-brass); stroke: #75551a; stroke-width: .8; }
+.rb-knob-mark { stroke: #6b4f16; stroke-width: .8; }
+.rb-dial { fill: #eef2f6; stroke: #78848f; stroke-width: .9; }
+.rb-dial-dot { fill: #55606b; }
+
+/* 立柱与分度盘 */
+.rb-column { fill: url(#rb-steel); stroke: #6d7b8a; }
+.rb-column-hi { fill: #ffffff; opacity: .4; }
+.rb-dial-plate { fill: #fbf7ee; stroke: #8b8073; stroke-width: .8; }
+.rb-tick { stroke: #6a6153; stroke-width: 1; fill: none; }
+.rb-tick.is-mid { stroke: #b23b2e; stroke-width: 1.2; }
+
+/* 横梁：钢梁 + 刀口 + 指针 + 两端挂吊盘的耳片 */
+.rb-beam { fill: url(#rb-steel); stroke: #6d7b8a; }
+.rb-beam-hi { fill: #ffffff; opacity: .5; }
+.rb-beam-end { fill: #7d8a99; stroke: #59636e; stroke-width: .8; }
+.rb-knife { fill: #4a5561; stroke: #2f3740; stroke-width: .6; }
+.rb-pointer { stroke: #333c46; stroke-width: 2; stroke-linecap: round; fill: none; }
+
+/* 托盘：铝盘面 + 吊线 */
+.rb-panL, .rb-panR { fill: url(#rb-alu); stroke: #8b98a7; }
+.rb-pan-face { fill: #f8fbfd; opacity: .5; }
+.rb-wire { stroke: #7c8895; stroke-width: 1; fill: none; }
+.rb-hook { fill: #6b7784; }
+
+/* 物块：三种木料，画面上不再是一片荧光色 */
+.rb-block { fill: url(#rb-wood); stroke: #9a7136; }
+.rb-tone0 { fill: url(#rb-wood); stroke: #9a7136; }
+.rb-tone1 { fill: url(#rb-wood2); stroke: #a9705c; }
+.rb-tone2 { fill: url(#rb-wood3); stroke: #74899a; }
+.rb-block-face { fill: rgba(255, 255, 255, .22); }
+.rb-grain { fill: none; stroke: rgba(122, 82, 30, .3); stroke-width: .9; }
+.rb-tone1.rb-block-face, .rb-tone2.rb-block-face { fill: rgba(255, 255, 255, .16); }
+
+/* 砝码：方形碰撞盒里画一只黄铜砝码 */
+.rb-is-weight { fill: none; stroke: none; }
+.rb-weight-body { fill: url(#rb-brass); stroke: #75551a; }
+.rb-weight-knob { fill: url(#rb-brass); stroke: #75551a; stroke-width: .9; }
+.rb-weight-band { fill: none; stroke: rgba(90, 60, 15, .45); stroke-width: .8; }
+
+/* 斜面 / 挡板 / 支撑 */
+.rb-ramp { fill: url(#rb-wood); stroke: #9a7136; }
+.rb-ramp-face { fill: rgba(255, 255, 255, .2); }
+.rb-wallDevice { fill: url(#rb-steel); stroke: #7d8a99; }
+.rb-plate-face { fill: rgba(255, 255, 255, .3); }
+.rb-plate-base { fill: #6d7a87; stroke: #55616d; stroke-width: .7; }
+.rb-rivet { fill: #d8dfe6; stroke: #6b7784; stroke-width: .7; }
+.rb-prop { fill: url(#rb-wood); stroke: #9a7136; }
+.rb-post { fill: url(#rb-steel); stroke: #7d8a99; }
+.rb-post-face { fill: #ffffff; opacity: .3; }
+
+/* 机架限位与固定件 */
+.rb-stopL, .rb-stopR { fill: url(#rb-steel); stroke: #8b98a7; }
+.rb-stop-face { fill: rgba(255, 255, 255, .22); }
+.rb-stop-rubber { fill: #3f4853; opacity: .82; }
+.rb-bolt { fill: #9aa6b2; stroke: #6b7784; stroke-width: .6; }
+
+/* 场地边界：几乎看不见，只用来兜住滑出去的东西 */
+.rb-wall { fill: #eef1f4; stroke: none; opacity: .45; }
+
+/* 选中：用实验台的青色描边（木块是琥珀色，再拿琥珀描边就看不清了） */
+.rb-body.is-sel {
+  stroke: #2f6b78; stroke-width: 2.4;
+  filter: drop-shadow(0 0 4px rgba(47, 107, 120, .5));
+}
 
 .rb-pin { fill: #ffffff; stroke: #3a4859; stroke-width: 1.4; }
-.rb-chip { fill: #eef3fa; stroke: #9fb2c8; stroke-width: 1.2; }
-.rb-chip.is-sel { fill: #e6e0ff; stroke: #7c5cff; }
-.rb-chip-text { fill: #4a5a6e; font-size: 11px; font-weight: 700; }
+.rb-chip { fill: #f7f3ea; stroke: #c3b393; stroke-width: 1.2; }
+.rb-chip.is-sel { fill: #e3eff1; stroke: #2f6b78; }
+.rb-chip-text { fill: #5d5142; font-size: 11px; font-weight: 700; }
 .rb-label, .rb-caption {
   fill: #4a5a6e; font-size: 12px; font-weight: 600;
   paint-order: stroke; stroke: #ffffff; stroke-width: 3.4px; stroke-linejoin: round;
@@ -499,39 +568,48 @@
 .rb-caption { fill: #55677d; font-size: 11.5px; }
 .sim-canvas.hide-labels .rb-label,
 .sim-canvas.hide-labels .rb-caption { display: none; }
-.sim-badge.rb-tip { fill: #eef3fa; stroke: #cfdcea; }
-.sim-badge-text.rb-tip { fill: #44566c; font-weight: 500; }
+.sim-badge.rb-tip { fill: #f7f3ea; stroke: #d6c9b0; }
+.sim-badge-text.rb-tip { fill: #5d5142; font-weight: 500; }
 
-/* 左栏：装置器材卡 */
-.device-list { display: flex; flex-direction: column; gap: 8px; }
+/* 左栏：装置器材卡
+   做成「器材抽屉」的样子：纸白底、细墨线、缩略图是深墨线稿，
+   不再用紫色圆角块 + 通用字形那一套。 */
+.device-list { display: flex; flex-direction: column; gap: 7px; }
 .device-card {
   display: flex; align-items: center; gap: 10px;
-  padding: 8px 10px; border-radius: 11px; text-align: left;
-  border: 1px solid rgba(122, 146, 180, .26);
-  background: rgba(255, 255, 255, .82);
+  padding: 7px 10px 7px 8px; border-radius: 9px; text-align: left;
+  border: 1px solid #e2dacb;
+  background: linear-gradient(180deg, #fffdf8 0%, #faf6ee 100%);
+  box-shadow: 0 1px 0 #fff inset;
   cursor: grab; font-family: inherit; touch-action: none;
   transition: border-color .15s ease, box-shadow .15s ease, transform .12s ease;
 }
-.device-card:hover { border-color: var(--accent, #7c5cff); box-shadow: 0 8px 20px -14px rgba(22, 35, 58, .5); }
+.device-card:hover {
+  border-color: var(--accent, #2f6b78);
+  box-shadow: 0 6px 16px -12px rgba(60, 50, 35, .6);
+}
 .device-card:active { cursor: grabbing; transform: scale(.99); }
 .device-thumb {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px;
-  background: rgba(124, 92, 255, .1); color: var(--accent, #7c5cff);
+  width: 36px; height: 36px; flex: 0 0 36px; border-radius: 7px;
+  background: #ece2d0;
+  border: 1px solid #dccfb6;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .7) inset;
+  color: #3d4753;
 }
 .device-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.device-text strong { font-size: 12.5px; color: var(--ink); }
-.device-text em { font-size: 11px; color: #8998ab; font-style: normal; line-height: 1.4; }
+.device-text strong { font-size: 12.5px; color: var(--ink); letter-spacing: .2px; }
+.device-text em { font-size: 10.5px; color: #8c8578; font-style: normal; line-height: 1.45; }
 
 /* 拖拽中的器材幽灵 */
 .device-ghost {
   position: fixed; z-index: 9999; transform: translate(-50%, -50%);
-  padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
-  color: #4a3ab5; background: rgba(255, 255, 255, .95);
-  border: 1px dashed #b6a8f0; pointer-events: none;
-  box-shadow: 0 10px 24px -16px rgba(22, 35, 58, .7);
+  padding: 5px 11px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  color: #5d5142; background: #fffdf8;
+  border: 1px dashed #c3b393; pointer-events: none;
+  box-shadow: 0 10px 24px -16px rgba(60, 50, 35, .9);
 }
-.device-ghost.is-over { color: #fff; background: var(--accent, #7c5cff); border-style: solid; }
+.device-ghost.is-over { color: #fff; background: var(--accent, #2f6b78); border-style: solid; }
 
 /* 右栏：物体属性 */
 .props-host { display: flex; flex-direction: column; gap: 9px; }

@@ -4,7 +4,7 @@
   var SL = (window.SparkLab = window.SparkLab || {});
 
   /* 版本号：界面顶栏、首页页脚与「关于」中展示 */
-  SL.VERSION = '2.9.0';
+  SL.VERSION = '2.9.1';
   SL.VERSION_DATE = '2026-11-07';
   SL.BRAND = '星火理化生实验室';
 
@@ -52,6 +52,14 @@
     var markup = (SL.icons && SL.icons[name]) || '';
     return '<svg class="icon ' + (cls || '') + '" viewBox="0 0 24 24" width="' + (size || 20) + '" height="' + (size || 20) +
       '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + markup + '</svg>';
+  };
+
+  /* 器材图标：线更细、带少量实心细节，画的是真器材而不是通用 UI 字形 */
+  SL.apparatus = function (name, size, cls) {
+    var markup = (SL.apparatusIcons && SL.apparatusIcons[name]) || (SL.icons && SL.icons[name]) || '';
+    var s = size || 22;
+    return '<svg class="icon icon-apparatus ' + (cls || '') + '" viewBox="0 0 24 24" width="' + s + '" height="' + s +
+      '" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + markup + '</svg>';
   };
 
   SL.fmt = function (value, digits) {

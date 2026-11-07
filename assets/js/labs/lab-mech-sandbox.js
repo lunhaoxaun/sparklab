@@ -25,12 +25,12 @@
 
   /* ---------- 装置清单（左侧器材栏） ---------- */
   var TYPES = {
-    balance: { label: '托盘天平', icon: 'seesaw', desc: '横梁 + 悬挂托盘 + 机架限位', w: 150, mount: 'floor' },
-    stackBalance: { label: '小天平', icon: 'seesaw', desc: '能整体放到另一台天平的托盘上', w: 60, mount: 'free' },
-    block: { label: '物块', icon: 'weight', desc: '可堆放，也可压在天平托盘上', w: 40, mount: 'free' },
-    weight: { label: '砝码', icon: 'weight', desc: '小而重，适合放小托盘', w: 24, mount: 'free' },
-    ramp: { label: '斜面', icon: 'ruler', desc: '静态斜面，物块会沿它下滑', w: 200, mount: 'floor' },
-    wall: { label: '挡板', icon: 'gauge', desc: '竖直静态挡板，用来挡停物块', w: 20, mount: 'floor' }
+    balance: { label: '托盘天平', icon: 'dep-balance', desc: '横梁 + 悬挂托盘 + 机架限位', w: 150, mount: 'floor' },
+    stackBalance: { label: '小天平', icon: 'dep-stackBalance', desc: '能整体放到另一台天平的托盘上', w: 60, mount: 'free' },
+    block: { label: '物块', icon: 'dep-block', desc: '可堆放，也可压在天平托盘上', w: 40, mount: 'free' },
+    weight: { label: '砝码', icon: 'dep-weight', desc: '小而重，适合放小托盘', w: 24, mount: 'free' },
+    ramp: { label: '斜面', icon: 'dep-ramp', desc: '静态斜面，物块会沿它下滑', w: 200, mount: 'floor' },
+    wall: { label: '挡板', icon: 'dep-wall', desc: '竖直静态挡板，用来挡停物块', w: 20, mount: 'floor' }
   };
   var ORDER = ['balance', 'stackBalance', 'block', 'weight', 'ramp', 'wall'];
 
@@ -109,7 +109,7 @@
     }
     if (type === 'weight') {
       return SL.rigid.devices.block(rigid, spot.x, spot.y, {
-        w: 24, h: 24, density: 0.008, tone: 0
+        w: 24, h: 24, density: 0.008, tone: 0, shape: 'weight'
       });
     }
     return SL.rigid.devices.block(rigid, spot.x, spot.y, {
@@ -148,12 +148,148 @@
   }
 
   /* ---------- 绘制 ---------- */
-  function bodyClass(body) {
+  /* 每件器材拆成两层：
+       · 底色 = body.vertices 的多边形，严格跟着物理形状走（碰撞是什么样，画的就是什么样）；
+       · 细节 = 一组画在「器材自身坐标系」里的 SVG（刻度盘、刀口、吊线、木纹、铆钉……），
+         每帧只更新 translate / rotate，节点不重建。
+     这样既能画得像真器材，又不会因为装饰而和物理形状错位。 */
+  function num(n) { return Math.round(n * 10) / 10; }
+
+  function rectEl(x, y, w, h, cls, rx) {
+    var s = '<rect class="' + cls + '" x="' + num(x) + '" y="' + num(y) +
+      '" width="' + num(w) + '" height="' + num(h) + '"';
+    if (rx) s += ' rx="' + rx + '"';
+    return s + '/>';
+  }
+
+  function partInfo(body, rigid) {
     var sl = body.sl || {};
-    var cls = 'rb-body rb-' + (sl.role || 'block');
+    var g = sl.group && rigid ? rigid.group(sl.group) : null;
+    var role = sl.role || 'block';
+    /* 挡板与斜面是同一个构造函数造的，靠所在组的 type 区分 */
+    if (role === 'ramp' && g && g.type === 'wall') role = 'wallDevice';
+    return {
+      role: role,
+      w: sl.w || (body.bounds.max.x - body.bounds.min.x),
+      h: sl.h || (body.bounds.max.y - body.bounds.min.y),
+      tone: sl.tone || 0,
+      shape: sl.shape || null,
+      meta: (g && g.meta) || {}
+    };
+  }
+
+  function bodyClass(p, body) {
+    var cls = 'rb-body rb-' + p.role;
     if (body.isStatic) cls += ' rb-static';
-    if (sl.role === 'block') cls += ' rb-tone' + (sl.tone || 0);
+    if (p.shape === 'weight') cls += ' rb-is-weight';
+    if (p.role === 'block' && p.shape !== 'weight') cls += ' rb-tone' + p.tone;
     return cls;
+  }
+
+  /* 器材细节：全部用局部坐标，原点在器材中心 */
+  function decoMarkup(p, meta) {
+    var w = p.w, h = p.h, r = p.role, t = '';
+    meta = meta || {};
+
+    if (r === 'floor') {
+      /* 实验台：上沿高光 + 下沿前挡板的暗边，看起来是一张有厚度的台面 */
+      t = rectEl(-w / 2, -h / 2, w, 2.6, 'rb-bench-top') +
+          rectEl(-w / 2, h / 2 - 6, w, 6, 'rb-bench-edge');
+
+    } else if (r === 'base') {
+      if (h > 22) {
+        /* 小天平的机座：一块铸铁车身 + 正面小表盘 */
+        t = rectEl(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6, 'rb-bevel', 3) +
+            '<circle class="rb-dial" cx="0" cy="' + num(h / 2 - 14) + '" r="4.6"/>' +
+            '<circle class="rb-dial-dot" cx="0" cy="' + num(h / 2 - 14) + '" r="1.2"/>';
+      } else {
+        /* 大天平机座：倒角 + 铭牌 + 右端的调节螺母 */
+        t = rectEl(-w / 2 + 6, -h / 2 + 2.4, w - 12, h - 4.8, 'rb-bevel', 2.4) +
+            rectEl(-18, -2.9, 36, 5.8, 'rb-nameplate', 1) +
+            '<circle class="rb-knob" cx="' + num(w / 2 - 15) + '" cy="-1.2" r="3.2"/>' +
+            '<path class="rb-knob-mark" d="M' + num(w / 2 - 15) + ' -3.6v4.8"/>';
+      }
+
+    } else if (r === 'column') {
+      /* 立柱：左缘一道高光，正面装分度盘，指针从横梁上垂下来指在盘中间 */
+      var s = meta.scale || 1;
+      var plateY = -h / 2 + 31.5 * s;
+      var tks = '';
+      for (var i = -2; i <= 2; i++) {
+        tks += '<path class="rb-tick' + (i === 0 ? ' is-mid' : '') + '" d="M' + num(i * 4.8) + ' ' +
+          num(plateY + 4.4) + 'v' + (i === 0 ? 8.6 : 6.2) + '"/>';
+      }
+      t = rectEl(-2.2, -h / 2 + 3, 2.2, h - 14, 'rb-column-hi') +
+          rectEl(-13, plateY, 26, 15, 'rb-dial-plate', 2) + tks;
+
+    } else if (r === 'beam') {
+      /* 横梁：上沿高光、两端挂吊盘的耳片、顶上的刀口、中间垂下的指针 */
+      t = rectEl(-w / 2 + 3, -h / 2 + 0.8, w - 6, 1.8, 'rb-beam-hi') +
+          rectEl(-w / 2, -h / 2 - 1.4, 5, h + 2.8, 'rb-beam-end', 1.4) +
+          rectEl(w / 2 - 5, -h / 2 - 1.4, 5, h + 2.8, 'rb-beam-end', 1.4) +
+          '<path class="rb-knife" d="M-4.4 ' + num(-h / 2) + 'L0 ' + num(-h / 2 - 6) + 'L4.4 ' + num(-h / 2) + 'Z"/>' +
+          '<path class="rb-pointer" d="M0 ' + num(h / 2) + 'v' + num(26 * (meta.scale || 1)) + '"/>';
+
+    } else if (r === 'panL' || r === 'panR') {
+      /* 托盘：浅盘面 + 两根吊线汇到横梁端头的吊点（这就是约束的几何位置） */
+      var hang = meta.hang || 60;
+      var top = -hang + 6.5;
+      t = rectEl(-w / 2 + 4, -h / 2 + 1.2, w - 8, h - 2.4, 'rb-pan-face', 1.6) +
+          '<path class="rb-wire" d="M' + num(-w * 0.31) + ' ' + num(-h / 2) + 'L0 ' + num(top) + '"/>' +
+          '<path class="rb-wire" d="M' + num(w * 0.31) + ' ' + num(-h / 2) + 'L0 ' + num(top) + '"/>' +
+          '<circle class="rb-hook" cx="0" cy="' + num(top) + '" r="1.7"/>';
+
+    } else if (r === 'block') {
+      if (p.shape === 'weight') {
+        /* 砝码：梯形铜体 + 提钮 + 腰线 */
+        var topY = -h / 2 + 1, botY = h / 2 - 0.5;
+        var tw = w * 0.27, bw = w * 0.38;
+        t = '<path class="rb-weight-body" d="M' + num(-bw) + ' ' + num(botY) + 'L' + num(-tw) + ' ' + num(topY + 3) +
+            'H' + num(tw) + 'L' + num(bw) + ' ' + num(botY) + 'Z"/>' +
+            '<circle class="rb-weight-knob" cx="0" cy="' + num(topY + 1.1) + '" r="2.3"/>' +
+            '<path class="rb-weight-band" d="M' + num(-bw * 0.86) + ' ' + num(topY + h * 0.56) + 'H' + num(bw * 0.86) + '"/>';
+      } else {
+        t = rectEl(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4, 'rb-block-face rb-tone' + p.tone, 1.6);
+        if (w >= 30) {
+          t += '<path class="rb-grain" d="M' + num(-w * 0.32) + ' ' + num(-h * 0.2) + 'q' + num(w * 0.15) + ' -2.8 ' +
+            num(w * 0.3) + ' 0t' + num(w * 0.3) + ' 0"/>' +
+            '<path class="rb-grain" d="M' + num(-w * 0.32) + ' ' + num(h * 0.18) + 'q' + num(w * 0.15) + ' 2.8 ' +
+            num(w * 0.3) + ' 0t' + num(w * 0.3) + ' 0"/>';
+        }
+      }
+
+    } else if (r === 'ramp' || r === 'wallDevice') {
+      if (r === 'wallDevice') {
+        /* 挡板：钢板 + 底部法兰 + 一排铆钉，比一块竖着的木板更像挡板 */
+        t = rectEl(-w / 2 + 2, -h / 2 + 2, w - 4, h - 11, 'rb-plate-face', 1.2) +
+            rectEl(-w / 2 + 1, h / 2 - 9, w - 2, 7, 'rb-plate-base', 1.4);
+        for (var k = -1; k <= 1; k++) {
+          t += '<circle class="rb-rivet" cx="0" cy="' + num(k * h * 0.26) + '" r="1.5"/>';
+        }
+      } else {
+        t = rectEl(-w / 2 + 3, -h / 2 + 1.4, w - 6, h - 2.8, 'rb-ramp-face', 1.2);
+        if (w >= 80) {
+          t += '<path class="rb-grain" d="M' + num(-w * 0.4) + ' ' + num(h * 0.1) + 'h' + num(w * 0.8) + '"/>' +
+               '<path class="rb-grain" d="M' + num(-w * 0.4) + ' ' + num(h * 0.1 - 2.6) + 'h' + num(w * 0.66) + '"/>';
+        }
+      }
+
+    } else if (r === 'prop' || r === 'post') {
+      t = rectEl(-w / 2 + 1.4, -h / 2 + 2, Math.max(2.4, w - 2.8), h - 4, 'rb-post-face', 1);
+
+    } else if (r === 'stopL' || r === 'stopR') {
+      /* 机架限位横杆：钢杆 + 顶上一条橡胶垫（托盘就是搁在这条垫子上） */
+      t = rectEl(-w / 2 + 3, -h / 2 + 1.6, w - 6, h - 3.2, 'rb-stop-face', 2) +
+          rectEl(-w / 2 + 7, -h / 2 + 1, w - 14, 2.6, 'rb-stop-rubber', 1.2) +
+          '<circle class="rb-bolt" cx="' + num(-w / 2 + 5.5) + '" cy="1.4" r="1.4"/>' +
+          '<circle class="rb-bolt" cx="' + num(w / 2 - 5.5) + '" cy="1.4" r="1.4"/>';
+    }
+    return t;
+  }
+
+  function applyTransform(node, body) {
+    node.setAttribute('transform', 'translate(' + num(body.position.x) + ' ' + num(body.position.y) +
+      ') rotate(' + (Math.round(body.angle * 1800 / Math.PI) / 10) + ')');
   }
 
   function textNode(attrs, str) {
@@ -162,35 +298,76 @@
     return node;
   }
 
+  /* 材质渐变：只往 <defs> 里塞一次，CSS 里用 fill: url(#rb-xxx) 引用。
+     注意 stage.clear() 只清图层、不清 <defs>，所以不用担心被重绘刷掉。 */
+  function ensureDefs(stage) {
+    if (!stage || !stage.svg || stage.svg.querySelector('#rb-defs')) return;
+    var defs = SL.sim.svgEl('defs', { id: 'rb-defs' });
+    defs.innerHTML =
+      '<linearGradient id="rb-steel" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="#e8eef4"/><stop offset="48%" stop-color="#b8c4d1"/>' +
+      '<stop offset="100%" stop-color="#8d9aa9"/></linearGradient>' +
+      '<linearGradient id="rb-iron" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="#5f6975"/><stop offset="60%" stop-color="#46505b"/>' +
+      '<stop offset="100%" stop-color="#333b45"/></linearGradient>' +
+      '<linearGradient id="rb-alu" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="#f7fafc"/><stop offset="55%" stop-color="#dbe3ea"/>' +
+      '<stop offset="100%" stop-color="#bcc7d2"/></linearGradient>' +
+      '<linearGradient id="rb-brass" x1="0" y1="0" x2="0.85" y2="1">' +
+      '<stop offset="0%" stop-color="#f7e2b0"/><stop offset="45%" stop-color="#d3ab5c"/>' +
+      '<stop offset="100%" stop-color="#9d7628"/></linearGradient>' +
+      '<linearGradient id="rb-wood" x1="0" y1="0" x2="0.3" y2="1">' +
+      '<stop offset="0%" stop-color="#f3dcb2"/><stop offset="55%" stop-color="#dcb478"/>' +
+      '<stop offset="100%" stop-color="#c39651"/></linearGradient>' +
+      '<linearGradient id="rb-wood2" x1="0" y1="0" x2="0.3" y2="1">' +
+      '<stop offset="0%" stop-color="#e6b3a2"/><stop offset="55%" stop-color="#cb8b74"/>' +
+      '<stop offset="100%" stop-color="#b2705b"/></linearGradient>' +
+      '<linearGradient id="rb-wood3" x1="0" y1="0" x2="0.3" y2="1">' +
+      '<stop offset="0%" stop-color="#b6c8d5"/><stop offset="55%" stop-color="#92a8b7"/>' +
+      '<stop offset="100%" stop-color="#778d9d"/></linearGradient>' +
+      '<linearGradient id="rb-bench" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="#f7f1e5"/><stop offset="100%" stop-color="#e4d8c3"/></linearGradient>';
+    stage.svg.appendChild(defs);
+  }
+
   function draw(ctx) {
     var stage = ctx.stage, rigid = ctx.rigid;
     if (!stage || !rigid || rigid.isDestroyed()) return;
+    ensureDefs(stage);
     var pool = rt.pool;
     var alive = {};
 
     rigid.bodies().forEach(function (body) {
       alive[body.id] = true;
       var item = pool[body.id];
-      var cls = bodyClass(body);
+      var p = item ? item.p : partInfo(body, rigid);
+      var cls = bodyClass(p, body);
       if (body === ctx.sel) cls += ' is-sel';
       var pts = '';
       for (var i = 0; i < body.vertices.length; i++) {
         pts += body.vertices[i].x.toFixed(1) + ',' + body.vertices[i].y.toFixed(1) + ' ';
       }
       if (!item) {
-        var node = SL.sim.svgEl('polygon', { points: pts, class: cls });
-        stage.layer.appendChild(node);
-        pool[body.id] = { node: node, body: body };
+        var g = SL.sim.svgEl('g', { class: 'rb-part' });
+        var poly = SL.sim.svgEl('polygon', { points: pts, class: cls });
+        var deco = SL.sim.svgEl('g', { class: 'rb-deco' });
+        deco.innerHTML = decoMarkup(p, p.meta);
+        g.appendChild(poly);
+        g.appendChild(deco);
+        stage.layer.appendChild(g);
+        pool[body.id] = { g: g, node: poly, deco: deco, body: body, p: p };
+        applyTransform(deco, body);
         return;
       }
       item.node.setAttribute('points', pts);
       item.node.setAttribute('class', cls);
+      applyTransform(item.deco, body);
     });
 
     Object.keys(pool).forEach(function (id) {
       if (alive[id]) return;
-      var node = pool[id].node;
-      if (node.parentNode) node.parentNode.removeChild(node);
+      var item = pool[id];
+      if (item.g && item.g.parentNode) item.g.parentNode.removeChild(item.g);
       delete pool[id];
     });
 
@@ -331,7 +508,7 @@
       rt.rigid = ctx.rigid || null;
       /* 世界重建后所有 body.id 都变了，上一次画的节点要清掉，否则会留在画面上 */
       if (ctx.stage && ctx.stage.layer) {
-        SL.$$('.rb-body, .rb-overlay', ctx.stage.layer).forEach(function (n) {
+        SL.$$('.rb-part, .rb-body, .rb-overlay', ctx.stage.layer).forEach(function (n) {
           if (n.parentNode) n.parentNode.removeChild(n);
         });
       }

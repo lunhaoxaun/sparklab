@@ -92,6 +92,7 @@
       body.sl = {
         role: spec.role || 'block',
         tone: spec.tone || 0,
+        shape: spec.shape || null,
         group: spec.group || null,
         w: spec.w, h: spec.h, r: spec.r
       };
@@ -625,8 +626,8 @@
     rigid.addBody({
       type: 'box', x: x, y: y, w: w, h: h,
       density: o.density || 0.002, friction: o.friction == null ? 0.7 : o.friction,
-      restitution: o.restitution || 0, angle: o.angle || 0,
-      group: g.id, role: 'block', tone: o.tone || 0
+      restitution: o.restitution || 0,       angle: o.angle || 0,
+      group: g.id, role: 'block', tone: o.tone || 0, shape: o.shape || null
     });
     return g;
   }
