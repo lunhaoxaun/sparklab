@@ -10,6 +10,8 @@
     mode: 'guided',
     board: null,
     stage: null,
+    rigid: null,
+    rigidSel: null,
     controls: null,
     clock: null,
     simValues: null,
@@ -98,6 +100,7 @@
     app.view = 'home';
     app.lab = null;
     app.board = null;
+    disposeRigid();
     if (app.keyHandler) {
       document.removeEventListener('keydown', app.keyHandler);
       app.keyHandler = null;
@@ -143,6 +146,7 @@
     if (!lab) { SL.toast('实验不存在', 'warn'); return; }
     if (app.clock) { app.clock.stop(); app.clock = null; }
     if (app.simTimer) { clearTimeout(app.simTimer); app.simTimer = null; }
+    disposeRigid();
     app.lab = lab;
     app.kind = lab.kind || 'circuit';
     app.mode = lab.meta.free || mode === 'free' ? 'free' : 'guided';
@@ -172,7 +176,7 @@
     if (saved && saved.scene && saved.scene.components && saved.scene.components.length) {
       app.mode = lab.meta.free ? 'free' : mode || saved.mode || 'guided';
     }
-    if (app.kind === 'sim') {
+    if (app.kind === 'sim' || app.kind === 'rigid') {
       var values = {};
       Object.keys(lab.defaults || {}).forEach(function (key) { values[key] = lab.defaults[key]; });
       if (saved && saved.values) {
@@ -199,6 +203,7 @@
 
   function renderLab() {
     if (app.kind === 'sim') { renderSimLab(); return; }
+    if (app.kind === 'rigid') { renderRigidLab(); return; }
     var lab = app.lab;
     var meta = lab.meta;
     app.skin = SL.skins ? SL.skins.current() : 'classic';
@@ -467,9 +472,9 @@
 
   /* 重算并重绘（不写存储） */
   function simRender() {
-    if (!app.lab || app.kind !== 'sim') return;
-    app.simCalc = app.lab.calc(app.simValues);
-    var ctx = simCtx();
+    if (!app.lab || (app.kind !== 'sim' && app.kind !== 'rigid')) return;
+    app.simCalc = app.lab.calc(app.simValues, app.kind === 'rigid' ? rigidCtx() : null);
+    var ctx = app.kind === 'rigid' ? rigidCtx() : simCtx();
     if (app.lab.draw) app.lab.draw(ctx);
     if (app.lab.readouts) SL.sim.Readouts(SL.$('#meters-host'), app.lab.readouts(app.simCalc, app.simValues));
     renderSimWarnings();
@@ -490,7 +495,7 @@
 
   /* 重算 + 引导判定 + 存档 */
   function simSync() {
-    if (!app.lab || app.kind !== 'sim') return;
+    if (!app.lab || (app.kind !== 'sim' && app.kind !== 'rigid')) return;
     simRender();
     app.result = { ok: true };
     evaluateChecks();
@@ -502,6 +507,418 @@
   function savedScene() {
     var saved = loadProgress(app.lab.id);
     return saved && saved.scene && saved.scene.components ? saved.scene : null;
+  }
+
+  /* ---------- 刚体沙盒（kind:'rigid'） ----------
+     与仿真实验的区别：画面由引擎逐帧推进，读数取当前世界的统计快照。
+     器材栏 → 放置装置；画布 → 拖动刚体 / 整组挪位；右栏 → 改质量与重力。 */
+  var PROP_NAME = {
+    base: '底座 / 托盘架', column: '立柱', beam: '横梁', panL: '左托盘', panR: '右托盘',
+    stopL: '左止挡', stopR: '右止挡', post: '机架支柱', block: '物块', ramp: '斜面 / 挡板',
+    prop: '支撑腿', floor: '地面', wall: '边界'
+  };
+
+  function disposeRigid() {
+    if (app.rigid) {
+      app.rigid.destroy();
+      app.rigid = null;
+    }
+    app.rigidSel = null;
+  }
+
+  function rigidCtx() {
+    return {
+      stage: app.stage,
+      values: app.simValues,
+      calc: app.simCalc,
+      mode: app.mode,
+      rows: app.rows,
+      state: app,
+      clock: app.clock,
+      rt: app.lab ? app.lab.rt : null,
+      rigid: app.rigid,
+      sel: app.rigidSel,
+      set: function () { /* 刚体沙盒没有 schema 控件，参数走右侧属性面板 */ },
+      redraw: function () { simRender(); }
+    };
+  }
+
+  function renderRigidLab() {
+    var lab = app.lab;
+    var meta = lab.meta;
+
+    var cards = (lab.devices || []).map(function (d) {
+      return '<button type="button" class="device-card" data-device="' + d.id + '">' +
+        '<span class="device-thumb">' + SL.icon(d.icon, '', 22) + '</span>' +
+        '<span class="device-text"><strong>' + d.label + '</strong><em>' + d.desc + '</em></span>' +
+        '</button>';
+    }).join('');
+
+    root().innerHTML = '<div class="lab-view sim-lab rigid-lab" style="--accent:' + meta.accent + '">' +
+      '<div class="lab-topbar">' +
+      '<button type="button" class="btn btn-ghost" id="lab-back">' + SL.icon('arrow-left', '', 17) + '返回大厅</button>' +
+      '<div class="lab-heading"><span class="lab-tag">' + meta.tag + '</span><h1>' + meta.name + '</h1></div>' +
+      '<div class="lab-top-actions">' +
+      '<button type="button" class="btn btn-ghost" id="lab-reset">重置</button>' +
+      '</div></div>' +
+
+      '<div class="lab-body">' +
+      '<aside class="palette sim-palette rigid-palette">' +
+      '<h2 class="palette-title">装置器材</h2>' +
+      '<div class="device-list" id="device-list">' + cards + '</div>' +
+      '<div class="sim-play">' +
+      '<button type="button" class="btn btn-soft btn-sm" id="sim-play-btn">' +
+      SL.icon('player-play', '', 16) + '<span>播放</span></button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="sim-clear-btn">清空</button>' +
+      '</div>' +
+      '<p class="palette-tip">单击器材放进画面，或按住拖到指定位置<br>拖动物体能推它，拖住底座可整体挪位</p>' +
+      '</aside>' +
+
+      '<section class="stage sim-stage-wrap">' +
+      stageHeadHtml({ sim: true, animated: true, vectors: false, note: '拖动物体施力 · 拖住静态底座整体挪位' }) +
+      '<div class="stage-canvas">' +
+      '<div class="board-host sim-stage-host rigid-stage-host" id="board-host"></div>' +
+      '</div>' +
+      '<div class="stage-bar"><div class="warnings" id="stage-warnings"></div>' +
+      '<div class="stage-actions"><button type="button" class="btn btn-primary" id="record-btn">' +
+      SL.icon('chart-line', '', 17) + '记录当前数据</button></div></div></section>' +
+
+      '<aside class="side">' +
+      '<section class="panel panel-props"><div class="panel-head"><h2>物体属性</h2>' +
+      '<span class="panel-badge" id="prop-badge"></span></div><div class="props-host" id="props-host"></div></section>' +
+      '<section class="panel"><div class="panel-head"><h2>实时读数</h2></div>' +
+      '<div class="readouts-host" id="meters-host"></div></section>' +
+      recordsPanelHtml() +
+      '<section class="panel panel-guide" id="guide-panel"></section>' +
+      '</aside></div></div>';
+
+    /* 每次进入实验都重建世界，避免上一份装置的残留 */
+    disposeRigid();
+    app.stage = SL.sim.Stage(SL.$('#board-host'), {
+      w: lab.canvas.w, h: lab.canvas.h, label: meta.name
+    });
+    app.rigid = SL.rigid.create({ width: lab.canvas.w, height: lab.canvas.h });
+    app.rigid.setGravity(app.simValues.gravity == null ? 1 : app.simValues.gravity);
+    lab.setup(rigidCtx());
+
+    /* 存档复原：有 layout 就照原样摆回，没有（首次进入）就摆默认场景 */
+    var layout = app.simValues ? app.simValues.layout : null;
+    if (layout && layout.length) {
+      layout.forEach(function (item) {
+        lab.place(app.rigid, item.type, item.x, item.y, { raw: true });
+      });
+    } else if (layout == null) {
+      lab.demo(app.rigid);
+    }
+
+    app.clock = SL.sim.Clock({
+      speed: app.simSpeed || 1,
+      onTick: function (dt) {
+        if (app.rigid) app.rigid.step(dt * 1000);
+        simRender();
+      },
+      onState: updatePlayBtn
+    });
+
+    bindRigidEvents();
+    renderGuide();
+    renderRecords();
+    renderRigidProps();
+    simRender();
+    /* 画面里有装置就直接开跑：沙盒的默认状态是「活的」 */
+    if (app.clock && app.simCalc && app.simCalc.count) app.clock.start();
+    updatePlayBtn();
+  }
+
+  function bindRigidEvents() {
+    SL.$('#lab-back').addEventListener('click', leaveLab);
+    bindRecordActions();
+
+    SL.$('#lab-reset').addEventListener('click', function () {
+      SL.confirm('重置会清空画面里的所有装置并恢复默认场景（记录单不受影响），确定吗？', function () {
+        resetRigidWorld(true);
+        SL.toast('已恢复默认场景', 'ok');
+      }, { okText: '重置' });
+    });
+
+    SL.$('#sim-clear-btn').addEventListener('click', function () {
+      if (!app.rigid || !app.rigid.count()) { SL.toast('画面里已经没有装置了', 'info'); return; }
+      resetRigidWorld(false);
+      SL.toast('已清空装置', 'ok');
+    });
+
+    var playBtn = SL.$('#sim-play-btn');
+    if (playBtn) {
+      playBtn.addEventListener('click', function () {
+        if (!app.clock) return;
+        app.clock.toggle();
+        SL.sound.play('click');
+      });
+    }
+
+    bindRigidPalette();
+    bindRigidStage();
+    bindStageTools();
+    applyViewOpts();
+  }
+
+  function resetRigidWorld(withDemo) {
+    if (!app.rigid) return;
+    var wasPlaying = app.clock && app.clock.playing;
+    if (app.clock) app.clock.stop();
+    app.rigid.clear();
+    app.rigidSel = null;
+    app.lab.setup(rigidCtx());     /* clear() 会把地面一起清掉，这里重新铺 */
+    app.rigid.setGravity(app.simValues.gravity == null ? 1 : app.simValues.gravity);
+    if (withDemo) app.lab.demo(app.rigid);
+    syncRigidLayout();
+    renderRigidProps();
+    rigidSync();
+    if (wasPlaying && app.clock) app.clock.start();
+  }
+
+  /* 装置布局是这里唯一的持久化内容：静态件存锚点，动态件存当前位姿 */
+  function syncRigidLayout() {
+    if (!app.simValues) return;
+    app.simValues.layout = app.rigid && app.lab.snapshot ? app.lab.snapshot(app.rigid) : [];
+    if (app.simTimer) clearTimeout(app.simTimer);
+    app.simTimer = setTimeout(saveProgress, 240);
+  }
+
+  function rigidSync() {
+    simSync();
+  }
+
+  function clientInStage(evt) {
+    if (!app.stage || !app.stage.svg) return null;
+    var rect = app.stage.svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    if (evt.clientX < rect.left || evt.clientX > rect.right ||
+        evt.clientY < rect.top || evt.clientY > rect.bottom) return null;
+    return app.stage.toWorld(evt);
+  }
+
+  function addRigidDevice(type, x, y) {
+    if (!app.rigid || !app.lab) return null;
+    var limit = app.lab.maxBodies || 40;
+    if (app.simCalc && app.simCalc.count >= limit) {
+      SL.toast('刚体已达 ' + limit + ' 个上限，先删掉一些装置', 'warn');
+      return null;
+    }
+    var spot = x == null ? app.lab.autoSpot(app.rigid, type) : app.lab.clampSpot(type, x, y);
+    var group = app.lab.place(app.rigid, type, spot.x, spot.y);
+    if (!group) return null;
+    app.rigidSel = group.parts.beam || group.parts.block || group.parts.ramp || group.bodies[0] || null;
+    syncRigidLayout();
+    renderRigidProps();
+    rigidSync();
+    if (app.clock && !app.clock.playing) app.clock.start();
+    SL.sound.play('click');
+    return group;
+  }
+
+  function removeRigidSelected() {
+    if (!app.rigid || !app.rigidSel) { SL.toast('先点一下画面里要删除的物体', 'info'); return; }
+    var groupId = app.rigidSel.sl && app.rigidSel.sl.group;
+    if (groupId) app.rigid.removeGroup(groupId);
+    else app.rigid.removeBody(app.rigidSel);
+    app.rigidSel = null;
+    syncRigidLayout();
+    renderRigidProps();
+    rigidSync();
+    SL.sound.play('click');
+  }
+
+  /* 器材条：单击自动落位，按住拖到画布指定位置 */
+  function bindRigidPalette() {
+    SL.$$('[data-device]').forEach(function (btn) {
+      btn.addEventListener('pointerdown', function (evt) {
+        if (evt.button) return;
+        var type = btn.getAttribute('data-device');
+        var startX = evt.clientX, startY = evt.clientY;
+        var moved = false, ghost = null;
+
+        function move(e) {
+          if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) < 6) return;
+          moved = true;
+          if (!ghost) {
+            var t = (app.lab.types || {})[type] || {};
+            ghost = document.createElement('div');
+            ghost.className = 'device-ghost';
+            ghost.textContent = t.label || '装置';
+            document.body.appendChild(ghost);
+          }
+          ghost.style.left = e.clientX + 'px';
+          ghost.style.top = e.clientY + 'px';
+          ghost.classList.toggle('is-over', !!clientInStage(e));
+        }
+
+        function up(e) {
+          document.removeEventListener('pointermove', move);
+          document.removeEventListener('pointerup', up);
+          if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+          if (!moved) { addRigidDevice(type); return; }
+          var world = clientInStage(e);
+          if (world) addRigidDevice(type, world.x, world.y);
+          else SL.toast('把器材拖到画布上才会放下', 'info');
+        }
+
+        document.addEventListener('pointermove', move);
+        document.addEventListener('pointerup', up);
+        evt.preventDefault();
+      });
+    });
+  }
+
+  /* 画布：拖动物体施力 / 拖动静态装置整体水平挪位 */
+  function bindRigidStage() {
+    var svg = app.stage && app.stage.svg;
+    if (!svg) return;
+    svg.style.touchAction = 'none';
+    var drag = null;
+
+    function select(body) {
+      app.rigidSel = body || null;
+      renderRigidProps();
+      simRender();
+    }
+
+    svg.addEventListener('pointerdown', function (evt) {
+      if (!app.rigid || evt.button) return;
+      var p = app.stage.toWorld(evt);
+      var body = app.rigid.pick(p);
+      select(body);
+      if (!body) return;
+      if (body.isStatic) {
+        var group = body.sl && body.sl.group ? app.rigid.group(body.sl.group) : null;
+        if (!group) return;
+        var bb = { minX: Infinity, maxX: -Infinity };
+        group.bodies.forEach(function (b) {
+          bb.minX = Math.min(bb.minX, b.bounds.min.x);
+          bb.maxX = Math.max(bb.maxX, b.bounds.max.x);
+        });
+        /* 静态装置的上下位移会变成「浮空」，所以只开放水平拖动 */
+        drag = {
+          mode: 'group', group: group, origin: p.x, applied: 0,
+          minDx: 8 - bb.minX, maxDx: (app.stage.w - 8) - bb.maxX
+        };
+      } else {
+        if (!app.rigid.setGrab(body, p)) return;
+        drag = { mode: 'grab' };
+      }
+      if (svg.setPointerCapture && evt.pointerId != null) svg.setPointerCapture(evt.pointerId);
+      evt.preventDefault();
+    });
+
+    svg.addEventListener('pointermove', function (evt) {
+      if (!drag || !app.rigid) return;
+      var p = app.stage.toWorld(evt);
+      if (drag.mode === 'grab') {
+        app.rigid.moveGrab(p);
+      } else {
+        var dx = Math.max(drag.minDx, Math.min(drag.maxDx, p.x - drag.origin));
+        if (Math.abs(dx - drag.applied) > 0.01) {
+          app.rigid.moveGroup(drag.group.id, dx - drag.applied, 0);
+          drag.applied = dx;
+        }
+      }
+      evt.preventDefault();
+    });
+
+    function endDrag() {
+      if (!drag) return;
+      if (drag.mode === 'grab' && app.rigid) app.rigid.clearGrab();
+      drag = null;
+      syncRigidLayout();
+      rigidSync();
+    }
+    svg.addEventListener('pointerup', endDrag);
+    svg.addEventListener('pointercancel', endDrag);
+  }
+
+  /* 右侧属性面板：全局重力 + 选中刚体的质量 / 密度 / 摩擦 / 弹性 */
+  function renderRigidProps() {
+    var host = SL.$('#props-host');
+    if (!host || !app.rigid) return;
+    var gravity = app.rigid.gravity();
+    var body = app.rigidSel;
+    var badge = SL.$('#prop-badge');
+
+    var html = '<label class="prop-row"><span class="prop-label">全局重力</span>' +
+      '<input type="range" min="0.2" max="2" step="0.1" value="' + gravity + '" data-prop="gravity" aria-label="全局重力">' +
+      '<output class="prop-out">' + SL.fmt(gravity * SL.rigid.G, 0) + ' N/kg</output></label>' +
+      '<p class="prop-note">1 px = 1 cm；力矩按 g = ' + SL.fmt(gravity * SL.rigid.G, 0) + ' N/kg 换算。</p>';
+
+    if (!body) {
+      if (badge) badge.textContent = '未选中';
+      host.innerHTML = html + '<div class="prop-empty">' + SL.icon('help-circle', '', 16) +
+        '点一下画面里的物体，就能改它的质量、密度与摩擦</div>';
+      bindProps(host);
+      return;
+    }
+
+    var role = body.sl ? body.sl.role : 'block';
+    var name = PROP_NAME[role] || '刚体';
+    if (badge) badge.textContent = name;
+    var grams = Math.round(body.mass * SL.rigid.MASS_TO_G);
+    var density = body.density * SL.rigid.MASS_TO_G;
+    var off = body.isStatic ? ' disabled' : '';
+
+    html += '<div class="prop-title">' + name +
+      (body.isStatic ? '<em>静态：不受重力，质量固定</em>' : '') + '</div>' +
+      '<label class="prop-row"><span class="prop-label">质量</span>' +
+      '<input type="range" min="20" max="2000" step="10" value="' + Math.min(2000, Math.max(20, grams)) + '" data-prop="mass"' + off + ' aria-label="质量">' +
+      '<output class="prop-out">' + grams + ' g</output></label>' +
+      '<label class="prop-row"><span class="prop-label">密度</span>' +
+      '<input type="range" min="0.01" max="0.6" step="0.01" value="' + SL.fmt(density, 2) + '" data-prop="density"' + off + ' aria-label="密度">' +
+      '<output class="prop-out">' + SL.fmt(density, 2) + ' g/cm²</output></label>' +
+      '<p class="prop-note">二维沙盒，厚度按 1 cm 计，所以密度用面密度 g/cm² 表示。</p>' +
+      '<label class="prop-row"><span class="prop-label">摩擦</span>' +
+      '<input type="range" min="0" max="1" step="0.05" value="' + body.friction + '" data-prop="friction" aria-label="摩擦">' +
+      '<output class="prop-out">' + SL.fmt(body.friction, 2) + '</output></label>' +
+      '<label class="prop-row"><span class="prop-label">弹性</span>' +
+      '<input type="range" min="0" max="0.9" step="0.05" value="' + body.restitution + '" data-prop="restitution" aria-label="弹性">' +
+      '<output class="prop-out">' + SL.fmt(body.restitution, 2) + '</output></label>' +
+      '<button type="button" class="btn btn-ghost btn-sm btn-danger-ghost prop-del" id="prop-delete">' +
+      SL.icon('trash', '', 15) + '删除这个装置</button>';
+
+    host.innerHTML = html;
+    bindProps(host);
+  }
+
+  function bindProps(host) {
+    SL.$$('[data-prop]', host).forEach(function (input) {
+      input.addEventListener('input', function () {
+        var key = input.getAttribute('data-prop');
+        var val = parseFloat(input.value);
+        var out = input.nextElementSibling;
+        if (key === 'gravity') {
+          app.rigid.setGravity(val);
+          if (app.simValues) app.simValues.gravity = val;
+          if (out) out.textContent = SL.fmt(val * SL.rigid.G, 0) + ' N/kg';
+          rigidSync();
+          return;
+        }
+        var body = app.rigidSel;
+        if (!body) return;
+        if (key === 'mass' && !body.isStatic) {
+          app.rigid.setMassG(body, val);
+          if (out) out.textContent = Math.round(body.mass * SL.rigid.MASS_TO_G) + ' g';
+        } else if (key === 'density' && !body.isStatic) {
+          app.rigid.setDensityG(body, val);
+          if (out) out.textContent = SL.fmt(body.density * SL.rigid.MASS_TO_G, 2) + ' g/cm²';
+        } else if (key === 'friction') {
+          body.friction = val;
+          if (out) out.textContent = SL.fmt(val, 2);
+        } else if (key === 'restitution') {
+          body.restitution = val;
+          if (out) out.textContent = SL.fmt(val, 2);
+        }
+        rigidSync();
+      });
+    });
+    var del = SL.$('#prop-delete', host);
+    if (del) del.addEventListener('click', removeRigidSelected);
   }
 
   function flipIcon() {
@@ -641,7 +1058,7 @@
       '<button type="button" class="tool-btn' + (app.viewOpts.grid ? ' is-on' : '') + '" data-tool="grid" title="显示/隐藏参考网格">网格</button>' +
       '<button type="button" class="tool-btn' + (app.viewOpts.values ? ' is-on' : '') + '" data-tool="values" title="' +
       (opts.sim ? '显示/隐藏画面标注' : '显示/隐藏读数标注') + '">' + (opts.sim ? '标注' : '数值') + '</button>' +
-      (opts.sim
+      (opts.sim && opts.vectors !== false
         ? '<button type="button" class="tool-btn' + (app.viewOpts.vectors ? ' is-on' : '') + '" data-tool="vectors" title="显示/隐藏力的矢量箭头">矢量</button>'
         : '') +
       '</div>');
@@ -664,7 +1081,7 @@
   }
 
   function applyViewOpts() {
-    if (app.kind === 'sim') {
+    if (app.kind === 'sim' || app.kind === 'rigid') {
       if (app.stage && app.stage.svg) {
         var svg = app.stage.svg;
         svg.classList.toggle('hide-grid', !app.viewOpts.grid);
@@ -1066,7 +1483,9 @@
 
   /* ---------- 引导模式 ---------- */
   function labCtx() {
-    return app.kind === 'sim' ? simCtx() : ctx();
+    if (app.kind === 'sim') return simCtx();
+    if (app.kind === 'rigid') return rigidCtx();
+    return ctx();
   }
 
   function evaluateChecks() {
@@ -1799,6 +2218,25 @@
   function onKeydown(e) {
     var tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (app.kind === 'rigid') {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        removeRigidSelected();
+        return;
+      }
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        if (app.clock) app.clock.toggle();
+        return;
+      }
+      if (e.key === 'Escape') {
+        app.rigidSel = null;
+        renderRigidProps();
+        simRender();
+        return;
+      }
+      return;
+    }
     if (!app.board) return;
     if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+' || e.code === 'Equal')) {
       e.preventDefault();
@@ -1871,6 +2309,7 @@
     if (app.simTimer) { clearTimeout(app.simTimer); app.simTimer = null; }
     if (app.clock) app.clock.stop();
     if (app.board) app.board.destroy && app.board.destroy();
+    disposeRigid();
     app.clock = null;
     app.stage = null;
     app.controls = null;
@@ -1899,7 +2338,23 @@
     showHome();
   }
 
-  SL.app = { init: init, openLab: openLab, showHome: showHome, state: app, sync: function () { sync(); } };
+  SL.app = {
+    init: init,
+    openLab: openLab,
+    showHome: showHome,
+    state: app,
+    sync: function () { sync(); },
+    /* 刚体沙盒的调试入口（预览页/截图脚本用它选中刚体、刷新属性面板） */
+    rigidSelect: function (body) {
+      if (app.kind !== 'rigid') return null;
+      app.rigidSel = body || null;
+      renderRigidProps();
+      simRender();
+      return app.rigidSel;
+    },
+    rigidReset: function (withDemo) { resetRigidWorld(withDemo !== false); },
+    rigidAdd: function (type, x, y) { return addRigidDevice(type, x, y); }
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

@@ -22,11 +22,13 @@
   <script src="../assets/js/core/meters.js"></script>
   <script src="../assets/js/core/formula.js"></script>
   <script src="../assets/js/core/records.js"></script>
+  <script src="../assets/js/vendor/matter.min.js"></script>
   <script src="../assets/js/sims/mech.js"></script>
   <script src="../assets/js/sims/chem.js"></script>
   <script src="../assets/js/sims/bio.js"></script>
   <script src="../assets/js/sims/thermo.js"></script>
   <script src="../assets/js/sims/optics.js"></script>
+  <script src="../assets/js/sims/rigid.js"></script>
   <script src="../assets/js/labs/lab-series.js"></script>
   <script src="../assets/js/labs/lab-ohm-r.js"></script>
   <script src="../assets/js/labs/lab-ohm-law.js"></script>
@@ -35,6 +37,7 @@
   <script src="../assets/js/labs/lab-pulley.js"></script>
   <script src="../assets/js/labs/lab-buoyancy.js"></script>
   <script src="../assets/js/labs/lab-mech-free.js"></script>
+  <script src="../assets/js/labs/lab-mech-sandbox.js"></script>
   <script src="../assets/js/labs/lab-thermo-boiling.js"></script>
   <script src="../assets/js/labs/lab-thermo-heatcap.js"></script>
   <script src="../assets/js/labs/lab-thermo-free.js"></script>
@@ -73,6 +76,33 @@
           SL.labs[lab].onTick(6, SL.app.state);
         }
         if (q.get('h')) SL.app.state.controls.set('h', parseFloat(q.get('h')));
+        /* 刚体沙盒：?scene=demo|stack|alone 摆一套固定装置，方便截图核对 */
+        var scene = q.get('scene');
+        if (scene && SL.app.state.kind === 'rigid') {
+          var st = SL.app.state;
+          var sandbox = SL.labs['mech-sandbox'];
+          var R = SL.rigid;
+          st.rigid.clear();
+          sandbox.setup({ rigid: st.rigid, stage: st.stage });
+          if (scene === 'demo') {
+            sandbox.demo(st.rigid);
+          } else if (scene === 'stack') {
+            var big = R.devices.balance(st.rigid, 450, sandbox.floorY);
+            var panTop = big.parts.panL.bounds.min.y;
+            var small = R.devices.stackBalance(st.rigid, 450 - 116, panTop);
+            var smallMass = small.bodies.reduce(function (a, b) { return a + b.mass; }, 0);
+            R.devices.block(st.rigid, 450 + 116, panTop - 15, { w: 40, h: 30, density: smallMass / 1200 });
+            R.devices.block(st.rigid, 150, sandbox.floorY - 20, { tone: 2 });
+            SL.app.rigidSelect(small.parts.beam);
+          } else if (scene === 'alone') {
+            R.devices.ramp(st.rigid, 730, sandbox.floorY, { len: 200, thick: 10, angle: 22 });
+            var bal2 = R.devices.balance(st.rigid, 200, sandbox.floorY);
+            var pt = bal2.parts.panL.bounds.min.y;
+            R.devices.block(st.rigid, 200 - 116, pt - 21, { tone: 0 });
+            SL.app.rigidSelect(bal2.parts.beam);
+          }
+          if (st.clock) st.clock.start();
+        }
         /* 选中第 n 个元件并打开属性面板（截图核对换向按钮用），?flip=1 再点一下换向 */
         if (q.get('sel')) {
           var comps = SL.app.state.board.getScene().components;

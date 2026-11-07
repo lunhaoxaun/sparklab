@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>刚体沙盒自测</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+  <link rel="stylesheet" href="../assets/css/lab.css">
+  <link rel="stylesheet" href="../assets/css/sim.css">
+  <style>
+    body { padding: 20px; font-family: ui-monospace, Consolas, monospace; }
+    .row { padding: 4px 0; font-size: 13px; }
+    .pass { color: #2fa36b; }
+    .fail { color: #e05252; }
+    .detail { color: #8aa0b6; margin-left: 10px; }
+    #summary { margin-top: 16px; font-size: 15px; font-weight: 700; }
+    #view-root { position: absolute; left: -9999px; top: 0; width: 1280px; }
+    #topbar { display: none; }
+  </style>
+</head>
+<body>
+  <h1>刚体沙盒自测（堆叠 / 天平 / 天平叠天平 / 性能 / API 契约）</h1>
+  <div id="out"></div>
+  <div id="summary"></div>
+  <header class="topbar" id="topbar"></header>
+  <main class="view-root" id="view-root"></main>
+
+  <script src="../assets/icons/sprite.js"></script>
+  <script src="../assets/js/core/utils.js"></script>
+  <script src="../data/experiments.js"></script>
+  <script src="../assets/js/core/simkit.js"></script>
+  <script src="../assets/js/core/circuit.js"></script>
+  <script src="../assets/js/core/skins.js"></script>
+  <script src="../assets/js/core/board.js"></script>
+  <script src="../assets/js/core/meters.js"></script>
+  <script src="../assets/js/core/formula.js"></script>
+  <script src="../assets/js/core/records.js"></script>
+  <script src="../assets/js/vendor/matter.min.js"></script>
+  <script src="../assets/js/sims/mech.js"></script>
+  <script src="../assets/js/sims/thermo.js"></script>
+  <script src="../assets/js/sims/optics.js"></script>
+  <script src="../assets/js/sims/rigid.js"></script>
+  <script src="../assets/js/labs/lab-lever.js"></script>
+  <script src="../assets/js/labs/lab-pulley.js"></script>
+  <script src="../assets/js/labs/lab-buoyancy.js"></script>
+  <script src="../assets/js/labs/lab-mech-free.js"></script>
+  <script src="../assets/js/labs/lab-mech-sandbox.js"></script>
+  <script src="../assets/js/ui/home.js"></script>
+  <script src="../assets/js/app.js"></script>
+
+  <script>
+  window.addEventListener('load', function () {
+    var SL = window.SparkLab;
+    var R = SL.rigid;
+    var out = document.getElementById('out');
+    var total = 0, passed = 0;
+
+    function test(name, fn) {
+      total += 1;
+      var ok = false, detail = '';
+      try {
+        var res = fn();
+        ok = res === true || (res && res.ok);
+        if (res && res.detail) detail = res.detail;
+      } catch (e) {
+        detail = '异常：' + e.message;
+      }
+      if (ok) passed += 1;
+      var row = document.createElement('div');
+      row.className = 'row ' + (ok ? 'pass' : 'fail');
+      row.innerHTML = (ok ? 'PASS ' : 'FAIL ') + total + '. ' + name +
+        (detail ? '<span class="detail">' + detail + '</span>' : '');
+      out.appendChild(row);
+    }
+
+    var FLOOR = 470;
+
+    function world() { return R.create({ width: 900, height: 520 }); }
+    function base(w) {
+      w.addStatic({ type: 'box', x: 450, y: FLOOR + 10, w: 1100, h: 20, friction: 0.9, role: 'floor' });
+      return w;
+    }
+    function run(w, n) { for (var i = 0; i < n; i++) w.step(1000 / 60); }
+    function allFinite(list) {
+      return list.every(function (b) {
+        return isFinite(b.position.x) && isFinite(b.position.y) &&
+          isFinite(b.angle) && isFinite(b.velocity.x) && isFinite(b.velocity.y);
+      });
+    }
+    function deg(b) { return Math.abs(b.angle * 180 / Math.PI); }
+
+    /* ================= 一、堆叠 ================= */
+    test('三箱堆叠 600 步：顺序不变、水平漂移 < 2 px', function () {
+      var w = base(world());
+      var boxes = [350, 310, 270].map(function (y, i) {
+        return w.addBody({ type: 'box', x: 450, y: y, w: 40, h: 40, density: 0.002, friction: 0.8, role: 'block', tone: i });
+      });
+      run(w, 600);
+      var drift = Math.max.apply(null, boxes.map(function (b) { return Math.abs(b.position.x - 450); }));
+      var ordered = boxes[0].position.y > boxes[1].position.y && boxes[1].position.y > boxes[2].position.y;
+      var res = { ok: ordered && drift < 2, detail: 'drift=' + drift.toFixed(2) + ' px, y=' + boxes.map(function (b) {
+        return b.position.y.toFixed(1);
+      }).join('/') };
+      w.destroy();
+      return res;
+    });
+
+    test('堆叠 10 s 后全部静止（速度 < 0.5 px/步）且无 NaN', function () {
+      var w = base(world());
+      var boxes = [350, 310, 270].map(function (y) {
+        return w.addBody({ type: 'box', x: 450, y: y, w: 40, h: 40, density: 0.002, friction: 0.8, role: 'block' });
+      });
+      run(w, 600);
+      var maxSpeed = Math.max.apply(null, boxes.map(function (b) { return b.speed; }));
+      var res = { ok: maxSpeed < 0.5 && allFinite(boxes), detail: 'vmax=' + maxSpeed.toFixed(3) };
+      w.destroy();
+      return res;
+    });
+
+    test('物块落在地面上不穿透（最低点贴地 ±1.5 px）', function () {
+      var w = base(world());
+      var b = w.addBody({ type: 'box', x: 450, y: 300, w: 40, h: 40, density: 0.002, role: 'block' });
+      run(w, 240);
+      var gap = FLOOR - b.bounds.max.y;
+      var res = { ok: Math.abs(gap) < 1.5, detail: 'gap=' + gap.toFixed(2) + ' px' };
+      w.destroy();
+      return res;
+    });
+
+    /* ================= 二、天平倾斜 ================= */
+    function tiltScene() {
+      var w = base(world());
+      var bal = R.devices.balance(w, 450, FLOOR);
+      var panTop = bal.parts.panL.bounds.min.y;
+      w.addBody({ type: 'box', x: 450 - 116, y: panTop - 17, w: 40, h: 34, density: 0.01, friction: 0.8, role: 'block' });
+      w.addBody({ type: 'box', x: 450 + 116, y: panTop - 10, w: 20, h: 20, density: 0.01, friction: 0.8, role: 'block' });
+      return { w: w, bal: bal };
+    }
+
+    test('天平左重：横梁倾角 3°–30°，重的一侧下沉', function () {
+      var s = tiltScene();
+      run(s.w, 600);
+      var angle = deg(s.bal.parts.beam);
+      var leftLower = s.bal.parts.panL.position.y > s.bal.parts.panR.position.y;
+      var res = { ok: angle > 3 && angle < 30 && leftLower,
+        detail: 'angle=' + angle.toFixed(1) + '°, 左盘 y=' + s.bal.parts.panL.position.y.toFixed(1) +
+          ', 右盘 y=' + s.bal.parts.panR.position.y.toFixed(1) };
+      s.w.destroy();
+      return res;
+    });
+
+    test('机架限位把倾角挡住（< 8°，不会翻到 60°+）', function () {
+      var s = tiltScene();
+      run(s.w, 900);
+      var angle = deg(s.bal.parts.beam);
+      var res = { ok: angle < 8, detail: 'angle=' + angle.toFixed(1) + '°' };
+      s.w.destroy();
+      return res;
+    });
+
+    test('托盘始终水平（angle < 3°），砝码不会随横梁倾斜滑落', function () {
+      var s = tiltScene();
+      run(s.w, 600);
+      var aL = deg(s.bal.parts.panL), aR = deg(s.bal.parts.panR);
+      var res = { ok: aL < 3 && aR < 3, detail: '左盘=' + aL.toFixed(1) + '°, 右盘=' + aR.toFixed(1) + '°' };
+      s.w.destroy();
+      return res;
+    });
+
+    test('读数口径：重侧力矩更大、判为不平衡（g=10 N/kg、1 px=1 cm）', function () {
+      var s = tiltScene();
+      run(s.w, 600);
+      var stats = s.w.readStats();
+      var b = stats.balances[0];
+      var res = { ok: !!b && b.torqueL > b.torqueR && b.balanced === false && isFinite(b.torqueL),
+        detail: b ? 'L=' + b.torqueL.toFixed(2) + ' R=' + b.torqueR.toFixed(2) + ' N·m, arm=' + b.armCm + ' cm' : '无天平' };
+      s.w.destroy();
+      return res;
+    });
+
+    test('等质量的砝码 → 判为平衡（力矩差 < 3%）', function () {
+      var w = base(world());
+      var bal = R.devices.balance(w, 450, FLOOR);
+      var panTop = bal.parts.panL.bounds.min.y;
+      [-116, 116].forEach(function (dx) {
+        w.addBody({ type: 'box', x: 450 + dx, y: panTop - 20, w: 40, h: 40, density: 0.003, friction: 0.8, role: 'block' });
+      });
+      run(w, 600);
+      var b = w.readStats().balances[0];
+      var res = { ok: !!b && b.balanced, detail: b ? 'L=' + b.torqueL.toFixed(2) + ' R=' + b.torqueR.toFixed(2) : '无天平' };
+      w.destroy();
+      return res;
+    });
+
+    /* ================= 三、天平叠天平 ================= */
+    test('天平叠天平：小天平被大盘托住（120 步内接触）', function () {
+      var w = base(world());
+      var big = R.devices.balance(w, 450, FLOOR);
+      var panTop = big.parts.panL.bounds.min.y;
+      var small = R.devices.stackBalance(w, 450 - 116, panTop);
+      var hit = false;
+      for (var i = 0; i < 120; i++) {
+        w.step(1000 / 60);
+        if (Matter.Query.collides(small.parts.base, [big.parts.panL]).length) { hit = true; break; }
+      }
+      var res = { ok: hit, detail: '120 步内接触=' + hit };
+      w.destroy();
+      return res;
+    });
+
+    test('天平叠天平：不穿透、不塌陷（最终间隙 −8 ～ 40 px）', function () {
+      var w = base(world());
+      var big = R.devices.balance(w, 450, FLOOR);
+      var panTop = big.parts.panL.bounds.min.y;
+      var small = R.devices.stackBalance(w, 450 - 116, panTop);
+      run(w, 900);
+      var gap = (big.parts.panL.bounds.min.y) - (small.parts.base.bounds.max.y);
+      var res = { ok: gap > -8 && gap < 40, detail: '间隙=' + gap.toFixed(1) + ' px' };
+      w.destroy();
+      return res;
+    });
+
+    test('天平叠天平：配平后大梁保持水平（|angle| < 1°）且无 NaN', function () {
+      var w = base(world());
+      var big = R.devices.balance(w, 450, FLOOR);
+      var panTop = big.parts.panL.bounds.min.y;
+      var small = R.devices.stackBalance(w, 450 - 116, panTop);
+      var smallMass = small.parts.base.mass + small.parts.beam.mass +
+        small.parts.panL.mass + small.parts.panR.mass;
+      w.addBody({
+        type: 'box', x: 450 + 116, y: panTop - 15, w: 40, h: 30,
+        density: smallMass / (40 * 30), friction: 0.8, role: 'block'
+      });
+      run(w, 900);
+      var angle = deg(big.parts.beam);
+      var bodies = [big.parts.beam, big.parts.panL, big.parts.panR, small.parts.base, small.parts.beam];
+      var res = { ok: angle < 1 && allFinite(bodies),
+        detail: '大梁角=' + angle.toFixed(2) + '°, 小梁角=' + deg(small.parts.beam).toFixed(2) + '°' };
+      w.destroy();
+      return res;
+    });
+
+    test('天平叠天平：小天平没被推下托盘（水平偏移 < 22 px）', function () {
+      var w = base(world());
+      var big = R.devices.balance(w, 450, FLOOR);
+      var panTop = big.parts.panL.bounds.min.y;
+      var small = R.devices.stackBalance(w, 450 - 116, panTop);
+      run(w, 900);
+      var off = Math.abs(small.parts.base.position.x - big.parts.panL.position.x);
+      var res = { ok: off < 22, detail: '偏移=' + off.toFixed(1) + ' px' };
+      w.destroy();
+      return res;
+    });
+
+    /* ================= 四、性能 ================= */
+    test('25 个刚体 × 600 步同步求解 < 800 ms', function () {
+      var w = base(world());
+      var pile = [];
+      for (var p = 0; p < 25; p++) {
+        pile.push(w.addBody({
+          type: 'box', x: 450 + (p % 5) * 4, y: 400 - Math.floor(p / 5) * 38,
+          w: 32, h: 32, density: 0.002, role: 'block'
+        }));
+      }
+      var t0 = performance.now();
+      run(w, 600);
+      var ms = performance.now() - t0;
+      var res = { ok: ms < 800 && allFinite(pile), detail: ms.toFixed(0) + ' ms' };
+      w.destroy();
+      return res;
+    });
+
+    test('固定步长：一步的时间恒为 1000/60 ms（与传参无关）', function () {
+      var w = base(world());
+      var b = w.addBody({ type: 'box', x: 450, y: 200, w: 30, h: 30, density: 0.002, role: 'block' });
+      w.step(1000 / 60);
+      var v1 = b.velocity.y;
+      var w2 = base(world());
+      var b2 = w2.addBody({ type: 'box', x: 450, y: 200, w: 30, h: 30, density: 0.002, role: 'block' });
+      w2.step(17);   /* 17 ms 也只推进 1 个固定步 */
+      var res = { ok: Math.abs(v1 - b2.velocity.y) < 1e-9 && Math.abs(v1) > 0,
+        detail: 'v=' + v1.toFixed(5) + ' / ' + b2.velocity.y.toFixed(5) };
+      w.destroy(); w2.destroy();
+      return res;
+    });
+
+    /* ================= 五、API 契约 ================= */
+    test('create 暴露约定方法', function () {
+      var w = R.create({ width: 300, height: 200 });
+      var keys = ['addBody', 'addStatic', 'addJoint', 'removeBody', 'step', 'setGrab', 'clearGrab', 'destroy', 'bodies', 'readStats'];
+      var miss = keys.filter(function (k) { return typeof w[k] !== 'function'; });
+      var res = { ok: miss.length === 0, detail: miss.join(',') || '10/10' };
+      w.destroy();
+      return res;
+    });
+
+    test('step 返回实际推进步数；step(0) 不推进', function () {
+      var w = base(world());
+      w.addBody({ type: 'box', x: 450, y: 200, w: 30, h: 30, role: 'block' });
+      var a = w.step(1000 / 60), b = w.step(0);
+      var res = { ok: a === 1 && b === 0, detail: a + ' / ' + b };
+      w.destroy();
+      return res;
+    });
+
+    test('setGrab 拒绝静态刚体，动态刚体可抓可取', function () {
+      var w = base(world());
+      var floor = w.bodies()[0];
+      var b = w.addBody({ type: 'box', x: 450, y: 200, w: 30, h: 30, role: 'block' });
+      var deny = w.setGrab(floor, { x: 450, y: 480 });
+      var ok = w.setGrab(b, { x: b.position.x, y: b.position.y });
+      var held = Matter.Composite.allConstraints(w.engine.world).length;
+      w.clearGrab();
+      var after = Matter.Composite.allConstraints(w.engine.world).length;
+      var res = { ok: deny === false && ok === true && held === 1 && after === 0,
+        detail: 'deny=' + deny + ', held=' + held + ', after=' + after };
+      w.destroy();
+      return res;
+    });
+
+    test('removeGroup 连带清掉整组刚体与约束', function () {
+      var w = base(world());
+      var bal = R.devices.balance(w, 450, FLOOR);
+      var before = w.count();
+      w.removeGroup(bal.id);
+      var left = Matter.Composite.allConstraints(w.engine.world).filter(function (c) {
+        return c.sl && c.sl.role === 'pivot';
+      }).length;
+      /* 地面 1 + 底座/立柱/横梁/两托盘/两止挡/两根短支柱 = 10 */
+      var res = { ok: before === 10 && w.count() === 1 && left === 0,
+        detail: '前 ' + before + ' 个，删后 ' + w.count() + ' 个' };
+      w.destroy();
+      return res;
+    });
+
+    test('destroy 幂等：两次调用都不抛异常，之后 bodies 为空、step 无效', function () {
+      var w = base(world());
+      w.addBody({ type: 'box', x: 450, y: 200, w: 30, h: 30, role: 'block' });
+      var a = w.destroy();
+      var b = w.destroy();
+      var res = { ok: a === true && b === true && w.bodies().length === 0 && w.step(16) === 0,
+        detail: 'bodies=' + w.bodies().length };
+      return res;
+    });
+
+    test('clear 之后重铺地面：底座不再重复堆积', function () {
+      var w = base(world());
+      R.devices.balance(w, 450, FLOOR);
+      w.clear();
+      base(w);
+      var res = { ok: w.count() === 1 && w.groups().length === 0, detail: w.count() + ' 个刚体' };
+      w.destroy();
+      return res;
+    });
+
+    /* ================= 六、实验室接线 ================= */
+    var lab = SL.labs['mech-sandbox'];
+    test('实验卡已注册：kind=rigid、free、无引导步骤', function () {
+      return { ok: !!lab && lab.kind === 'rigid' && lab.meta.free === true &&
+        lab.meta.steps.length === 0 && lab.meta.conclusions.length === 0 && lab.meta.subject === 'mechanics' };
+    });
+
+    test('装置清单至少三类：天平 / 物块 / 斜面', function () {
+      var ids = (lab.devices || []).map(function (d) { return d.id; });
+      return { ok: ids.indexOf('balance') >= 0 && ids.indexOf('block') >= 0 &&
+        ids.indexOf('ramp') >= 0 && ids.indexOf('stackBalance') >= 0, detail: ids.join(',') };
+    });
+
+    test('lab.place 放置天平后读数含两端力矩与是否平衡', function () {
+      var w = R.create({ width: 900, height: 520 });
+      lab.setup({ rigid: w, stage: null });
+      var g = lab.place(w, 'balance', 450, FLOOR);
+      w.step(1000 / 60);
+      var ro = lab.readouts(lab.calc({}, { rigid: w }), {});
+      var text = ro.map(function (r) { return r.label + (r.text || r.value); }).join('|');
+      var res = { ok: !!g && text.indexOf('左端力矩') >= 0 && text.indexOf('是否平衡') >= 0 &&
+        text.indexOf('接触对数') >= 0, detail: text.replace(/<[^>]+>/g, '').slice(0, 60) };
+      w.destroy();
+      return res;
+    });
+
+    test('lab.measure 输出通用四列（组次/装置/状态/读数）', function () {
+      var w = R.create({ width: 900, height: 520 });
+      lab.setup({ rigid: w, stage: null });
+      lab.place(w, 'balance', 450, FLOOR);
+      lab.place(w, 'block', 200, 300);
+      w.step(1000 / 60);
+      var row = lab.measure({ values: {}, calc: lab.calc({}, { rigid: w }), rows: [], state: {} });
+      var keys = ['group', 'device', 'summary', 'result'];
+      var res = { ok: !!row && keys.every(function (k) { return row[k] != null; }) &&
+        String(row.summary).indexOf('刚体') >= 0, detail: row ? row.device + ' ｜ ' + row.result : 'null' };
+      w.destroy();
+      return res;
+    });
+
+    test('空场景不记录数据（measure 返回 null）', function () {
+      var w = R.create({ width: 900, height: 520 });
+      lab.setup({ rigid: w, stage: null });
+      var row = lab.measure({ values: {}, calc: lab.calc({}, { rigid: w }), rows: [], state: {} });
+      var res = { ok: row === null };
+      w.destroy();
+      return res;
+    });
+
+    /* ---------- 收尾 ---------- */
+    document.getElementById('summary').textContent =
+      '合计 ' + passed + ' / ' + total + (passed === total ? ' 全部通过' : ' 有失败项');
+    document.title = (passed === total ? 'PASS ' : 'FAIL ') + passed + '/' + total;
+  });
+  </script>
+</body>
+</html>

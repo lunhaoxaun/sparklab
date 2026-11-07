@@ -613,6 +613,32 @@
         conclusions: []
       },
 
+      {
+        id: 'mech-sandbox',
+        subject: 'mechanics',
+        kind: 'rigid',
+        name: '自由刚体沙盒',
+        short: '把天平、物块、斜面自由摆成装置，物体会真实地碰撞、堆叠、倾斜；天平上还能再放一台天平。',
+        tag: '自由实验 · 刚体沙盒',
+        time: '不限时',
+        accent: '#7c5cff',
+        free: true,
+        freeNote: '自由组装装置 · 真实碰撞与堆叠',
+        equipment: [
+          { icon: 'seesaw', label: '托盘天平 ×2' },
+          { icon: 'weight', label: '物块若干' },
+          { icon: 'ruler', label: '斜面与挡板' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'device', label: '装置' },
+          { key: 'summary', label: '运动状态' },
+          { key: 'result', label: '主要读数' }
+        ],
+        steps: [],
+        conclusions: []
+      },
+
       /* ==================== 热学 ==================== */
       {
         id: 'thermo-boiling',
