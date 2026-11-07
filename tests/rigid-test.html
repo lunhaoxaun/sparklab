@@ -402,6 +402,53 @@
       return res;
     });
 
+    /* ================= 七、器材搜索 ================= */
+    test('每件装置都带搜索别名（口语 / 拼音 / 英文）', function () {
+      var weak = (lab.devices || []).filter(function (d) { return !d.keys || d.keys.length < 3; });
+      var wt = (lab.devices || []).filter(function (d) { return d.id === 'weight'; })[0] || {};
+      var keys = (wt.keys || []).join(' ');
+      return { ok: weak.length === 0 && keys.indexOf('法码') >= 0 && keys.indexOf('fama') >= 0,
+        detail: (lab.devices || []).map(function (d) { return d.id + ':' + (d.keys || []).length; }).join(' ') };
+    });
+
+    test('搜索「砝」只留下砝码一张卡', function () {
+      SL.app.openLab('mech-sandbox', 'free');
+      var box = SL.$('#device-search');
+      if (!box) return { ok: false, detail: '没有搜索框' };
+      box.value = '砝';
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+      var shown = SL.$$('.device-card').filter(function (c) { return !c.hidden; });
+      return { ok: shown.length === 1 && shown[0].getAttribute('data-device') === 'weight',
+        detail: shown.map(function (c) { return c.getAttribute('data-device'); }).join(',') };
+    });
+
+    test('搜索拼音「xiemian」命中斜面，清空后全部回来', function () {
+      var box = SL.$('#device-search');
+      if (!box) return { ok: false, detail: '没有搜索框' };
+      box.value = 'xiemian';
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+      var hit = SL.$$('.device-card').filter(function (c) { return !c.hidden; });
+      var one = hit.length === 1 && hit[0].getAttribute('data-device') === 'ramp';
+      box.value = '';
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+      var all = SL.$$('.device-card').filter(function (c) { return !c.hidden; }).length;
+      return { ok: one && all === (lab.devices || []).length,
+        detail: '命中 ' + hit.length + ' 张，清空后 ' + all + ' 张' };
+    });
+
+    test('搜不到时给出空状态提示', function () {
+      var box = SL.$('#device-search');
+      if (!box) return { ok: false, detail: '没有搜索框' };
+      box.value = 'zzzz';
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+      var shown = SL.$$('.device-card').filter(function (c) { return !c.hidden; }).length;
+      var empty = SL.$('#device-empty');
+      var res = { ok: shown === 0 && !!empty && empty.hidden === false, detail: '可见 ' + shown + ' 张' };
+      box.value = '';
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+      return res;
+    });
+
     /* ---------- 收尾 ---------- */
     document.getElementById('summary').textContent =
       '合计 ' + passed + ' / ' + total + (passed === total ? ' 全部通过' : ' 有失败项');

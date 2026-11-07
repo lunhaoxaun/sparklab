@@ -548,7 +548,9 @@
     var meta = lab.meta;
 
     var cards = (lab.devices || []).map(function (d) {
-      return '<button type="button" class="device-card" data-device="' + d.id + '">' +
+      var hay = [d.label, d.desc].concat(d.keys || []).join(' ').toLowerCase();
+      return '<button type="button" class="device-card" data-device="' + d.id + '"' +
+        ' data-name="' + SL.escape(hay) + '">' +
         '<span class="device-thumb">' + SL.apparatus(d.icon, 30) + '</span>' +
         '<span class="device-text"><strong>' + d.label + '</strong><em>' + d.desc + '</em></span>' +
         '</button>';
@@ -565,13 +567,16 @@
       '<div class="lab-body">' +
       '<aside class="palette sim-palette rigid-palette">' +
       '<h2 class="palette-title">装置器材</h2>' +
+      '<div class="palette-search"><input type="search" id="device-search" placeholder="搜索器材：天平、砝码…" autocomplete="off" aria-label="搜索器材" title="按 / 聚焦搜索框，回车把第一条结果放进画面">' +
+      '<button type="button" class="search-clear" id="device-search-clear" aria-label="清空搜索" hidden>' + SL.icon('x', '', 13) + '</button></div>' +
       '<div class="device-list" id="device-list">' + cards + '</div>' +
+      '<p class="palette-empty" id="device-empty" hidden>没有找到这件器材，换个词试试</p>' +
       '<div class="sim-play">' +
       '<button type="button" class="btn btn-soft btn-sm" id="sim-play-btn">' +
       SL.icon('player-play', '', 16) + '<span>播放</span></button>' +
       '<button type="button" class="btn btn-ghost btn-sm" id="sim-clear-btn">清空</button>' +
       '</div>' +
-      '<p class="palette-tip">单击器材放进画面，或按住拖到指定位置<br>拖动物体能推它，拖住底座可整体挪位</p>' +
+      '<p class="palette-tip">点击或拖拽器材放到画面上<br>拖物体施力，拖底座整体挪位<br>按 / 搜器材，回车放下</p>' +
       '</aside>' +
 
       '<section class="stage sim-stage-wrap">' +
@@ -768,6 +773,56 @@
         evt.preventDefault();
       });
     });
+
+    bindDeviceSearch();
+  }
+
+  /* 器材搜索：按名称 / 说明 / 别名（拼音、英文、口语叫法）过滤卡片。
+     回车把第一条结果直接放进画面，Esc 清空并退出输入框。 */
+  function bindDeviceSearch() {
+    var box = SL.$('#device-search');
+    if (!box) return;
+    var empty = SL.$('#device-empty');
+    var clear = SL.$('#device-search-clear');
+    var cards = SL.$$('.device-card');
+    if (!cards.length) return;
+
+    function apply() {
+      var q = box.value.trim().toLowerCase();
+      var shown = 0;
+      cards.forEach(function (card) {
+        var hit = !q || (card.getAttribute('data-name') || '').indexOf(q) >= 0;
+        card.hidden = !hit;
+        if (hit) shown += 1;
+      });
+      if (empty) empty.hidden = shown > 0;
+      if (clear) clear.hidden = !q;
+      return shown;
+    }
+
+    function reset(focus) {
+      box.value = '';
+      apply();
+      if (focus) box.focus();
+    }
+
+    box.addEventListener('input', apply);
+    box.addEventListener('keydown', function (evt) {
+      if (evt.key === 'Enter') {
+        evt.preventDefault();
+        var first = cards.filter(function (c) { return !c.hidden; })[0];
+        if (first) addRigidDevice(first.getAttribute('data-device'));
+        else SL.toast('没有匹配的器材', 'info');
+      } else if (evt.key === 'Escape') {
+        evt.preventDefault();
+        reset(false);
+        box.blur();
+      }
+    });
+    if (clear) {
+      clear.addEventListener('click', function () { reset(true); });
+    }
+    apply();
   }
 
   /* 画布：拖动物体施力 / 拖动静态装置整体水平挪位 */
@@ -2233,6 +2288,12 @@
         app.rigidSel = null;
         renderRigidProps();
         simRender();
+        return;
+      }
+      /* 斜杠聚焦器材搜索：器材一多，鼠标找卡片不如打字快 */
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+        var box = SL.$('#device-search');
+        if (box) { e.preventDefault(); box.focus(); box.select(); }
         return;
       }
       return;

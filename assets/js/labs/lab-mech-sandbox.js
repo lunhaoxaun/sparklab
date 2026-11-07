@@ -23,20 +23,40 @@
     sel: null
   };
 
-  /* ---------- 装置清单（左侧器材栏） ---------- */
+  /* ---------- 装置清单（左侧器材栏） ----------
+     keys 是搜索用的别名：口语叫法、拼音、英文都塞进来，
+     学生打字「天平」「法码」「xiemian」都能搜到。 */
   var TYPES = {
-    balance: { label: '托盘天平', icon: 'dep-balance', desc: '横梁 + 悬挂托盘 + 机架限位', w: 150, mount: 'floor' },
-    stackBalance: { label: '小天平', icon: 'dep-stackBalance', desc: '能整体放到另一台天平的托盘上', w: 60, mount: 'free' },
-    block: { label: '物块', icon: 'dep-block', desc: '可堆放，也可压在天平托盘上', w: 40, mount: 'free' },
-    weight: { label: '砝码', icon: 'dep-weight', desc: '小而重，适合放小托盘', w: 24, mount: 'free' },
-    ramp: { label: '斜面', icon: 'dep-ramp', desc: '静态斜面，物块会沿它下滑', w: 200, mount: 'floor' },
-    wall: { label: '挡板', icon: 'dep-wall', desc: '竖直静态挡板，用来挡停物块', w: 20, mount: 'floor' }
+    balance: {
+      label: '托盘天平', icon: 'dep-balance', desc: '横梁 + 悬挂托盘 + 机架限位', w: 150, mount: 'floor',
+      keys: ['天平', '托盘天平', 'tianping', 'tp', 'balance', 'scale']
+    },
+    stackBalance: {
+      label: '小天平', icon: 'dep-stackBalance', desc: '能整体放到另一台天平的托盘上', w: 60, mount: 'free',
+      keys: ['小天平', '天平', 'xiaotianping', 'xtp', 'stack', 'mini']
+    },
+    block: {
+      label: '物块', icon: 'dep-block', desc: '可堆放，也可压在天平托盘上', w: 40, mount: 'free',
+      keys: ['物块', '木块', '方块', 'wukuai', 'wk', 'block', 'cube']
+    },
+    weight: {
+      label: '砝码', icon: 'dep-weight', desc: '小而重，适合放小托盘', w: 24, mount: 'free',
+      keys: ['砝码', '法码', '码', 'fama', 'fm', 'weight']
+    },
+    ramp: {
+      label: '斜面', icon: 'dep-ramp', desc: '静态斜面，物块会沿它下滑', w: 200, mount: 'floor',
+      keys: ['斜面', '斜坡', '坡', 'xiemian', 'xm', 'ramp', 'incline', 'slope']
+    },
+    wall: {
+      label: '挡板', icon: 'dep-wall', desc: '竖直静态挡板，用来挡停物块', w: 20, mount: 'floor',
+      keys: ['挡板', '挡块', '板', 'dangban', 'db', 'wall', 'baffle']
+    }
   };
   var ORDER = ['balance', 'stackBalance', 'block', 'weight', 'ramp', 'wall'];
 
   var devices = ORDER.map(function (id) {
     var t = TYPES[id];
-    return { id: id, label: t.label, icon: t.icon, desc: t.desc };
+    return { id: id, label: t.label, icon: t.icon, desc: t.desc, keys: t.keys };
   });
 
   /* ---------- 世界底座 ---------- */

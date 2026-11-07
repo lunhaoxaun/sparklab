@@ -575,6 +575,28 @@
    做成「器材抽屉」的样子：纸白底、细墨线、缩略图是深墨线稿，
    不再用紫色圆角块 + 通用字形那一套。 */
 .device-list { display: flex; flex-direction: column; gap: 7px; }
+/* 窗口不高时（1366×768）器材卡多于可视高度：让列表自己滚，
+   搜索框 / 播放按钮 / 提示条始终留在原位 */
+.rigid-palette {
+  min-height: 0;
+  /* 器材栏从实验标题下面开始排，可用高度要扣掉这段，
+     否则 1366×768 会整块探出屏幕底部（原来的 100vh-topbar-40 没算标题栏） */
+  max-height: calc(100vh - 176px);
+}
+.rigid-palette .device-list {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 3px;
+  /* 底部淡出：让「下面还有器材」看得出来，而不是像被裁掉半张卡 */
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 16px), rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(180deg, #000 calc(100% - 16px), rgba(0, 0, 0, 0) 100%);
+}
+.rigid-palette .device-list::-webkit-scrollbar { width: 6px; }
+.rigid-palette .device-list::-webkit-scrollbar-thumb { background: #cfc0a6; border-radius: 3px; }
+.rigid-palette .device-list::-webkit-scrollbar-track { background: rgba(0, 0, 0, .03); border-radius: 3px; }
+.rigid-palette .device-card { flex: 0 0 auto; }
+.rigid-palette .palette-search,
+.rigid-palette .sim-play,
+.rigid-palette .palette-tip,
+.rigid-palette .palette-empty { flex: 0 0 auto; }
 .device-card {
   display: flex; align-items: center; gap: 10px;
   padding: 7px 10px 7px 8px; border-radius: 9px; text-align: left;
@@ -600,6 +622,34 @@
 .device-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .device-text strong { font-size: 12.5px; color: var(--ink); letter-spacing: .2px; }
 .device-text em { font-size: 10.5px; color: #8c8578; font-style: normal; line-height: 1.45; }
+
+/* 器材搜索：跟器材卡一套暖色，别再冒出蓝色焦点框 */
+.rigid-palette .palette-search { position: relative; }
+.rigid-palette .palette-search input {
+  border-color: #e2dacb;
+  background: #fffdf8;
+  border-radius: 9px;
+  font-size: 12.5px;
+  padding-right: 30px;
+}
+/* Chromium 自带的蓝色叉号跟这套配色不搭，换成自己的清空按钮 */
+.rigid-palette .palette-search input::-webkit-search-cancel-button { display: none; }
+.rigid-palette .search-clear {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 20px; height: 20px; padding: 0; border: 0; border-radius: 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: #9a8f7c; cursor: pointer;
+}
+.rigid-palette .search-clear:hover { background: #efe6d5; color: #5d5142; }
+.rigid-palette .search-clear[hidden] { display: none; }
+.rigid-palette .palette-search input::placeholder { color: #a99e8b; }
+.rigid-palette .palette-search input:focus {
+  border-color: #2f6b78;
+  background: #fffefa;
+  box-shadow: 0 0 0 3px rgba(47, 107, 120, .13);
+}
+.rigid-palette .palette-empty { color: #8c8578; }
+.device-card[hidden] { display: none; }
 
 /* 拖拽中的器材幽灵 */
 .device-ghost {
