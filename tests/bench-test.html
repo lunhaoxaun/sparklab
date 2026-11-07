@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>物理综合实验台自测</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+  <link rel="stylesheet" href="../assets/css/lab.css">
+  <link rel="stylesheet" href="../assets/css/sim.css">
+  <style>
+    body { padding: 20px; font-family: ui-monospace, Consolas, monospace; }
+    .row { padding: 4px 0; font-size: 13px; }
+    .pass { color: #2fa36b; }
+    .fail { color: #e05252; }
+    .detail { color: #8aa0b6; margin-left: 10px; }
+    #summary { margin-top: 16px; font-size: 15px; font-weight: 700; }
+    #view-root { position: absolute; left: -9999px; top: 0; width: 1400px; }
+    #topbar { display: none; }
+  </style>
+</head>
+<body>
+  <h1>物理综合实验台自测（装置登记 / 参数隔离 / 多面板 / 记录转发）</h1>
+  <div id="out"></div>
+  <div id="summary"></div>
+  <header class="topbar" id="topbar"></header>
+  <main class="view-root" id="view-root"></main>
+
+  <script src="../assets/icons/sprite.js"></script>
+  <script src="../assets/icons/devices.js"></script>
+  <script src="../assets/js/core/utils.js"></script>
+  <script src="../data/experiments.js"></script>
+  <script src="../assets/js/core/simkit.js"></script>
+  <script src="../assets/js/core/circuit.js"></script>
+  <script src="../assets/js/core/skins.js"></script>
+  <script src="../assets/js/core/board.js"></script>
+  <script src="../assets/js/core/meters.js"></script>
+  <script src="../assets/js/core/formula.js"></script>
+  <script src="../assets/js/core/records.js"></script>
+  <script src="../assets/js/vendor/matter.min.js"></script>
+  <script src="../assets/js/sims/mech.js"></script>
+  <script src="../assets/js/sims/thermo.js"></script>
+  <script src="../assets/js/sims/optics.js"></script>
+  <script src="../assets/js/sims/rigid.js"></script>
+  <script src="../assets/js/labs/lab-lever.js"></script>
+  <script src="../assets/js/labs/lab-pulley.js"></script>
+  <script src="../assets/js/labs/lab-buoyancy.js"></script>
+  <script src="../assets/js/labs/lab-mech-free.js"></script>
+  <script src="../assets/js/labs/lab-mech-sandbox.js"></script>
+  <script src="../assets/js/labs/lab-thermo-boiling.js"></script>
+  <script src="../assets/js/labs/lab-thermo-heatcap.js"></script>
+  <script src="../assets/js/labs/lab-thermo-free.js"></script>
+  <script src="../assets/js/labs/lab-optics-reflection.js"></script>
+  <script src="../assets/js/labs/lab-optics-lens.js"></script>
+  <script src="../assets/js/labs/lab-optics-free.js"></script>
+  <script src="../assets/js/labs/lab-physics-free.js"></script>
+  <script src="../assets/js/labs/lab-physics-bench.js"></script>
+  <script src="../assets/js/ui/home.js"></script>
+  <script src="../assets/js/app.js"></script>
+
+  <script>
+  window.addEventListener('load', function () {
+    var SL = window.SparkLab;
+    var out = document.getElementById('out');
+    var total = 0, passed = 0;
+
+    function test(name, fn) {
+      total += 1;
+      var ok = false, detail = '';
+      try {
+        var res = fn();
+        ok = res === true || (res && res.ok);
+        if (res && res.detail) detail = res.detail;
+      } catch (e) {
+        detail = '异常：' + e.message;
+      }
+      if (ok) passed += 1;
+      var row = document.createElement('div');
+      row.className = 'row ' + (ok ? 'pass' : 'fail');
+      row.innerHTML = (ok ? 'PASS ' : 'FAIL ') + total + '. ' + name +
+        (detail ? '<span class="detail">' + detail + '</span>' : '');
+      out.appendChild(row);
+    }
+
+    function finish() {
+      var summary = document.getElementById('summary');
+      summary.textContent = (passed === total ? 'PASS ' : 'FAIL ') + passed + ' / ' + total;
+      summary.className = passed === total ? 'pass' : 'fail';
+      document.title = (passed === total ? 'PASS ' : 'FAIL ') + passed + '/' + total;
+      window.__testDone = true;
+    }
+
+    /* 这一页只看综合实验台，清掉上一轮可能存下的台面布局 */
+    try { window.localStorage.clear(); } catch (e) { /* 隐私模式下忽略 */ }
+
+    var lab = SL.labs['physics-bench'];
+
+    /* ---------- 一、实验卡与装置登记 ---------- */
+    test('实验卡已注册：kind=combo、free、物理综合', function () {
+      return {
+        ok: !!lab && lab.kind === 'combo' && lab.meta.free === true &&
+          lab.meta.subject === 'physics' && lab.meta.steps.length === 0,
+        detail: lab ? lab.meta.id : 'null'
+      };
+    });
+
+    test('装置清单 = 力 3 + 热 3 + 光 3，电学不在其中', function () {
+      var ids = (lab.devices || []).map(function (d) { return d.id; });
+      var subjects = {};
+      (lab.devices || []).forEach(function (d) { subjects[d.subject] = (subjects[d.subject] || 0) + 1; });
+      return {
+        ok: ids.length === 9 && subjects.mechanics === 3 && subjects.thermal === 3 && subjects.optics === 3 &&
+          ids.indexOf('electricity') < 0,
+        detail: ids.join(',')
+      };
+    });
+
+    test('每台装置都有托管实验室、装置键和搜索别名', function () {
+      var bad = (lab.devices || []).filter(function (d) {
+        return !SL.labs[d.provider] || !d.dev || !d.keys || d.keys.length < 2 || !d.label || !d.icon;
+      });
+      return { ok: bad.length === 0, detail: bad.map(function (d) { return d.id; }).join(',') || '全部齐全' };
+    });
+
+    test('每台装置的出厂参数都能算出结果与读数', function () {
+      var bad = [];
+      (lab.devices || []).forEach(function (d) {
+        var v = lab.freshValues(d);
+        var c = lab.calcOf(d, v);
+        var ro = lab.readoutsOf(d, c, v);
+        if (!c || typeof c !== 'object' || !ro || ro.length < 2) bad.push(d.id);
+      });
+      return { ok: bad.length === 0, detail: bad.length ? bad.join(',') : '9 台全部可算' };
+    });
+
+    test('出厂参数是深拷贝：改一台不会串到别的装置', function () {
+      var a = lab.deviceById('lever');
+      var b = lab.deviceById('pulley');
+      var va = lab.freshValues(a);
+      var vb = lab.freshValues(b);
+      var load = vb.loadN;
+      va.leftCount = (va.leftCount || 0) + 2;
+      var fresh = lab.freshValues(a);
+      return {
+        ok: vb.loadN === load && fresh.leftCount !== va.leftCount,
+        detail: '杠杆 leftCount=' + va.leftCount + '，滑轮 loadN=' + vb.loadN
+      };
+    });
+
+    test('参数表只给当前装置（不含「实验装置」选择器）', function () {
+      var lever = lab.deviceById('lever');
+      var lens = lab.deviceById('lens');
+      var sa = lab.schemaFor(lever, lab.freshValues(lever));
+      var sb = lab.schemaFor(lens, lab.freshValues(lens));
+      var clean = sa.concat(sb).every(function (d) { return d.key !== 'device' && d.label; });
+      return { ok: clean && sa.length >= 2 && sb.length >= 2, detail: '杠杆 ' + sa.length + ' 项 / 透镜 ' + sb.length + ' 项' };
+    });
+
+    test('记录转发：装置名写进记录行', function () {
+      var d = lab.deviceById('lens');
+      var v = lab.freshValues(d);
+      var c = lab.calcOf(d, v);
+      var row = lab.measure({ device: 'lens', values: v, calc: c, rows: [] });
+      return { ok: !!row && row.device === '凸透镜成像' && !!row.summary && !!row.result,
+        detail: row ? row.device + ' ｜ ' + row.result : 'null' };
+    });
+
+    test('默认台面三台装置，正好一科一台', function () {
+      var defs = lab.defaultPanels || [];
+      var subjects = defs.map(function (id) { return (lab.deviceById(id) || {}).subject; });
+      return { ok: defs.length === 3 &&
+        subjects.indexOf('mechanics') >= 0 && subjects.indexOf('thermal') >= 0 &&
+        subjects.indexOf('optics') >= 0, detail: defs.join(',') };
+    });
+
+    /* ---------- 二、界面（异步） ---------- */
+    SL.app.openLab('physics-bench', 'free');
+
+    window.setTimeout(function () {
+      test('打开后有 3 块面板 + 9 个装置按钮', function () {
+        var panels = document.querySelectorAll('.bench-panel').length;
+        var picks = document.querySelectorAll('[data-bench]').length;
+        return { ok: panels === 3 && picks === 9, detail: panels + ' 块 / ' + picks + ' 个' };
+      });
+
+      test('每块面板都真的画了东西（SVG 节点 > 15）', function () {
+        var svgs = document.querySelectorAll('.bench-canvas svg');
+        var thin = Array.prototype.filter.call(svgs, function (s) { return s.querySelectorAll('*').length <= 15; });
+        return { ok: svgs.length === 3 && thin.length === 0,
+          detail: svgs.length + ' 块画布，节点数 ' + Array.prototype.map.call(svgs, function (s) {
+            return s.querySelectorAll('*').length;
+          }).join('/') };
+      });
+
+      test('右栏读数跟着选中装置（默认杠杆）', function () {
+        var badge = document.getElementById('combo-meter-badge');
+        var meters = document.getElementById('meters-host');
+        return { ok: !!badge && badge.textContent === '杠杆' &&
+          !!meters && meters.textContent.indexOf('左端') !== -1,
+          detail: badge ? badge.textContent : 'null' };
+      });
+
+      document.querySelector('[data-bench="lens"]').click();
+
+      window.setTimeout(function () {
+        test('点装置库加入一台：面板变成 4 块', function () {
+          var panels = document.querySelectorAll('.bench-panel').length;
+          var on = document.querySelectorAll('.bench-pick.is-on').length;
+          return { ok: panels === 4 && on === 4, detail: panels + ' 块 / 已选 ' + on };
+        });
+
+        document.querySelector('.bench-panel[data-panel="boiling"]').click();
+
+        window.setTimeout(function () {
+          test('点面板切换选中：徽标与参数一起换', function () {
+            var badge = document.getElementById('combo-meter-badge');
+            var ctrl = document.getElementById('controls-host');
+            return { ok: !!badge && badge.textContent === '水沸腾' &&
+              !!ctrl && ctrl.textContent.indexOf('加热功率') !== -1,
+              detail: (badge ? badge.textContent : 'null') + ' / ' + (ctrl ? ctrl.textContent.replace(/\s+/g, ' ').slice(0, 24) : 'null') };
+          });
+
+          var before = SL.app.state.rows.length;
+          document.getElementById('record-btn').click();
+
+          window.setTimeout(function () {
+            test('记录的是选中那台装置', function () {
+              var rows = SL.app.state.rows;
+              var last = rows[rows.length - 1];
+              return { ok: rows.length === before + 1 && !!last && last.device === '水沸腾',
+                detail: last ? last.device + ' ｜ ' + last.result : 'null' };
+            });
+
+            var closeBtn = document.querySelector('.bench-panel[data-panel="lens"] [data-close]');
+            if (closeBtn) closeBtn.click();
+
+            window.setTimeout(function () {
+              test('点 × 把装置从台面移除', function () {
+                var panels = document.querySelectorAll('.bench-panel').length;
+                var hasLens = !!document.querySelector('.bench-panel[data-panel="lens"]');
+                return { ok: panels === 3 && !hasLens, detail: panels + ' 块' };
+              });
+              finish();
+            }, 400);
+          }, 400);
+        }, 350);
+      }, 500);
+    }, 700);
+  });
+  </script>
+</body>
+</html>

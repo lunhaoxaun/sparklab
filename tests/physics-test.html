@@ -53,6 +53,7 @@
   <script src="../assets/js/labs/lab-optics-lens.js"></script>
   <script src="../assets/js/labs/lab-optics-free.js"></script>
   <script src="../assets/js/labs/lab-physics-free.js"></script>
+  <script src="../assets/js/labs/lab-physics-bench.js"></script>
   <script src="../assets/js/ui/home.js"></script>
   <script src="../assets/js/app.js"></script>
 
@@ -86,10 +87,12 @@
       'optics-reflection', 'plane-mirror', 'optics-lens'];
 
     /* ---------- 一、装置清单 ---------- */
-    test('物理 · 综合板块已开放，只有 1 个自由实验室', function () {
+    test('物理 · 综合板块已开放：统一实验室 + 多装置同屏实验台', function () {
       var sub = SL.data.subjectById['physics'];
       var labs = SL.data.labs.filter(function (l) { return l.subject === 'physics'; });
-      return { ok: sub && sub.available === true && labs.length === 1 && labs[0].free === true,
+      return { ok: sub && sub.available === true && labs.length === 2 &&
+        labs.every(function (l) { return l.free === true; }) &&
+        labs[0].id === 'physics-free' && labs[1].id === 'physics-bench',
         detail: labs.map(function (l) { return l.id; }).join(',') };
     });
 

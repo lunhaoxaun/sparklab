@@ -202,7 +202,9 @@
       if (!rows.length) {
         host.innerHTML = '<div class="empty-note">' + SL.icon('chart-line', 'empty-icon', 22) +
           '<p>还没有数据<br><span class="muted">' +
-          (lab.kind === 'sim' ? '调好参数、读数稳定后，点击「记录当前数据」。' : '接线通电后，点击「记录当前数据」。') +
+          (lab.kind === 'sim' || lab.kind === 'combo'
+            ? '调好参数、读数稳定后，点击「记录当前数据」。'
+            : lab.kind === 'rigid' ? '摆好装置、等它稳定后，点击「记录当前数据」。' : '接线通电后，点击「记录当前数据」。') +
           '</span></p></div>';
         return;
       }

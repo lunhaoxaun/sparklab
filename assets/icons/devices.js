@@ -53,5 +53,27 @@ window.SparkLab.apparatusIcons = {
     '<rect x="10.7" y="3.6" width="2.6" height="13.6" rx=".9"/>' +
     '<path d="M7 17.2h10"/>' +
     '<path d="M10.7 15.4L8 17.2M13.3 15.4l2.7 1.8"/>' +
-    '<path d="M7.4 8.6L5.2 10.8M7.4 12.2l-2.2 2.2M7.4 15.8l-2.2 2.2" opacity=".4"/>'
+    '<path d="M7.4 8.6L5.2 10.8M7.4 12.2l-2.2 2.2M7.4 15.8l-2.2 2.2" opacity=".4"/>',
+
+  /* 光的反射：镜面 + 法线 + 入射/反射光线（反射角等于入射角） */
+  'dep-rays':
+    '<path d="M3.6 19.4h16.8"/>' +
+    '<path d="M12 3.8v15.6" opacity=".45" stroke-dasharray="2.4 2"/>' +
+    '<path d="M12 16.6L6.8 8.4M12 16.6l5.2-8.2"/>' +
+    '<circle cx="12" cy="16.6" r="1.1" fill="currentColor" stroke="none"/>',
+
+  /* 平面镜成像：镜面 + 物 + 镜后等距的虚像（虚线） */
+  'dep-mirror':
+    '<path d="M14.6 4.4v15.2"/>' +
+    '<path d="M14.6 4.4v15.2" opacity=".5"/>' +
+    '<path d="M14.6 6.2l2.2 1.6M14.6 10l2.2 1.6M14.6 13.8l2.2 1.6M14.6 17.6l2.2 1.5" opacity=".55"/>' +
+    '<path d="M8.4 16.4V8.2" stroke-width="1.8"/>' +
+    '<path d="M20.8 16.4V8.2" stroke-width="1.8" stroke-dasharray="2.6 2.2" opacity=".75"/>',
+
+  /* 凸透镜：双凸透镜 + 平行光会聚到焦点 */
+  'dep-lens':
+    '<path d="M12 3.6c2.6 4 2.6 8.8 0 16.8M12 3.6c-2.6 4 -2.6 8.8 0 16.8"/>' +
+    '<path d="M3.4 8.4h5.2M3.4 12h5.2M3.4 15.6h5.2" opacity=".6"/>' +
+    '<path d="M15.4 8.4l3.6 3.6-3.6 3.6" opacity=".6"/>' +
+    '<circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/>'
 };

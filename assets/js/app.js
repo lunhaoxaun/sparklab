@@ -161,6 +161,8 @@
     app.stage = null;
     app.controls = null;
     app.clock = null;
+    app.comboPanels = null;
+    app.comboInited = false;
 
     var saved = loadProgress(labId);
     app.guideIndex = 0;
@@ -176,7 +178,7 @@
     if (saved && saved.scene && saved.scene.components && saved.scene.components.length) {
       app.mode = lab.meta.free ? 'free' : mode || saved.mode || 'guided';
     }
-    if (app.kind === 'sim' || app.kind === 'rigid') {
+    if (app.kind === 'sim' || app.kind === 'rigid' || app.kind === 'combo') {
       var values = {};
       Object.keys(lab.defaults || {}).forEach(function (key) { values[key] = lab.defaults[key]; });
       if (saved && saved.values) {
@@ -204,6 +206,7 @@
   function renderLab() {
     if (app.kind === 'sim') { renderSimLab(); return; }
     if (app.kind === 'rigid') { renderRigidLab(); return; }
+    if (app.kind === 'combo') { renderComboLab(); return; }
     var lab = app.lab;
     var meta = lab.meta;
     app.skin = SL.skins ? SL.skins.current() : 'classic';
@@ -541,6 +544,450 @@
       set: function () { /* 刚体沙盒没有 schema 控件，参数走右侧属性面板 */ },
       redraw: function () { simRender(); }
     };
+  }
+
+  /* ============================================================
+     物理综合实验台（kind = 'combo'）
+     一个台面上并排放多台装置：每台自己一块 Stage、一份参数、一份读数。
+     装置本身不在这里实现 —— lab-physics-bench.js 负责把「装置 + 自己的参数」
+     翻译成原实验的 ctx，这里的活儿是布局、选中、定时推进和记录。
+     ============================================================ */
+  var COMBO_MAX = 9;
+
+  function comboState() {
+    if (!app.simValues) return null;
+    var st = app.simValues.combo;
+    /* openLab 是把 lab.defaults 的引用直接拷进来的，直接改会把「出厂布局」也改掉，
+       所以这里先复制一份再动 */
+    var defs = app.lab && app.lab.defaults && app.lab.defaults.combo;
+    if (st && st === defs) {
+      st = app.simValues.combo = {
+        panels: (st.panels || []).slice(),
+        active: st.active || null,
+        values: {}
+      };
+    }
+    if (!st || typeof st !== 'object') {
+      st = app.simValues.combo = { panels: [], active: null, values: {} };
+    }
+    if (!Array.isArray(st.panels)) st.panels = [];
+    if (!st.values || typeof st.values !== 'object') st.values = {};
+    return st;
+  }
+
+  function comboDevice(id) {
+    return app.lab && app.lab.deviceById ? app.lab.deviceById(id) : null;
+  }
+
+  function comboValues(id) {
+    var st = comboState();
+    var d = comboDevice(id);
+    if (!st || !d) return {};
+    if (!st.values[id]) st.values[id] = app.lab.freshValues(d);
+    return st.values[id];
+  }
+
+  function comboPanel(id) {
+    return (app.comboPanels && app.comboPanels[id]) || null;
+  }
+
+  function comboAnyAnimated() {
+    var st = comboState();
+    if (!st) return false;
+    return st.panels.some(function (id) {
+      return app.lab.animatedOf(comboDevice(id), comboValues(id));
+    });
+  }
+
+  function comboPanelStats(panel, d, calc, values) {
+    if (!panel || !panel.foot) return;
+    var list = app.lab.readoutsOf(d, calc, values) || [];
+    panel.foot.innerHTML = list.slice(0, 2).map(function (r) {
+      var v = r.text != null ? r.text
+        : (SL.fmt(r.value, r.digits == null ? 2 : r.digits) + (r.unit ? ' ' + r.unit : ''));
+      return '<span class="bench-stat"><em>' + SL.escape(r.label) + '</em><b>' + SL.escape(String(v)) + '</b></span>';
+    }).join('');
+  }
+
+  function comboCtxOf(id) {
+    var panel = comboPanel(id);
+    var values = comboValues(id);
+    return {
+      stage: panel ? panel.stage : null,
+      values: values,
+      calc: panel ? panel.calc : null,
+      mode: 'free',
+      rows: app.rows,
+      state: app,
+      clock: app.clock,
+      rt: null,
+      set: function (key, value) { values[key] = value; renderComboControls(); },
+      redraw: function () { comboRenderPanel(id); }
+    };
+  }
+
+  function comboRenderPanel(id) {
+    var panel = comboPanel(id);
+    var d = comboDevice(id);
+    if (!panel || !d) return;
+    var values = comboValues(id);
+    var calc = app.lab.calcOf(d, values);
+    panel.calc = calc;
+    var ctx = comboCtxOf(id);
+    ctx.calc = calc;
+    app.lab.drawOf(d, ctx);
+    comboPanelStats(panel, d, calc, values);
+    var st = comboState();
+    if (st && st.active === id) comboMeters();
+  }
+
+  function comboMeters() {
+    var st = comboState();
+    var host = SL.$('#meters-host');
+    if (!st || !host) return;
+    var panel = comboPanel(st.active);
+    var d = comboDevice(st.active);
+    var badge = SL.$('#combo-meter-badge');
+    if (!panel || !d) {
+      host.innerHTML = '<p class="palette-tip">台面上还没有装置</p>';
+      if (badge) badge.textContent = '';
+      comboWarnings();
+      return;
+    }
+    if (badge) badge.textContent = d.label;
+    SL.sim.Readouts(host, app.lab.readoutsOf(d, panel.calc, comboValues(st.active)));
+    comboWarnings();
+  }
+
+  function comboWarnings() {
+    var host = SL.$('#stage-warnings');
+    if (!host) return;
+    var st = comboState();
+    var panel = st && comboPanel(st.active);
+    var d = st && comboDevice(st.active);
+    if (!panel || !d) {
+      host.innerHTML = '<span class="warn-chip warn-state">' + SL.icon('alert-triangle', '', 14) +
+        '台面上还没有装置，从左侧「装置库」点一个放进来</span>';
+      return;
+    }
+    var items = app.lab.warningsOf(d, panel.calc, comboValues(st.active)) || [];
+    if (!items.length) {
+      host.innerHTML = '<span class="warn-ok">' + SL.icon('check', '', 14) + '参数已生效，可读数记录</span>';
+      return;
+    }
+    host.innerHTML = items.slice(0, 3).map(function (w) {
+      return '<span class="warn-chip warn-' + (w.type || 'state') + '">' + SL.icon('alert-triangle', '', 14) + SL.escape(w.message) + '</span>';
+    }).join('');
+  }
+
+  function renderComboControls() {
+    var host = SL.$('#controls-host');
+    if (!host) return;
+    var st = comboState();
+    var d = st && comboDevice(st.active);
+    var nameEl = SL.$('#combo-device-name');
+    if (nameEl) nameEl.textContent = d ? '· ' + d.label : '';
+    if (!d) {
+      host.innerHTML = '<p class="palette-tip">先在台面上选一台装置</p>';
+      app.controls = null;
+      return;
+    }
+    var values = comboValues(d.id);
+    app.controls = SL.sim.Controls(host, app.lab.schemaFor(d, values), values, function (key) {
+      var p = SL.labs[d.provider];
+      var panel = comboPanel(d.id);
+      if (p && p.onParam) {
+        try {
+          p.onParam(key, { values: values, stage: panel && panel.stage, rows: app.rows, state: app });
+        } catch (e) { /* 某个装置的参数钩子出错不该拖垮整台实验台 */ }
+      }
+      comboRenderPanel(d.id);
+      saveProgressSoon();
+    });
+  }
+
+  function saveProgressSoon() {
+    if (app.simTimer) clearTimeout(app.simTimer);
+    app.simTimer = setTimeout(saveProgress, 240);
+  }
+
+  function comboLabCtx() {
+    var st = comboState();
+    var id = st && st.active;
+    var panel = id && comboPanel(id);
+    return {
+      values: id ? comboValues(id) : {},
+      calc: panel ? panel.calc : null,
+      rows: app.rows,
+      mode: app.mode,
+      state: app,
+      device: id,
+      stage: panel ? panel.stage : null
+    };
+  }
+
+  function buildBenchPanels() {
+    var grid = SL.$('#bench-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    app.comboPanels = {};
+    var st = comboState();
+    var list = st.panels.filter(function (id) { return !!comboDevice(id); });
+    if (!list.length) {
+      grid.innerHTML = '<div class="bench-empty">台面上还没有装置，<br>从左侧「装置库」点一个放进来</div>';
+      app.stage = null;
+      return;
+    }
+    list.forEach(function (id) {
+      var d = comboDevice(id);
+      var art = document.createElement('article');
+      art.className = 'bench-panel' + (id === st.active ? ' is-active' : '');
+      art.setAttribute('data-panel', id);
+      art.innerHTML = '<header class="bench-head">' +
+        '<span class="bench-dot"></span><strong>' + SL.escape(d.label) + '</strong>' +
+        '<em>' + SL.escape((app.lab.subjects[d.subject] || {}).label || '') + '</em>' +
+        '<button type="button" class="bench-close" data-close="' + id + '" aria-label="移除' + SL.escape(d.label) + '">' +
+        SL.icon('x', '', 13) + '</button></header>' +
+        '<div class="bench-canvas" id="bench-canvas-' + id + '"></div>' +
+        '<footer class="bench-foot"></footer>';
+      grid.appendChild(art);
+      var stage = SL.sim.Stage(SL.$('#bench-canvas-' + id), {
+        w: app.lab.canvas.w, h: app.lab.canvas.h, label: d.label, grid: false
+      });
+      app.comboPanels[id] = { id: id, el: art, stage: stage, foot: SL.$('.bench-foot', art), calc: null };
+    });
+    app.stage = (st.active && app.comboPanels[st.active]) ? app.comboPanels[st.active].stage : null;
+    list.forEach(function (id) { comboRenderPanel(id); });
+  }
+
+  function comboTick(dt) {
+    var st = comboState();
+    if (!st) return;
+    st.panels.forEach(function (id) {
+      var d = comboDevice(id);
+      var panel = comboPanel(id);
+      if (!d || !panel) return;
+      var values = comboValues(id);
+      if (!app.lab.animatedOf(d, values)) return;   /* 静态装置不必每帧重画 */
+      var p = SL.labs[d.provider];
+      if (p && p.onTick) {
+        var ctx = comboCtxOf(id);
+        ctx.rt = p.rt || null;
+        try { p.onTick(dt, ctx); } catch (e) { return; }
+      }
+      comboRenderPanel(id);
+    });
+  }
+
+  function ensureComboClock() {
+    if (app.clock || !comboAnyAnimated()) return;
+    app.clock = SL.sim.Clock({
+      speed: app.simSpeed || 1,
+      onTick: comboTick,
+      onState: updatePlayBtn
+    });
+    app.clock.start();
+  }
+
+  function comboActivate(id) {
+    var st = comboState();
+    if (!st || !comboDevice(id)) return;
+    st.active = id;
+    SL.$$('.bench-panel').forEach(function (el) {
+      el.classList.toggle('is-active', el.getAttribute('data-panel') === id);
+    });
+    var panel = comboPanel(id);
+    if (panel) app.stage = panel.stage;
+    renderComboControls();
+    comboMeters();
+    saveProgressSoon();
+  }
+
+  function comboAdd(id) {
+    var st = comboState();
+    var d = comboDevice(id);
+    if (!st || !d) return;
+    if (st.panels.indexOf(id) >= 0) { comboActivate(id); return; }
+    if (st.panels.length >= COMBO_MAX) {
+      SL.toast('台面最多放 ' + COMBO_MAX + ' 台装置，先移除一台', 'warn');
+      return;
+    }
+    st.panels.push(id);
+    st.active = id;
+    renderComboLab();
+    saveProgressSoon();
+    SL.sound.play('click');
+  }
+
+  function comboRemove(id) {
+    var st = comboState();
+    if (!st) return;
+    var d = comboDevice(id);
+    st.panels = st.panels.filter(function (x) { return x !== id; });
+    if (st.active === id) st.active = st.panels[0] || null;
+    renderComboLab();
+    saveProgressSoon();
+    if (d) SL.toast('已移除「' + d.label + '」', 'info');
+  }
+
+  function comboReset() {
+    var st = comboState();
+    if (!st) return;
+    st.panels = (app.lab.defaultPanels || []).slice();
+    st.active = st.panels[0] || null;
+    st.values = {};
+    if (app.lab.reset) app.lab.reset();
+    renderComboLab();
+    saveProgressSoon();
+  }
+
+  function bindComboEvents() {
+    SL.$('#lab-back').addEventListener('click', leaveLab);
+    bindRecordActions();
+
+    SL.$$('[data-bench]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-bench');
+        var st = comboState();
+        if (st && st.panels.indexOf(id) >= 0) comboRemove(id);
+        else comboAdd(id);
+      });
+    });
+
+    var grid = SL.$('#bench-grid');
+    if (grid) {
+      grid.addEventListener('click', function (evt) {
+        var node = evt.target;
+        var closeId = null, panelEl = null;
+        while (node && node !== grid) {
+          if (node.getAttribute) {
+            if (!closeId && node.getAttribute('data-close')) closeId = node.getAttribute('data-close');
+            if (!panelEl && node.getAttribute('data-panel')) panelEl = node;
+          }
+          node = node.parentNode;
+        }
+        if (closeId) { comboRemove(closeId); return; }
+        if (panelEl) comboActivate(panelEl.getAttribute('data-panel'));
+      });
+    }
+
+    SL.$('#lab-reset').addEventListener('click', function () {
+      SL.confirm('重置会把台面恢复成默认的三台装置，所有参数回到出厂值（记录单不受影响），确定吗？', function () {
+        if (app.clock) app.clock.reset();
+        comboReset();
+        SL.toast('已恢复默认装置', 'ok');
+      }, { okText: '重置' });
+    });
+
+    var playBtn = SL.$('#sim-play-btn');
+    if (playBtn) {
+      playBtn.addEventListener('click', function () {
+        if (!app.clock) { SL.toast('当前装置不需要计时', 'info'); return; }
+        app.clock.toggle();
+        SL.sound.play('click');
+      });
+    }
+
+    var resetBtn = SL.$('#sim-reset-btn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () {
+        if (app.clock) app.clock.reset();
+        var st = comboState();
+        st.panels.forEach(function (id) {
+          var d = comboDevice(id);
+          var panel = comboPanel(id);
+          var p = d && SL.labs[d.provider];
+          if (!panel || !p) return;
+          if (p.onReset) {
+            try { p.onReset({ values: comboValues(id), stage: panel.stage, rows: app.rows, state: app }); } catch (e) {}
+          }
+          comboRenderPanel(id);
+        });
+        SL.toast('已复位到初始状态', 'ok');
+      });
+    }
+  }
+
+  function renderComboLab() {
+    var lab = app.lab;
+    var meta = lab.meta;
+    var st = comboState();
+    if (!st) return;
+    if (!st.panels.length && !app.comboInited) st.panels = (lab.defaultPanels || []).slice();
+    app.comboInited = true;
+    if (!st.active || st.panels.indexOf(st.active) < 0) st.active = st.panels[0] || null;
+
+    var picker = Object.keys(lab.subjects).map(function (key) {
+      var list = lab.devices.filter(function (d) { return d.subject === key; });
+      return '<div class="bench-pick-group">' +
+        '<h3 class="bench-pick-title">' + lab.subjects[key].label + '</h3>' +
+        '<div class="bench-pick-row">' + list.map(function (d) {
+          var on = st.panels.indexOf(d.id) >= 0;
+          return '<button type="button" class="bench-pick' + (on ? ' is-on' : '') + '" data-bench="' + d.id + '"' +
+            ' aria-pressed="' + on + '" title="' + (on ? '从台面上移除' : '放到台面上') + '">' +
+            SL.apparatus(d.icon, 21) + '<span>' + SL.escape(d.label) + '</span>' +
+            (on ? '<i class="bench-check">' + SL.icon('check', '', 11) + '</i>' : '') +
+            '</button>';
+        }).join('') + '</div></div>';
+    }).join('');
+
+    root().innerHTML = '<div class="lab-view combo-lab" style="--accent:' + meta.accent + '">' +
+      '<div class="lab-topbar">' +
+      '<button type="button" class="btn btn-ghost" id="lab-back">' + SL.icon('arrow-left', '', 17) + '返回大厅</button>' +
+      '<div class="lab-heading"><span class="lab-tag">' + meta.tag + '</span><h1>' + meta.name + '</h1></div>' +
+      '<div class="lab-top-actions">' +
+      '<button type="button" class="btn btn-ghost" id="lab-reset">重置</button></div></div>' +
+
+      '<div class="lab-body combo-body">' +
+      '<aside class="palette sim-palette combo-palette">' +
+      '<h2 class="palette-title">装置库</h2>' +
+      '<div class="bench-picker" id="bench-picker">' + picker + '</div>' +
+      '<h2 class="palette-title bench-param-title">参数<span id="combo-device-name"></span></h2>' +
+      '<div class="ctrl-list" id="controls-host"></div>' +
+      '<div class="sim-play">' +
+      '<button type="button" class="btn btn-soft btn-sm" id="sim-play-btn">' +
+      SL.icon('player-play', '', 16) + '<span>播放</span></button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="sim-reset-btn">复位</button></div>' +
+      '<p class="palette-tip">点器材加入或移除<br>点面板选中它，再调这台装置的参数</p>' +
+      '</aside>' +
+
+      '<section class="stage sim-stage-wrap combo-stage">' +
+      '<div class="stage-head"><div class="stage-head-main">' +
+      '<span class="stage-dot" aria-hidden="true"></span>' +
+      '<h2 class="stage-title">综合台面</h2>' +
+      '<span class="stage-sub">多台装置同时运行 · 选中哪台就调哪台</span>' +
+      '</div></div>' +
+      '<div class="stage-canvas combo-canvas"><div class="bench-grid" id="bench-grid"></div></div>' +
+      '<div class="stage-bar"><div class="warnings" id="stage-warnings"></div>' +
+      '<div class="stage-actions"><button type="button" class="btn btn-primary" id="record-btn">' +
+      SL.icon('chart-line', '', 17) + '记录当前数据</button></div></div></section>' +
+
+      '<aside class="side">' +
+      '<section class="panel"><div class="panel-head"><h2>实时读数</h2>' +
+      '<span class="panel-badge" id="combo-meter-badge"></span></div>' +
+      '<div class="readouts-host" id="meters-host"></div></section>' +
+      recordsPanelHtml() +
+      '<section class="panel panel-guide" id="guide-panel"></section>' +
+      '</aside></div></div>';
+
+    buildBenchPanels();
+    bindComboEvents();
+    renderGuide();
+    renderRecords();
+    ensureComboClock();
+    renderComboControls();
+    comboMeters();
+    updatePlayBtn();
+    if (!st.panels.length) comboWarnings();
+  }
+
+  function disposeCombo() {
+    app.comboPanels = null;
+    app.comboInited = false;
+    if (app.clock && app.lab && app.lab.kind === 'combo') {
+      app.clock.stop();
+      app.clock = null;
+    }
   }
 
   function renderRigidLab() {
@@ -1540,6 +1987,7 @@
   function labCtx() {
     if (app.kind === 'sim') return simCtx();
     if (app.kind === 'rigid') return rigidCtx();
+    if (app.kind === 'combo') return comboLabCtx();
     return ctx();
   }
 
@@ -2371,6 +2819,7 @@
     if (app.clock) app.clock.stop();
     if (app.board) app.board.destroy && app.board.destroy();
     disposeRigid();
+    disposeCombo();
     app.clock = null;
     app.stage = null;
     app.controls = null;

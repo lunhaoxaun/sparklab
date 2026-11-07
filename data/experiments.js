@@ -997,7 +997,7 @@
         subject: 'physics',
         kind: 'sim',
         name: '物理自由实验室',
-        short: '电、力、热、光四科物理装置集中在一个实验台：杠杆、滑轮、浮力、沸腾、比热容、熔化、反射、平面镜、凸透镜随意切换，电学一键跳转。',
+        short: '电、力、热、光四科物理装置集中在一个实验台：杠杆、滑轮、浮力、沸腾、比热容、熔化、反射、平面镜、凸透镜逐台切换，电学一键跳转；想几台装置同屏并排，用「物理综合实验台」。',
         tag: '自由实验 · 不限步骤',
         time: '不限时',
         accent: '#7c5cff',
@@ -1008,6 +1008,32 @@
           { icon: 'thermometer', label: '热学装置' },
           { icon: 'lens', label: '光学装置' },
           { icon: 'circuit-battery', label: '电学入口' }
+        ],
+        columns: [
+          { key: 'group', label: '组次' },
+          { key: 'device', label: '装置' },
+          { key: 'summary', label: '实验条件' },
+          { key: 'result', label: '主要读数' }
+        ],
+        steps: [],
+        conclusions: []
+      },
+
+      {
+        id: 'physics-bench',
+        subject: 'physics',
+        kind: 'combo',
+        name: '物理综合实验台',
+        short: '力学、热学、光学九套装置同屏摆放：一边调杠杆，一边看水沸腾，一边看凸透镜成像，读数各算各的、互不干扰。',
+        tag: '自由实验 · 多装置同屏',
+        time: '不限时',
+        accent: '#0f766e',
+        free: true,
+        freeNote: '九套装置同屏 · 各调各的参数',
+        equipment: [
+          { icon: 'seesaw', label: '杠杆 / 滑轮 / 浮力' },
+          { icon: 'flame', label: '沸腾 / 比热容 / 熔化' },
+          { icon: 'dep-lens', label: '反射 / 平面镜 / 透镜' }
         ],
         columns: [
           { key: 'group', label: '组次' },

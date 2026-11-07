@@ -50,6 +50,7 @@
   <script src="../assets/js/labs/lab-optics-lens.js"></script>
   <script src="../assets/js/labs/lab-optics-free.js"></script>
   <script src="../assets/js/labs/lab-physics-free.js"></script>
+  <script src="../assets/js/labs/lab-physics-bench.js"></script>
   <script src="../assets/js/ui/home.js"></script>
   <script src="../assets/js/app.js"></script>
 
@@ -186,8 +187,10 @@
     ok('光学板块已开放：2 教材实验 + 1 自由实验室', opLabs.length === 3 &&
       opLabs.filter(function (l) { return l.free; }).length === 1,
       opLabs.map(function (l) { return l.id; }).join(','));
-    ok('物理综合板块：1 个统一自由实验室', phLabs.length === 1 && phLabs[0].free === true &&
-      phLabs[0].id === 'physics-free', phLabs.map(function (l) { return l.id; }).join(','));
+    ok('物理综合板块：统一自由实验室 + 多装置同屏实验台', phLabs.length === 2 &&
+      phLabs.every(function (l) { return l.free === true; }) &&
+      phLabs[0].id === 'physics-free' && phLabs[1].id === 'physics-bench',
+      phLabs.map(function (l) { return l.id; }).join(','));
     ok('统一实验室装置清单 = 力 3 + 热 3 + 光 3 + 电学入口',
       SL.labs['physics-free'] && SL.labs['physics-free'].freeDevices.length === 10,
       SL.labs['physics-free'] ? SL.labs['physics-free'].freeDevices.length + ' 项' : 'null');
@@ -275,7 +278,8 @@
       var ph = document.querySelector('[data-subject="physics"]');
       ok('物理综合板块有入口按钮', !!ph);
       ph.click();
-      ok('切到物理综合显示 1 个统一自由实验室', document.querySelectorAll('.lab-card').length === 1,
+      ok('切到物理综合显示 2 个实验卡（统一实验室 + 多装置同屏）',
+        document.querySelectorAll('.lab-card').length === 2,
         document.querySelectorAll('.lab-card').length + ' 个');
       /* 临时插入一个「已开放但还没有实验」的板块，验证占位提示仍然存在 */
       SL.data.subjects.push({ id: 'tmp-empty', name: '占位测试', icon: 'atom', available: true, desc: 'x' });

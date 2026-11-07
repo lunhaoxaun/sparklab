@@ -702,3 +702,109 @@
   .device-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
   .prop-row { grid-template-columns: 48px 1fr 56px; }
 }
+
+/* ==========================================================
+   物理综合实验台（kind = combo）：多台装置同屏
+   ========================================================== */
+.combo-palette {
+  gap: 10px;
+  /* 9 台装置 + 参数，窗口不高时整栏会探出屏幕：让左栏自己滚 */
+  max-height: calc(100vh - 176px);
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.combo-palette::-webkit-scrollbar { width: 6px; }
+.combo-palette::-webkit-scrollbar-thumb { background: #d6dde7; border-radius: 3px; }
+.bench-picker { display: flex; flex-direction: column; gap: 9px; }
+.bench-pick-group { display: flex; flex-direction: column; gap: 4px; }
+.bench-pick-title {
+  font-size: 11px; font-weight: 700; color: #8b9bb0;
+  letter-spacing: .4px; margin: 0;
+}
+.bench-pick-row { display: flex; flex-direction: column; gap: 4px; }
+.bench-pick {
+  position: relative; display: flex; align-items: center; gap: 8px;
+  padding: 5px 9px; border-radius: 8px; text-align: left;
+  border: 1px solid rgba(122, 146, 180, .24);
+  background: rgba(255, 255, 255, .82);
+  color: var(--ink); font-family: inherit; font-size: 12.5px;
+  cursor: pointer; transition: border-color .14s ease, background .14s ease;
+}
+.bench-pick:hover { border-color: color-mix(in srgb, var(--accent) 55%, #fff); }
+.bench-pick.is-on {
+  border-color: color-mix(in srgb, var(--accent) 60%, #fff);
+  background: color-mix(in srgb, var(--accent) 9%, #fff);
+}
+.bench-pick .icon { color: #4a5563; flex: 0 0 auto; }
+.bench-check {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; color: var(--accent);
+}
+.bench-param-title {
+  display: flex; align-items: baseline; gap: 6px;
+  padding-top: 6px; border-top: 1px solid rgba(122, 146, 180, .16);
+}
+.bench-param-title span { font-size: 11.5px; font-weight: 700; color: var(--accent); }
+
+/* 台面：两列网格，选中的那台占满整行（这样它的文字还看得清） */
+.combo-canvas { padding: 0; }
+.bench-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px; padding: 12px;
+}
+.bench-panel {
+  border-radius: 12px; overflow: hidden;
+  border: 1px solid rgba(122, 146, 180, .2);
+  background: #fff;
+  box-shadow: 0 8px 20px -18px rgba(22, 35, 58, .55);
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.bench-panel:hover { border-color: rgba(122, 146, 180, .45); }
+.bench-panel.is-active {
+  grid-column: 1 / -1;
+  border-color: color-mix(in srgb, var(--accent) 55%, #fff);
+  box-shadow: 0 10px 26px -20px rgba(22, 35, 58, .7);
+}
+.bench-head {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(122, 146, 180, .14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .96), rgba(247, 250, 253, .9));
+}
+.bench-head strong { font-size: 12.5px; color: var(--ink); }
+.bench-head em { font-size: 10.5px; font-style: normal; color: #8b9bb0; }
+.bench-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent, #0f766e); flex: 0 0 auto;
+}
+.bench-close {
+  margin-left: auto; width: 20px; height: 20px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 5px; background: transparent;
+  color: #97a5b6; cursor: pointer;
+}
+.bench-close:hover { background: #fdecec; color: #c0392b; }
+.bench-canvas { padding: 2px 6px 0; background: #fff; }
+.bench-canvas .sim-canvas { max-height: none; }
+.bench-foot {
+  display: flex; gap: 16px; padding: 5px 12px 8px;
+  border-top: 1px dashed rgba(122, 146, 180, .16);
+}
+.bench-stat { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.bench-stat em { font-size: 10px; font-style: normal; color: #8b9bb0; }
+.bench-stat b {
+  font-size: 12.5px; font-weight: 700; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bench-empty {
+  grid-column: 1 / -1; padding: 60px 20px; text-align: center;
+  font-size: 13px; line-height: 1.9; color: #8b9bb0;
+  border: 1px dashed rgba(122, 146, 180, .3); border-radius: 12px;
+}
+
+@media (max-width: 1180px) {
+  .bench-grid { grid-template-columns: 1fr; }
+}
