@@ -816,6 +816,9 @@
     st.active = id;
     renderComboLab();
     saveProgressSoon();
+    /* 新加的那台在台面底部，滚到可见位置，不然像是没加上 */
+    var el = app.comboPanels && app.comboPanels[id] && app.comboPanels[id].el;
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     SL.sound.play('click');
   }
 
