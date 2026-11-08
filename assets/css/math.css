@@ -106,6 +106,34 @@
 .math-canvas.is-panning { cursor: grabbing; }
 .math-canvas.is-pointing { cursor: pointer; }
 
+/* JSXGraph 画布：容器自己承担尺寸，JXG 在内部生成 SVG。
+   jxgbox 由 initBoard 加到容器上，这里强制铺满，避免它按初始像素写死。 */
+.math-board {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.math-board.is-grab { cursor: grab; }
+.math-board.is-panning { cursor: grabbing; }
+.math-board.jxgbox {
+  width: 100% !important;
+  height: 100% !important;
+  border: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  overflow: hidden;
+}
+.math-board svg { display: block; }
+.math-board .JXGtext {
+  font-family: var(--font);
+  paint-order: stroke;
+}
+.math-board .jxg-navigation { display: none !important; }
+
 .math-stagebar {
   display: flex;
   align-items: center;

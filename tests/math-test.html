@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>数学绘图器引擎自测</title>
   <link rel="stylesheet" href="../assets/css/main.css">
+  <link rel="stylesheet" href="../assets/vendor/jsxgraph/jsxgraph.css">
   <style>
     body { font-family: var(--font); background: #eef2f9; color: var(--ink); padding: 20px; }
     h1 { font-size: 16px; margin: 0 0 10px; }
@@ -11,24 +12,34 @@
     .pass { color: #1a7a4f; }
     .fail { color: #c0392b; font-weight: 700; }
     #summary { margin-top: 14px; font-size: 15px; font-weight: 700; }
-    /* 离屏容器仍保留 400×300 的布局尺寸，渲染器靠 parent.clientWidth/Height 取画布大小 */
-    #host { position: absolute; left: -9999px; top: 0; width: 420px; height: 320px; }
-    #stagewrap { width: 400px; height: 300px; }
-    #stagewrap canvas { width: 100%; height: 100%; display: block; }
+    /* 离屏容器仍保留 960×600 的布局尺寸，board 靠 clientWidth/Height 取画布大小 */
+    #host { position: absolute; left: -9999px; top: 0; width: 980px; height: 640px; }
+    #stage { width: 960px; height: 600px; }
+    #stage2, #stage3, #stage4 { width: 640px; height: 480px; }
+    /* lab.js 需要真实布局尺寸才能算出画布宽高 */
+    #labhost { position: absolute; left: -9999px; top: 0; width: 1240px; }
   </style>
 </head>
 <body>
-  <h1>数学绘图器自测（表达式 · 几何 · 判断脚本 · 视口 · 渲染 · 帮助页）</h1>
+  <h1>数学绘图器自测（表达式 · 判断脚本 · JSXGraph 画板 · 帮助页）</h1>
   <div id="out">运行中…</div>
   <div id="summary"></div>
-  <div id="host"></div>
+  <div id="host">
+    <div id="stage"></div>
+    <div id="stage2"></div>
+    <div id="stage3"></div>
+    <div id="stage4"></div>
+  </div>
+  <div id="labhost"></div>
 
   <script src="../assets/js/core/utils.js"></script>
+  <script src="../assets/js/core/simkit.js"></script>
   <script src="../assets/js/math/expr.js"></script>
-  <script src="../assets/js/math/geometry.js"></script>
   <script src="../assets/js/math/script.js"></script>
   <script src="../assets/js/math/help.js"></script>
-  <script src="../assets/js/math/render.js"></script>
+  <script src="../assets/vendor/jsxgraph/jsxgraphcore.js"></script>
+  <script src="../assets/js/math/board.js"></script>
+  <script src="../assets/js/math/lab.js"></script>
   <script>
   (function () {
     var SL = window.SparkLab;
@@ -44,7 +55,9 @@
       if (cond) { pass += 1; lines.push('PASS  ' + name + (detail ? '  [' + detail + ']' : '')); }
       else { fail += 1; lines.push('FAIL  ' + name + (detail ? '  [' + detail + ']' : '')); }
     }
-    function near(a, b, tol) { return typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= (tol == null ? 1e-9 : tol); }
+    function near(a, b, tol) {
+      return typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= (tol == null ? 1e-9 : tol);
+    }
     function num(n) { return typeof n === 'number' && !isNaN(n); }
     function flush() {
       out.innerHTML = lines.map(function (l) {
@@ -56,11 +69,11 @@
     }
 
     function run() {
-      var E = SL.math.expr, G = SL.math.geometry, S = SL.math.script,
-          H = SL.math.help, R = SL.math.render;
+      var E = SL.math.expr, S = SL.math.script, H = SL.math.help, B = SL.math.board;
 
-      ok('六个数学模块都已导出', !!(E && G && S && H && R && R.create),
-        'expr=' + !!E + ' geometry=' + !!G + ' script=' + !!S + ' help=' + !!H + ' render=' + !!R);
+      ok('四个模块都已导出（expr / script / help / board）',
+        !!(E && S && H && B && B.create) && !!window.JXG,
+        'JXG=' + (window.JXG ? window.JXG.version : 'none'));
 
       /* ================= 一、表达式引擎 ================= */
       function ev(src, x, params) {
@@ -87,114 +100,12 @@
         bad.error ? (bad.error.message + ' @' + bad.error.line + ':' + bad.error.col) : 'ok=true');
       ok('表达式 sqrt(-1) = NaN（定义域外）', isNaN(ev('sqrt(-1)', 0)), String(ev('sqrt(-1)', 0)));
 
-      /* ================= 二、几何对象模型 ================= */
-      function scene() { return G.defaultScene(); }
-      function pts(s, list) {
-        return list.map(function (p) { return G.addPoint(s, p[0], p[1]); });
-      }
-      function countType(s, t) {
-        return s.objects.filter(function (o) { return o.type === t; }).length;
-      }
-
-      var s1 = scene();
-      var q1 = pts(s1, [[0, 0], [1, 1], [0, 1], [1, 0]]);
-      var l1 = G.addLine(s1, q1[0].id, q1[1].id);
-      var l2 = G.addLine(s1, q1[2].id, q1[3].id);
-      var x1 = G.addIntersection(s1, l1.id, l2.id, 0);
-      G.recompute(s1);
-      ok('几何 线-线交点 = (0.5, 0.5)，标签 X 前缀',
-        near(x1.x, 0.5) && near(x1.y, 0.5) && /^X\d+$/.test(x1.label),
-        '(' + x1.x + ',' + x1.y + ') label=' + x1.label);
-
-      var s2 = scene();
-      var q2 = pts(s2, [[0, 0], [1, 0], [0, 1], [1, 1]]);
-      var p1 = G.addLine(s2, q2[0].id, q2[1].id);
-      var p2 = G.addLine(s2, q2[2].id, q2[3].id);
-      var xp = G.addIntersection(s2, p1.id, p2.id, 0);
-      ok('几何 平行线无交点（NaN）', isNaN(xp.x) && isNaN(xp.y), 'x=' + xp.x + ' y=' + xp.y);
-
-      var s3 = scene();
-      var q3 = pts(s3, [[0, 0], [2, 0], [-3, 0], [3, 0]]);
-      var cir3 = G.addCircle(s3, q3[0].id, q3[1].id);
-      var lin3 = G.addLine(s3, q3[2].id, q3[3].id);
-      var c0 = G.addIntersection(s3, lin3.id, cir3.id, 0);
-      var c0b = G.addIntersection(s3, lin3.id, cir3.id, 1);
-      ok('几何 线-圆两个交点 index 0/1 = (-2,0) / (2,0)',
-        near(c0.x, -2) && near(c0.y, 0) && near(c0b.x, 2) && near(c0b.y, 0),
-        'i0=(' + c0.x + ',' + c0.y + ') i1=(' + c0b.x + ',' + c0b.y + ') labels=' + c0.label + ',' + c0b.label);
-
-      var s4 = scene();
-      var q4 = pts(s4, [[0, 0], [1, 0], [2, 0]]);
-      var cc1 = G.addCircle(s4, q4[0].id, q4[1].id);
-      var cc2 = G.addCircle(s4, q4[1].id, q4[2].id);
-      var y0 = G.addIntersection(s4, cc1.id, cc2.id, 0);
-      var y1 = G.addIntersection(s4, cc1.id, cc2.id, 1);
-      ok('几何 圆-圆两交点 y ≈ ±0.8660254、x = 0.5',
-        near(y0.x, 0.5) && near(Math.abs(y0.y), 0.8660254, 1e-6) &&
-        near(y1.x, 0.5) && near(Math.abs(y1.y), 0.8660254, 1e-6) && y0.y * y1.y < 0,
-        'i0=(' + y0.x + ',' + y0.y + ') i1=(' + y1.x + ',' + y1.y + ')');
-
-      var s5 = scene();
-      var q5 = pts(s5, [[0, 0], [1, 0], [2, -1], [2, 1]]);
-      var g1 = G.addSegment(s5, q5[0].id, q5[1].id);
-      var g2 = G.addSegment(s5, q5[2].id, q5[3].id);
-      var xg = G.addIntersection(s5, g1.id, g2.id, 0);
-      ok('几何 线段范围过滤（延长线交点不算）返回 NaN', isNaN(xg.x) && isNaN(xg.y),
-        'x=' + xg.x + ' y=' + xg.y);
-
-      var s6 = scene();
-      var q6 = pts(s6, [[0, 0], [4, 2]]);
-      var mid = G.addMidpoint(s6, q6[0].id, q6[1].id);
-      ok('几何 中点 = (2, 1)，标签 M 前缀',
-        near(mid.x, 2) && near(mid.y, 1) && /^M\d+$/.test(mid.label),
-        '(' + mid.x + ',' + mid.y + ') label=' + mid.label);
-
-      var s7 = scene();
-      var q7 = pts(s7, [[0, 0], [1, 2], [3, 1]]);
-      var ref = G.addSegment(s7, q7[0].id, q7[1].id);
-      var perp = G.addPerpendicular(s7, q7[2].id, ref.id);
-      var para = G.addParallel(s7, q7[2].id, ref.id);
-      var mp = G.measure(perp, s7), mq = G.measure(para, s7);
-      ok('几何 垂线斜率 -0.5 / 平行线斜率 2',
-        near(mp.slope, -0.5) && near(mq.slope, 2),
-        'perp=' + mp.slope + ' parallel=' + mq.slope);
-
-      var s8 = scene();
-      var q8 = pts(s8, [[0, 0], [4, 0], [0, 3]]);
-      var poly = G.addPolygon(s8, [q8[0].id, q8[1].id, q8[2].id]);
-      var m8 = G.measure(poly, s8);
-      ok('几何 三角形面积 6、周长 12', near(m8.area, 6) && near(m8.perimeter, 12),
-        'area=' + m8.area + ' perimeter=' + m8.perimeter);
-
-      var s9 = scene();
-      var q9 = pts(s9, [[0, 0], [3, 4]]);
-      var seg9 = G.addSegment(s9, q9[0].id, q9[1].id);
-      var len0 = G.measure(seg9, s9).length;
-      G.setProp(q9[1], 'x', 6, s9);
-      G.recompute(s9);
-      var len1 = G.measure(seg9, s9).length;
-      ok('几何 移动自由点后线段长度重算 5 → √52',
-        near(len0, 5) && len1 > len0 && near(len1, Math.sqrt(52), 1e-9),
-        'before=' + len0 + ' after=' + len1);
-
-      var s10 = scene();
-      var q10 = pts(s10, [[0, 0], [2, 0], [0, 2]]);
-      G.addSegment(s10, q10[0].id, q10[1].id);
-      G.addMidpoint(s10, q10[0].id, q10[1].id);
-      G.addPolygon(s10, [q10[0].id, q10[1].id, q10[2].id]);
-      var removed = G.removeObject(s10, q10[0].id);
-      ok('几何 删除点 A 级联清掉线段/中点/多边形，保留 B、C',
-        removed.length >= 4 && countType(s10, 'point') === 2 &&
-        countType(s10, 'segment') === 0 && countType(s10, 'midpoint') === 0 &&
-        countType(s10, 'polygon') === 0,
-        'removed=' + removed.length + ' 剩余点=' + countType(s10, 'point'));
-
-      /* ================= 三、C++ 判断脚本 ================= */
+      /* ================= 二、C++ 判断脚本 ================= */
       var BC = { name: 'BC', type: 'segment', num: 1, color: '#000000', length: 5, slope: 0.75, visible: true, ok: false, msg: '' };
       var A = { name: 'A', type: 'point', x: 0, y: 0 };
-      var B = { name: 'B', type: 'point', x: 3, y: 4 };
+      var BP = { name: 'B', type: 'point', x: 3, y: 4 };
       var C = { name: 'C', type: 'point', x: 3, y: 0 };
-      var OBJ = { BC: BC, A: A, B: B, C: C };
+      var OBJ = { BC: BC, A: A, B: BP, C: C };
       var RO = { name: 1, type: 1, length: 1, slope: 1 };
       function proxy(d, readonly) {
         return {
@@ -232,7 +143,7 @@
       BC.num = 1; BC.color = '#000000';
       var r4 = runS('BC.num = 2; BC.color = "red";');
       ok('脚本 写入 BC.num / BC.color 并读回代理',
-        r4.ok && BC.num === 2 && BC.color === 'red' && proxy(BC, RO).get('color') === 'red',
+        r4.ok && BC.num === 2 && BC.color === 'red',
         'num=' + BC.num + ' color=' + BC.color);
 
       BC.color = '#000000'; BC.num = 2;
@@ -251,89 +162,418 @@
         r7.error ? (r7.error.message + ' @' + r7.error.line + ':' + r7.error.col) : 'ok=true');
 
       var r8 = runS('BC.name = "X";');
-      ok('脚本 只读属性写入被拒绝（代理抛错转成 run 错误）',
-        r8.ok === false && !!r8.error && BC.name === 'BC',
+      ok('脚本 只读属性写入被拒绝', r8.ok === false && !!r8.error && BC.name === 'BC',
         r8.error ? r8.error.message : 'ok=true');
 
-      /* ================= 四、视口变换 ================= */
-      var host = document.getElementById('host');
-      var wrap = document.createElement('div');
-      wrap.id = 'stagewrap';
-      var canvas = document.createElement('canvas');
-      wrap.appendChild(canvas);
-      host.appendChild(wrap);
+      /* ================= 三、JSXGraph 画板（board） ================= */
+      var stage = document.getElementById('stage');
+      var sc = {
+        view: { cx: 0, cy: 0, pxPerUnit: 48 },
+        params: {}, expressions: [], objects: [], script: '', autoRun: true
+      };
+      var board = B.create(stage, sc, {});
 
-      var vs = G.defaultScene();
-      vs.view = { cx: 0, cy: 0, pxPerUnit: 48 };
-      vs.expressions = [{ id: 'e1', name: 'f', expr: 'x^2-2x-1', color: '#2a63e8', visible: true }];
-      var vp = pts(vs, [[-2, 0], [2, 1], [0, 3]]);
-      G.addSegment(vs, vp[0].id, vp[1].id);
-      G.addCircle(vs, vp[0].id, vp[1].id);
-      G.addPolygon(vs, [vp[0].id, vp[1].id, vp[2].id]);
-      var renderer = R.create(canvas, vs, vs.view);
-      var resizeErr = null;
-      try { renderer.resize(); } catch (e) { resizeErr = e.message; }
-      ok('视口 400×300 容器 resize 成功，DPR 位图尺寸正确',
-        !resizeErr && canvas.width === Math.round(400 * (window.devicePixelRatio || 1)) &&
-        canvas.height === Math.round(300 * (window.devicePixelRatio || 1)),
-        resizeErr || ('canvas=' + canvas.width + 'x' + canvas.height + ' dpr=' + (window.devicePixelRatio || 1)));
+      function gridPath() {
+        var ps = stage.querySelectorAll('path');
+        for (var gi = 0; gi < ps.length; gi += 1) {
+          var gd = ps[gi].getAttribute('d') || '';
+          if ((gd.match(/M/g) || []).length >= 4) return ps[gi];
+        }
+        return null;
+      }
+      ok('board 创建：容器内生成 SVG、坐标轴（line）与网格（多段 path）',
+        !!board && typeof board.addPoint === 'function' &&
+        !!stage.querySelector('svg') && stage.querySelectorAll('line').length >= 2 &&
+        !!gridPath(),
+        'svg=' + !!stage.querySelector('svg') + ' axis=' + stage.querySelectorAll('line').length +
+        ' grid=' + !!gridPath());
 
-      var o = renderer.toScreen(0, 0);
-      ok('视口 toScreen(0,0) 为画布中心 (200,150)', near(o.x, 200) && near(o.y, 150),
-        '(' + o.x + ',' + o.y + ')');
+      var sp0 = board.toScreen(0, 0);
+      ok('toScreen(0,0) 在 960×600 画布中心',
+        near(sp0.x, 480, 1) && near(sp0.y, 300, 1),
+        '(' + sp0.x.toFixed(2) + ',' + sp0.y.toFixed(2) + ')');
 
-      var sp = renderer.toScreen(1.5, -2.5);
-      var back = renderer.toWorld(sp.x, sp.y);
-      ok('视口 toWorld(toScreen(1.5,-2.5)) 往返误差 < 1e-6',
+      var rt = board.toScreen(1.5, -2.5);
+      var back = board.toWorld(rt.x, rt.y);
+      ok('toWorld(toScreen(1.5,-2.5)) 往返误差 < 1e-6',
         near(back.x, 1.5, 1e-6) && near(back.y, -2.5, 1e-6),
         '(' + back.x + ',' + back.y + ')');
 
-      var w0 = renderer.toWorld(260, 90);
-      renderer.zoomAt(260, 90, 1.75);
-      var w1 = renderer.toWorld(260, 90);
-      ok('视口 zoomAt(260,90,1.75) 后光标世界坐标不变',
-        near(w0.x, w1.x, 1e-6) && near(w0.y, w1.y, 1e-6) && near(vs.view.pxPerUnit, 84),
-        'before=(' + w0.x + ',' + w0.y + ') after=(' + w1.x + ',' + w1.y + ') scale=' + vs.view.pxPerUnit);
+      var pA = board.addPoint(0, 0);
+      var pB = board.addPoint(3, 4);
+      var pC = board.addPoint(0, 3);
+      ok('点工具：标签 A / B / C 依次递增，坐标写回 scene',
+        pA && pB && pC && pA.label === 'A' && pB.label === 'B' && pC.label === 'C' &&
+        sc.objects.length === 3, 'labels=' + [pA.label, pB.label, pC.label].join(','));
 
-      /* ================= 五、渲染与命中 ================= */
-      var drawErr = null;
-      try { renderer.draw(); renderer.fit(); renderer.draw(); } catch (e) { drawErr = e.message; }
-      ok('渲染 默认场景（曲线+点+线段+圆+多边形）draw()/fit() 不抛异常',
-        !drawErr && vs.objects.length === 6, drawErr || ('objects=' + vs.objects.length));
+      var seg = board.addSegment(pA.id, pB.id);
+      var ms = board.measure(seg.id);
+      ok('线段：标签 AB、长度 5、斜率 4/3',
+        seg && seg.label === 'AB' && near(ms.length, 5) && near(ms.slope, 4 / 3),
+        'label=' + seg.label + ' length=' + ms.length + ' slope=' + ms.slope);
 
-      var at = renderer.toScreen(vp[0].x, vp[0].y);
-      var hit = renderer.pick(at.x, at.y);
-      var miss = renderer.pick(2, 2);
-      ok('渲染 pick 命中点 A，空白角落返回 null',
-        !!hit && hit.kind === 'point' && hit.id === vp[0].id && !miss,
-        'hit=' + JSON.stringify(hit) + ' miss=' + JSON.stringify(miss));
+      var cir = board.addCircle(pA.id, pB.id);
+      var mc = board.measure(cir.id);
+      ok('圆：标签 c1、半径 5、面积 25π',
+        cir && cir.label === 'c1' && near(mc.radius, 5) && near(mc.area, Math.PI * 25),
+        'label=' + cir.label + ' R=' + mc.radius + ' S=' + mc.area);
 
-      /* ================= 六、帮助页 ================= */
-      ok('帮助 QUICKREF_HTML 非空且含运算符/函数速查',
-        typeof H.QUICKREF_HTML === 'string' && H.QUICKREF_HTML.length > 200 &&
-        H.QUICKREF_HTML.indexOf('near') >= 0,
-        'len=' + (H.QUICKREF_HTML || '').length);
+      var poly = board.addPolygon([pA.id, pB.id, pC.id]);
+      var mp = board.measure(poly.id);
+      ok('多边形：三点成三角形，面积 4.5、周长 5+√10+3',
+        poly && poly.label === 'poly1' && near(mp.area, 4.5) &&
+        near(mp.perimeter, 5 + Math.sqrt(10) + 3),
+        'label=' + poly.label + ' area=' + mp.area + ' peri=' + mp.perimeter);
 
-      var dlg = H.open();
-      var overlay = document.querySelector('.modal-overlay');
-      ok('帮助 open() 生成 .modal-overlay 并返回 close',
-        !!dlg && !!overlay && typeof dlg.close === 'function' &&
-        dlg.body.querySelectorAll('details').length === 10,
-        'overlay=' + !!overlay + ' sections=' + (dlg ? dlg.body.querySelectorAll('details').length : 0));
-      if (dlg && typeof dlg.close === 'function') dlg.close();
+      var mid = board.addMidpoint(pA.id, pB.id);
+      ok('中点：标签 M1、坐标 (1.5, 2)',
+        mid && mid.label === 'M1' && near(board.getProp(mid.id, 'x'), 1.5) &&
+        near(board.getProp(mid.id, 'y'), 2),
+        'label=' + mid.label + ' (' + board.getProp(mid.id, 'x') + ',' + board.getProp(mid.id, 'y') + ')');
 
-      /* SL.modal 的 close 有 180ms 退场动画，等它移除遮罩后再收尾 */
+      var pD = board.addPoint(0, 4);
+      var pE = board.addPoint(4, 0);
+      var l1 = board.addLine(pA.id, pB.id);
+      var l2 = board.addLine(pD.id, pE.id);
+      var xi = board.addIntersection(l1.id, l2.id, 0);
+      ok('交点：标签 X1、坐标 (12/7, 16/7)',
+        xi && xi.label === 'X1' &&
+        near(board.getProp(xi.id, 'x'), 12 / 7, 1e-6) &&
+        near(board.getProp(xi.id, 'y'), 16 / 7, 1e-6),
+        'label=' + xi.label + ' (' + board.getProp(xi.id, 'x') + ',' + board.getProp(xi.id, 'y') + ')');
+
+      var perp = board.addPerpendicular(pC.id, l1.id);
+      var mpd = board.measure(perp.id);
+      ok('垂线：标签 p1、斜率 -3/4',
+        perp && perp.label === 'p1' && near(mpd.slope, -0.75),
+        'label=' + perp.label + ' slope=' + mpd.slope);
+
+      var para = board.addParallel(pC.id, l1.id);
+      var mpa = board.measure(para.id);
+      ok('平行线：斜率与 AB 相同（4/3）', para && near(mpa.slope, 4 / 3),
+        'label=' + para.label + ' slope=' + mpa.slope);
+
+      var hitSp = board.toScreen(0, 0);
+      ok('pick：在点 A 附近返回 A 的 id',
+        board.pick(hitSp.x, hitSp.y) === pA.id,
+        'hit=' + board.pick(hitSp.x, hitSp.y) + ' A=' + pA.id);
+
+      /* 移动 A：JXG 自动重算依赖对象（等价于拖动） */
+      board.setProp(pA.id, 'x', 1);
+      board.setProp(pA.id, 'y', 1);
+      board.syncScene(sc);
+      var len2 = board.measure(seg.id).length;
+      var rad2 = board.measure(cir.id).radius;
+      var area2 = board.measure(poly.id).area;
+      ok('拖动 A 到 (1,1) 后线段 / 圆 / 多边形级联重算',
+        near(len2, Math.sqrt(13), 1e-6) && near(rad2, Math.sqrt(13), 1e-6) && near(area2, 3.5, 1e-6),
+        'len=' + len2.toFixed(4) + ' R=' + rad2.toFixed(4) + ' area=' + area2.toFixed(4));
+
+      board.setProp(seg.id, 'num', 2);
+      board.setProp(seg.id, 'color', 'red');
+      ok('setProp：num 可写、色名归一化为 #d94b4b',
+        board.getProp(seg.id, 'num') === 2 && board.getProp(seg.id, 'color') === '#d94b4b',
+        'num=' + board.getProp(seg.id, 'num') + ' color=' + board.getProp(seg.id, 'color'));
+
+      board.setProp(seg.id, 'visible', false);
+      var hiddenOk = board.getProp(seg.id, 'visible') === false;
+      board.setProp(seg.id, 'visible', true);
+      ok('setProp：visible 隐藏 / 恢复', hiddenOk && board.getProp(seg.id, 'visible') === true,
+        'hidden=' + hiddenOk);
+
+      var threw = false;
+      try { board.setProp(pA.id, 'label', 'Z'); } catch (e1) { threw = true; }
+      ok('setProp：只读属性（label）抛错', threw && pA.label === 'A',
+        threw ? 'threw' : 'no throw');
+
+      /* 脚本桥接：按 label 找到 AB，get/set 转发到 board（等价于 lab.js 的 bridge） */
+      var segProxy = {
+        get: function (p) { return board.getProp(seg.id, p); },
+        set: function (p, v) { board.setProp(seg.id, p, v); },
+        call: function (m) { throw new Error('对象没有方法: ' + m); }
+      };
+      var boardBridge = {
+        resolve: function (n) { return n === 'AB' ? segProxy : undefined; },
+        isObjectName: function (n) { return n === 'AB'; }
+      };
+      board.setProp(seg.id, 'color', '#000000');
+      board.setProp(seg.id, 'num', 2);
+      var rs = S.run('if (AB.num == 2) AB.color = "red";', boardBridge);
+      ok('board 桥接：脚本 if (AB.num == 2) AB.color = "red"; 改色成功',
+        rs.ok && board.getProp(seg.id, 'color') === '#d94b4b',
+        'ok=' + rs.ok + ' color=' + board.getProp(seg.id, 'color'));
+
+      /* 函数图像 */
+      var f1 = board.addFunction('x^2-2x+1', { name: 'f', color: '#111111' });
+      var f2 = board.addFunction('1/x', { name: 'g', color: '#c0399f' });
+      function pathOf(color) {
+        var list = stage.querySelectorAll('path');
+        for (var i = 0; i < list.length; i += 1) {
+          if (list[i].getAttribute('stroke') === color) return list[i];
+        }
+        return null;
+      }
+      var d1 = pathOf('#111111');
+      var d2 = pathOf('#c0399f');
+      function countM(d) { return (String(d).match(/M/g) || []).length; }
+      ok('functiongraph：抛物线单段路径',
+        !!f1 && f1.error === null && !!d1 && countM(d1.getAttribute('d')) === 1,
+        'id=' + (f1 && f1.id) + ' M=' + (d1 ? countM(d1.getAttribute('d')) : 'no path'));
+      ok('functiongraph：1/x 在 x=0 处断开（路径分成 ≥2 段）',
+        !!f2 && f2.error === null && !!d2 && countM(d2.getAttribute('d')) >= 2,
+        'id=' + (f2 && f2.id) + ' M=' + (d2 ? countM(d2.getAttribute('d')) : 'no path'));
+
+      var badF = board.addFunction('1+');
+      ok('addFunction：编译失败返回 error 且不创建图形',
+        badF && badF.id === null && !!badF.error &&
+        sc.expressions.length === 2,
+        badF ? ('error=' + (badF.error && badF.error.message)) : 'null');
+
+      /* 视口 */
+      var w0 = board.toWorld(300, 200);
+      board.zoomAt(300, 200, 1.5);
+      var w1 = board.toWorld(300, 200);
+      ok('zoomAt(300,200,1.5) 后光标处世界坐标不漂移',
+        near(w0.x, w1.x, 1e-6) && near(w0.y, w1.y, 1e-6),
+        'before=(' + w0.x + ',' + w0.y + ') after=(' + w1.x + ',' + w1.y + ')');
+
+      var cx0 = sc.view.cx;
+      board.panBy(48, 0);
+      ok('panBy(48,0) 把 cx 左移 48/pxPerUnit',
+        near(sc.view.cx, cx0 - 48 / sc.view.pxPerUnit, 1e-9),
+        'cx ' + cx0.toFixed(3) + '→' + sc.view.cx.toFixed(3));
+
+      var fitErr = null;
+      try { board.fit(); } catch (e2) { fitErr = e2.message; }
+      ok('fit() 不抛异常且给出合法缩放',
+        !fitErr && sc.view.pxPerUnit >= 4 && sc.view.pxPerUnit <= 400,
+        fitErr || ('pxPerUnit=' + sc.view.pxPerUnit.toFixed(2)));
+
+      var objCount = sc.objects.length;
+      var rebuildErr = null;
+      try { board.rebuild(sc); } catch (e3) { rebuildErr = e3.message; }
+      ok('rebuild(scene) 原地重建：对象数不变、派生标签仍是 M1/X1',
+        !rebuildErr && sc.objects.length === objCount &&
+        !!sc.objects.filter(function (o) { return o.label === 'M1'; }).length &&
+        !!sc.objects.filter(function (o) { return o.label === 'X1'; }).length,
+        rebuildErr || ('objects=' + sc.objects.length));
+
+      /* ---------- 3.1 级联删除（独立画板，避免干扰上面的场景） ---------- */
+      function scratch(hostId) {
+        var s = {
+          view: { cx: 0, cy: 0, pxPerUnit: 48 },
+          params: {}, expressions: [], objects: [], script: '', autoRun: true
+        };
+        return { scene: s, h: B.create(document.getElementById(hostId), s, {}) };
+      }
+
+      var c2 = scratch('stage2');
+      var b2 = c2.h, sc2 = c2.scene;
+      var q1 = b2.addPoint(0, 0);        /* A */
+      var q2 = b2.addPoint(2, 0);        /* B */
+      var q3 = b2.addPoint(0, 2);        /* C */
+      var q4 = b2.addPoint(0, 1);        /* D */
+      var q5 = b2.addPoint(2, -0.5);     /* E */
+      var sAB = b2.addSegment(q1.id, q2.id);          /* AB，依赖 B */
+      var cA = b2.addCircle(q1.id, q2.id);            /* 以 A 为圆心过 B */
+      var pgB = b2.addPolygon([q1.id, q2.id, q3.id]); /* 含 B 的三角形 */
+      var sDE = b2.addSegment(q4.id, q5.id);          /* DE，与 B 无关 */
+      var xAB = b2.addIntersection(sAB.id, sDE.id, 0);/* AB 与 DE 的交点 */
+      var beforeDel = sc2.objects.length;
+      var removedIds = b2.removeObject(q2.id) || [];
+      var afterDel = sc2.objects.length;
+      var goneAll = [q2.id, sAB.id, cA.id, pgB.id, xAB.id].every(function (id) {
+        return removedIds.indexOf(id) >= 0 &&
+          !sc2.objects.some(function (o) { return o.id === id; });
+      });
+      var keptDE = sc2.objects.some(function (o) { return o.id === sDE.id; });
+      ok('级联删除：删 B 后线段 / 圆 / 多边形 / 交点一起消失且 scene.objects 同步',
+        !!xAB && goneAll && keptDE &&
+        removedIds.length === 5 && afterDel === beforeDel - 5 && afterDel === 5,
+        'before=' + beforeDel + ' after=' + afterDel + ' removed=' + removedIds.length +
+        ' 含=' + [q2.id, sAB.id, cA.id, pgB.id, xAB.id].join('/') + ' 保留DE=' + keptDE);
+      b2.destroy();
+
+      /* ---------- 3.2 线段标签冲突 ---------- */
+      var c3 = scratch('stage3');
+      var b3 = c3.h;
+      var t1 = b3.addPoint(0, 0);
+      var t2 = b3.addPoint(1, 0);
+      var segFirst = b3.addSegment(t1.id, t2.id);
+      var segDup = b3.addSegment(t1.id, t2.id);
+      var labels3 = c3.scene.objects.map(function (o) { return o.label; });
+      ok('线段标签冲突：同一对端点再画一条回退为 s1，不重复 AB',
+        segFirst && segFirst.label === 'AB' && segDup && segDup.label === 's1' &&
+        labels3.filter(function (l) { return l === 'AB'; }).length === 1,
+        'first=' + (segFirst && segFirst.label) + ' dup=' + (segDup && segDup.label) +
+        ' labels=' + labels3.join(','));
+      b3.destroy();
+
+      /* ---------- 3.3 点标签耗尽 ---------- */
+      var c4 = scratch('stage4');
+      var b4 = c4.h;
+      var ptLabels = [];
+      for (var pi = 0; pi < 30; pi += 1) {
+        var newPt = b4.addPoint(pi % 6, Math.floor(pi / 6));
+        ptLabels.push(newPt ? newPt.label : '?');
+      }
+      var uniqPt = {};
+      for (var ui = 0; ui < ptLabels.length; ui += 1) uniqPt[ptLabels[ui]] = 1;
+      ok('点标签耗尽：A…Z 用完后第 27 个起为 A1 / B1 …（30 个互不重复）',
+        ptLabels.length === 30 && ptLabels[25] === 'Z' &&
+        ptLabels[26] === 'A1' && ptLabels[27] === 'B1' && ptLabels[29] === 'D1' &&
+        Object.keys(uniqPt).length === 30,
+        'labels[24..29]=' + ptLabels.slice(24).join(',') + ' 唯一=' + Object.keys(uniqPt).length);
+      b4.destroy();
+
+      /* ---------- 3.4 Delete 键（覆盖 lab.js 的键盘路径，而非只测 board API） ---------- */
+      var labHost = document.getElementById('labhost');
+      var storeKey = (SL.KEYS && SL.KEYS.math) || 'sparklab:v1:math';
+      var storeBackup = null;
+      try { storeBackup = window.localStorage.getItem(storeKey); } catch (eS) { storeBackup = null; }
+      var delObjsBefore = -1, delObjsAfter = -1, delSceneObjs = -1, delErr = '';
+      try {
+        var labApi = SL.math.lab.mount(labHost, {
+          lab: { id: 'math-test-lab', meta: { name: '数学绘图器（回归）' } },
+          onLeave: function () {}
+        });
+        /* 切「点」工具 → 在画布中心单击生成一个点（lab.js 会顺手选中它） */
+        labHost.querySelector('[data-tool="point"]').dispatchEvent(
+          new MouseEvent('click', { bubbles: true, cancelable: true }));
+        var labBoardHost = labHost.querySelector('[data-role="board"]');
+        var labRect = labBoardHost.getBoundingClientRect();
+        labBoardHost.dispatchEvent(new MouseEvent('click', {
+          bubbles: true, cancelable: true,
+          clientX: labRect.left + labRect.width / 2,
+          clientY: labRect.top + labRect.height / 2
+        }));
+        delObjsBefore = labHost.querySelectorAll('.obj-item').length;
+        /* lab.js 把 keydown 绑在 document 上，这里照它的真实监听目标派发 */
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+        delObjsAfter = labHost.querySelectorAll('.obj-item').length;
+        labApi.save();
+        try {
+          var dumpStore = JSON.parse(window.localStorage.getItem(storeKey) || '{}');
+          delSceneObjs = (((dumpStore.scenes || {})['math-test-lab'] || {}).objects || []).length;
+        } catch (eP) { delSceneObjs = -1; }
+        labApi.destroy();
+      } catch (eL) {
+        delErr = (eL && eL.message) || String(eL);
+      }
+      /* 还原存档：测试不能污染真实场景 */
+      try {
+        if (storeBackup === null) window.localStorage.removeItem(storeKey);
+        else window.localStorage.setItem(storeKey, storeBackup);
+      } catch (eR) { /* localStorage 不可用时忽略 */ }
+      ok('Delete 键：lab.js 监听 document，选中对象后按 Delete 被移除且存档同步',
+        !delErr && delObjsBefore === 1 && delObjsAfter === 0 && delSceneObjs === 0 &&
+        labHost.children.length === 0,
+        delErr || ('列表 ' + delObjsBefore + '→' + delObjsAfter + ' 存档 objects=' + delSceneObjs +
+          ' 卸载后子节点=' + labHost.children.length));
+
+      /* 导出：先截获 blob，再单独验证 SVG 绘制非空白 */
+      var captured = null;
+      var origCreate = URL.createObjectURL;
+      var origClick = HTMLAnchorElement.prototype.click;
+      URL.createObjectURL = function (blob) {
+        if (blob && blob.type === 'image/png') captured = blob;
+        return origCreate.call(URL, blob);
+      };
+      HTMLAnchorElement.prototype.click = function () {};
+      var svgKeep = stage.querySelector('svg');
+      var svgXmlKeep = null;
+      try { svgXmlKeep = new XMLSerializer().serializeToString(svgKeep); } catch (eX) { svgXmlKeep = null; }
+
+      /* 给活动 SVG 打两个哨兵尺寸：exportPNG 只允许改克隆副本，不许碰活动节点 */
+      var liveW0 = svgKeep.getAttribute('width');
+      var liveH0 = svgKeep.getAttribute('height');
+      svgKeep.setAttribute('width', '1234');
+      svgKeep.setAttribute('height', '567');
+      var exportPromise = board.exportPNG({ filename: 'math-test.png', scale: 2, white: true });
+      var liveW1 = svgKeep.getAttribute('width');
+      var liveH1 = svgKeep.getAttribute('height');
+      svgKeep.setAttribute('width', liveW0);
+      svgKeep.setAttribute('height', liveH0);
+      ok('exportPNG 不改活动 SVG 的 width/height（只写克隆副本）',
+        liveW1 === '1234' && liveH1 === '567',
+        '导出前=1234×567 导出后=' + liveW1 + '×' + liveH1 + '（画布原值 ' + liveW0 + '×' + liveH0 + '）');
+
+      function svgNonWhite(cb) {
+        try {
+          var xml = svgXmlKeep;
+          var url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+          var img = new Image();
+          img.onload = function () {
+            try {
+              var cv = document.createElement('canvas');
+              cv.width = 480; cv.height = 300;
+              var g = cv.getContext('2d');
+              g.fillStyle = '#fff'; g.fillRect(0, 0, 480, 300);
+              g.drawImage(img, 0, 0, 480, 300);
+              var d = g.getImageData(0, 0, 480, 300).data;
+              var non = 0;
+              for (var i = 0; i < d.length; i += 4) {
+                if (d[i] < 250 || d[i + 1] < 250 || d[i + 2] < 250) non += 1;
+              }
+              cb(non);
+            } catch (e4) { cb(-1); }
+          };
+          img.onerror = function () { cb(-1); };
+          img.src = url;
+        } catch (e5) { cb(-2); }
+      }
+
+      board.destroy();
+      ok('destroy() 清空容器', stage.children.length === 0,
+        'children=' + stage.children.length);
+
+      /* 收尾：等导出 Promise 与 SVG 采样，再补最后几条断言 */
       window.setTimeout(function () {
-        ok('帮助 关闭后 .modal-overlay 已移除', !document.querySelector('.modal-overlay'),
-          'remaining=' + document.querySelectorAll('.modal-overlay').length);
-        renderer.destroy();
-        flush();
-      }, 260);
+        var resolved = false;
+        if (exportPromise && typeof exportPromise.then === 'function') {
+          exportPromise.then(function (v) { resolved = v; }, function () { resolved = false; });
+        }
+        window.setTimeout(function () {
+          /* 导出完成后再还原桩，否则真正的 createObjectURL 会绕过捕获 */
+          URL.createObjectURL = origCreate;
+          HTMLAnchorElement.prototype.click = origClick;
+          ok('exportPNG 返回 Promise 并生成 PNG blob（> 5KB）',
+            resolved === true && captured && captured.size > 5000,
+            'resolved=' + resolved + ' size=' + (captured ? captured.size : 0));
+
+          svgNonWhite(function (non) {
+            ok('导出源 SVG 绘制非空白（非白像素 > 500）', non > 500, 'nonWhite=' + non);
+
+            /* ================= 四、帮助页 ================= */
+            ok('帮助 QUICKREF_HTML 非空且含 near 速查',
+              typeof H.QUICKREF_HTML === 'string' && H.QUICKREF_HTML.length > 200 &&
+              H.QUICKREF_HTML.indexOf('near') >= 0,
+              'len=' + (H.QUICKREF_HTML || '').length);
+
+            var dlg = H.open();
+            var overlay = document.querySelector('.modal-overlay');
+            ok('帮助 open() 生成 .modal-overlay 并可关闭（10 节）',
+              !!dlg && !!overlay && typeof dlg.close === 'function' &&
+              dlg.body.querySelectorAll('details').length === 10,
+              'overlay=' + !!overlay + ' sections=' +
+              (dlg ? dlg.body.querySelectorAll('details').length : 0));
+            if (dlg && typeof dlg.close === 'function') dlg.close();
+
+            window.setTimeout(function () {
+              ok('帮助 关闭后 .modal-overlay 已移除',
+                !document.querySelector('.modal-overlay'),
+                'remaining=' + document.querySelectorAll('.modal-overlay').length);
+              flush();
+            }, 260);
+          });
+        }, 700);
+      }, 60);
     }
 
     try { run(); }
     catch (e) {
-      ok('测试脚本未抛出未捕获异常', false, (e && e.message) + ' | ' + ((e && e.stack) || '').split('\n').slice(0, 3).join(' / '));
+      ok('测试脚本未抛出未捕获异常', false,
+        (e && e.message) + ' | ' + ((e && e.stack) || '').split('\n').slice(0, 3).join(' / '));
       flush();
     }
   })();

@@ -6,69 +6,70 @@
   <meta name="theme-color" content="#f5f7fb">
   <meta name="description" content="星火理化生实验室：面向初中理化生教学的离线虚拟实验工具，覆盖物理电学、力学、热学、光学、化学、生物等板块，全部计算在本地完成。">
   <title>星火理化生实验室 · 初中理化生虚拟实验</title>
-  <link rel="stylesheet" href="assets/css/main.css?v=67">
-  <link rel="stylesheet" href="assets/css/math.css?v=67">
-  <link rel="stylesheet" href="assets/css/lab.css?v=67">
-  <link rel="stylesheet" href="assets/css/sim.css?v=67">
-  <link rel="stylesheet" href="assets/css/print.css?v=67" media="print">
+  <link rel="stylesheet" href="assets/css/main.css?v=69">
+  <link rel="stylesheet" href="assets/css/math.css?v=69">
+  <link rel="stylesheet" href="assets/vendor/jsxgraph/jsxgraph.css?v=69">
+  <link rel="stylesheet" href="assets/css/lab.css?v=69">
+  <link rel="stylesheet" href="assets/css/sim.css?v=69">
+  <link rel="stylesheet" href="assets/css/print.css?v=69" media="print">
 </head>
 <body>
   <header class="topbar" id="topbar"></header>
   <main class="view-root" id="view-root"></main>
   <div class="toast-host" id="toast-host" aria-live="polite"></div>
 
-  <script src="assets/icons/sprite.js?v=67"></script>
-  <script src="assets/icons/devices.js?v=67"></script>
-  <script src="assets/js/core/utils.js?v=67"></script>
-  <script src="data/experiments.js?v=67"></script>
-  <script src="assets/js/core/simkit.js?v=67"></script>
-  <script src="assets/js/math/expr.js?v=67"></script>
-  <script src="assets/js/math/geometry.js?v=67"></script>
-  <script src="assets/js/math/script.js?v=67"></script>
-  <script src="assets/js/math/help.js?v=67"></script>
-  <script src="assets/js/math/render.js?v=67"></script>
-  <script src="assets/js/math/lab.js?v=67"></script>
-  <script src="assets/js/core/circuit.js?v=67"></script>
-  <script src="assets/js/core/skins.js?v=67"></script>
-  <script src="assets/js/core/board.js?v=67"></script>
-  <script src="assets/js/core/meters.js?v=67"></script>
-  <script src="assets/js/core/formula.js?v=67"></script>
-  <script src="assets/js/core/records.js?v=67"></script>
-  <script src="assets/js/vendor/matter.min.js?v=67"></script>
-  <script src="assets/js/sims/mech.js?v=67"></script>
-  <script src="assets/js/sims/chem.js?v=67"></script>
-  <script src="assets/js/sims/bio.js?v=67"></script>
-  <script src="assets/js/sims/thermo.js?v=67"></script>
-  <script src="assets/js/sims/optics.js?v=67"></script>
-  <script src="assets/js/sims/rigid.js?v=67"></script>
-  <script src="assets/js/labs/lab-series.js?v=67"></script>
-  <script src="assets/js/labs/lab-ohm-r.js?v=67"></script>
-  <script src="assets/js/labs/lab-ohm-law.js?v=67"></script>
-  <script src="assets/js/labs/lab-free.js?v=67"></script>
-  <script src="assets/js/labs/lab-lever.js?v=67"></script>
-  <script src="assets/js/labs/lab-pulley.js?v=67"></script>
-  <script src="assets/js/labs/lab-buoyancy.js?v=67"></script>
-  <script src="assets/js/labs/lab-mech-free.js?v=67"></script>
-  <script src="assets/js/labs/lab-mech-sandbox.js?v=67"></script>
-  <script src="assets/js/labs/lab-thermo-boiling.js?v=67"></script>
-  <script src="assets/js/labs/lab-thermo-heatcap.js?v=67"></script>
-  <script src="assets/js/labs/lab-thermo-free.js?v=67"></script>
-  <script src="assets/js/labs/lab-optics-reflection.js?v=67"></script>
-  <script src="assets/js/labs/lab-optics-lens.js?v=67"></script>
-  <script src="assets/js/labs/lab-optics-free.js?v=67"></script>
-  <script src="assets/js/labs/lab-physics-free.js?v=67"></script>
-  <script src="assets/js/labs/lab-physics-bench.js?v=67"></script>
-  <script src="assets/js/labs/lab-chem-oxygen.js?v=67"></script>
-  <script src="assets/js/labs/lab-chem-combustion.js?v=67"></script>
-  <script src="assets/js/labs/lab-chem-electrolysis.js?v=67"></script>
-  <script src="assets/js/labs/lab-chem-acidbase.js?v=67"></script>
-  <script src="assets/js/labs/lab-chem-free.js?v=67"></script>
-  <script src="assets/js/labs/lab-bio-microscope.js?v=67"></script>
-  <script src="assets/js/labs/lab-bio-cell.js?v=67"></script>
-  <script src="assets/js/labs/lab-bio-photo.js?v=67"></script>
-  <script src="assets/js/labs/lab-bio-enzyme.js?v=67"></script>
-  <script src="assets/js/labs/lab-bio-free.js?v=67"></script>
-  <script src="assets/js/ui/home.js?v=67"></script>
-  <script src="assets/js/app.js?v=67"></script>
+  <script src="assets/icons/sprite.js?v=69"></script>
+  <script src="assets/icons/devices.js?v=69"></script>
+  <script src="assets/js/core/utils.js?v=69"></script>
+  <script src="data/experiments.js?v=69"></script>
+  <script src="assets/js/core/simkit.js?v=69"></script>
+  <script src="assets/vendor/jsxgraph/jsxgraphcore.js?v=69"></script>
+  <script src="assets/js/math/expr.js?v=69"></script>
+  <script src="assets/js/math/script.js?v=69"></script>
+  <script src="assets/js/math/help.js?v=69"></script>
+  <script src="assets/js/math/board.js?v=69"></script>
+  <script src="assets/js/math/lab.js?v=69"></script>
+  <script src="assets/js/core/circuit.js?v=69"></script>
+  <script src="assets/js/core/skins.js?v=69"></script>
+  <script src="assets/js/core/board.js?v=69"></script>
+  <script src="assets/js/core/meters.js?v=69"></script>
+  <script src="assets/js/core/formula.js?v=69"></script>
+  <script src="assets/js/core/records.js?v=69"></script>
+  <script src="assets/js/vendor/matter.min.js?v=69"></script>
+  <script src="assets/js/sims/mech.js?v=69"></script>
+  <script src="assets/js/sims/chem.js?v=69"></script>
+  <script src="assets/js/sims/bio.js?v=69"></script>
+  <script src="assets/js/sims/thermo.js?v=69"></script>
+  <script src="assets/js/sims/optics.js?v=69"></script>
+  <script src="assets/js/sims/rigid.js?v=69"></script>
+  <script src="assets/js/labs/lab-series.js?v=69"></script>
+  <script src="assets/js/labs/lab-ohm-r.js?v=69"></script>
+  <script src="assets/js/labs/lab-ohm-law.js?v=69"></script>
+  <script src="assets/js/labs/lab-free.js?v=69"></script>
+  <script src="assets/js/labs/lab-lever.js?v=69"></script>
+  <script src="assets/js/labs/lab-pulley.js?v=69"></script>
+  <script src="assets/js/labs/lab-buoyancy.js?v=69"></script>
+  <script src="assets/js/labs/lab-mech-free.js?v=69"></script>
+  <script src="assets/js/labs/lab-mech-sandbox.js?v=69"></script>
+  <script src="assets/js/labs/lab-thermo-boiling.js?v=69"></script>
+  <script src="assets/js/labs/lab-thermo-heatcap.js?v=69"></script>
+  <script src="assets/js/labs/lab-thermo-free.js?v=69"></script>
+  <script src="assets/js/labs/lab-optics-reflection.js?v=69"></script>
+  <script src="assets/js/labs/lab-optics-lens.js?v=69"></script>
+  <script src="assets/js/labs/lab-optics-free.js?v=69"></script>
+  <script src="assets/js/labs/lab-physics-free.js?v=69"></script>
+  <script src="assets/js/labs/lab-physics-bench.js?v=69"></script>
+  <script src="assets/js/labs/lab-chem-oxygen.js?v=69"></script>
+  <script src="assets/js/labs/lab-chem-combustion.js?v=69"></script>
+  <script src="assets/js/labs/lab-chem-electrolysis.js?v=69"></script>
+  <script src="assets/js/labs/lab-chem-acidbase.js?v=69"></script>
+  <script src="assets/js/labs/lab-chem-free.js?v=69"></script>
+  <script src="assets/js/labs/lab-bio-microscope.js?v=69"></script>
+  <script src="assets/js/labs/lab-bio-cell.js?v=69"></script>
+  <script src="assets/js/labs/lab-bio-photo.js?v=69"></script>
+  <script src="assets/js/labs/lab-bio-enzyme.js?v=69"></script>
+  <script src="assets/js/labs/lab-bio-free.js?v=69"></script>
+  <script src="assets/js/ui/home.js?v=69"></script>
+  <script src="assets/js/app.js?v=69"></script>
 </body>
 </html>

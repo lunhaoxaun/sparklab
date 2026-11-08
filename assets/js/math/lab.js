@@ -1,11 +1,10 @@
 /* 数学绘图器 · 工作台 UI 与交互（SL.math.lab）
    ---------------------------------------------------------------
-   把 S1–S4 的五个纯逻辑模块装配成可操作的工作台：
-     expr      表达式编译（函数曲线 / 自动参数 / 脚本里的 f.eval(x)）
-     geometry  场景对象、构造、重算、属性读写、测量
-     script    C++ 判断脚本（只经 bridge 访问场景）
-     render    Canvas 绘制、视口变换、命中、导出
-     help      语法详解弹窗与右栏速查
+   把纯逻辑模块装配成可操作的工作台：
+     expr    表达式编译（函数曲线 / 自动参数 / 脚本里的 f.eval(x)）
+     board   JSXGraph 画布内核（场景对象 ↔ JXG 元素、视口、命中、测量）
+     script  C++ 判断脚本（只经 bridge 访问场景）
+     help    语法详解弹窗与右栏速查
 
    对外接口：
      SL.math.lab.mount(host, { lab, onLeave }) -> {
@@ -13,10 +12,11 @@
      }
 
    约束：
-   - 只新建本文件；ES5 / IIFE / 'use strict' / 无第三方库。
+   - ES5 / IIFE / 'use strict'。
    - 所有事件监听登记在 bindings 里，destroy() 逐条解绑；
      ResizeObserver 不可用时回退 window.resize。
-   - 渲染器只读 scene，本模块负责 recompute、持久化与交互。
+   - scene 仍是唯一真相：本模块负责规范化、持久化与交互，
+     画布与派生对象全部交给 SL.math.board（JSXGraph）。
    --------------------------------------------------------------- */
 (function () {
   'use strict';
@@ -31,6 +31,14 @@
   var SCRIPT_SAVE_MS = 300;
   var PICK_PX = 8;
   var DEFAULT_EXPR = 'x^2-2x-1';
+
+  var TYPES = {
+    point: '点', segment: '线段', line: '直线', circle: '圆', polygon: '多边形',
+    midpoint: '中点', intersection: '交点', perpendicular: '垂线', parallel: '平行线'
+  };
+
+  var POINT_TYPES = { point: 1, midpoint: 1, intersection: 1 };
+  var LINE_TYPES = { segment: 1, line: 1, perpendicular: 1, parallel: 1 };
 
   var TOOLS = [
     { id: 'select', name: '选择', hint: '拖动自由点、点空白处平移视图，点对象可选中' },
@@ -143,6 +151,96 @@
   }
 
   /* ============================================================
+     场景默认值与规范化（存储里可能是旧版本 / 手改过的数据）
+     ============================================================ */
+  function refsOf(o) {
+    if (!o) return [];
+    if (o.type === 'segment' || o.type === 'line') return [o.a, o.b];
+    if (o.type === 'circle') return [o.center, o.through];
+    if (o.type === 'polygon') return o.points ? o.points.slice() : [];
+    if (o.type === 'midpoint' || o.type === 'intersection') return o.of ? o.of.slice() : [];
+    if (o.type === 'perpendicular' || o.type === 'parallel') return [o.through, o.ref];
+    return [];
+  }
+
+  function defaultScene() {
+    return {
+      view: { cx: 0, cy: 0, pxPerUnit: 48 },
+      params: {},
+      expressions: [{ id: 'e1', name: 'f', expr: DEFAULT_EXPR, color: '#2a63e8', visible: true }],
+      objects: [],
+      script: '',
+      autoRun: true
+    };
+  }
+
+  function normalizeScene(raw) {
+    var s = raw && typeof raw === 'object' ? raw : {};
+    var v = s.view && typeof s.view === 'object' ? s.view : {};
+    s.view = {
+      cx: isNum(v.cx) ? v.cx : 0,
+      cy: isNum(v.cy) ? v.cy : 0,
+      pxPerUnit: isNum(v.pxPerUnit) && v.pxPerUnit > 0
+        ? Math.min(400, Math.max(4, v.pxPerUnit)) : 48
+    };
+    if (!s.params || typeof s.params !== 'object') s.params = {};
+    s.script = typeof s.script === 'string' ? s.script : '';
+    s.autoRun = s.autoRun !== false;
+
+    var exprs = [];
+    var rawExprs = s.expressions && s.expressions.length ? s.expressions : [];
+    for (var i = 0; i < rawExprs.length; i += 1) {
+      var e = rawExprs[i];
+      if (!e || !e.id || typeof e.expr !== 'string') continue;
+      exprs.push(e);
+    }
+    s.expressions = exprs;
+
+    /* 对象按「先点、后依赖」的拓扑顺序重建；悬空引用的对象直接丢弃 */
+    var rawObjs = s.objects && s.objects.length ? s.objects : [];
+    var alive = {};
+    var used = {};
+    var kept = [];
+    var pending = [];
+    var j;
+    for (j = 0; j < rawObjs.length; j += 1) {
+      var o = rawObjs[j];
+      if (!o || !o.id || !o.type) continue;
+      if (!has(TYPES, o.type)) continue;
+      if (o.label && used[o.label]) continue;
+      if (o.type === 'point') {
+        alive[o.id] = true;
+        if (o.label) used[o.label] = true;
+        kept.push(o);
+      } else {
+        pending.push(o);
+      }
+    }
+    for (var round = 0; round < 8 && pending.length; round += 1) {
+      var rest = [];
+      for (j = 0; j < pending.length; j += 1) {
+        var p = pending[j];
+        var refs = refsOf(p);
+        var ok = p.type !== 'polygon' ? refs.length > 0 : refs.length >= 3;
+        for (var k = 0; k < refs.length; k += 1) {
+          if (!refs[k] || !alive[refs[k]]) { ok = false; break; }
+        }
+        if (ok) {
+          alive[p.id] = true;
+          if (p.label) used[p.label] = true;
+          kept.push(p);
+        } else {
+          rest.push(p);
+        }
+      }
+      if (rest.length === pending.length) break;
+      pending = rest;
+    }
+    s.objects = kept;
+    return s;
+  }
+
+  /* ============================================================
      持久化
      ============================================================ */
   function readStore() {
@@ -213,7 +311,7 @@
               '<span class="zoom-pct" data-role="zoom">100%</span>' +
             '</div>' +
             '<div class="math-canvas-wrap" data-role="canvas-wrap">' +
-              '<canvas class="math-canvas" data-role="canvas"></canvas>' +
+              '<div class="math-board" data-role="board"></div>' +
             '</div>' +
             '<div class="math-stagebar">' +
               '<span class="math-coord" data-role="coord">x = 0.00, y = 0.00</span>' +
@@ -260,21 +358,20 @@
     var labName = (lab.meta && lab.meta.name) || '数学绘图器';
     var onLeave = typeof options.onLeave === 'function' ? options.onLeave : function () {};
 
-    var geo = SL.math.geometry;
+    var boardApi = SL.math.board;
     var expr = SL.math.expr;
     var script = SL.math.script;
-    var rendererApi = SL.math.render;
     var help = SL.math.help;
 
-    if (!geo || !expr || !script || !rendererApi) {
-      throw new Error('数学绘图器缺少依赖模块（expr / geometry / script / render）');
+    if (!boardApi || !expr || !script) {
+      throw new Error('数学绘图器缺少依赖模块（expr / board / script）');
     }
 
     host.innerHTML = skeleton(labName);
     var root = host.firstChild;
 
     var q = function (name) { return root.querySelector('[data-role="' + name + '"]'); };
-    var canvas = q('canvas');
+    var boardHost = q('board');
     var canvasWrap = q('canvas-wrap');
     var exprInput = q('expr-input');
     var exprList = q('expr-list');
@@ -295,36 +392,23 @@
     if (help && help.QUICKREF_HTML) quickrefHost.innerHTML = help.QUICKREF_HTML;
 
     /* ---------- 场景 ---------- */
-    function defaultScene() {
-      var s = geo.defaultScene();
-      s.view = { cx: 0, cy: 0, pxPerUnit: 48 };
-      s.expressions = [{
-        id: 'e1', name: 'f', expr: DEFAULT_EXPR, color: '#2a63e8', visible: true
-      }];
-      s.params = {};
-      s.objects = [];
-      s.script = '';
-      s.autoRun = true;
-      geo.recompute(s);
-      return s;
-    }
-
     var stored = readStore().scenes[labId];
-    var scene = stored ? geo.normalize(stored) : defaultScene();
-    if (!scene.view) scene.view = { cx: 0, cy: 0, pxPerUnit: 48 };
-    if (!isNum(scene.view.cx)) scene.view.cx = 0;
-    if (!isNum(scene.view.cy)) scene.view.cy = 0;
-    if (!isNum(scene.view.pxPerUnit) || scene.view.pxPerUnit <= 0) scene.view.pxPerUnit = 48;
-    if (!scene.params || typeof scene.params !== 'object') scene.params = {};
-    if (!scene.expressions || !scene.expressions.length) {
+    var scene = stored ? normalizeScene(stored) : defaultScene();
+    if (!scene.expressions.length) {
       scene.expressions = [{ id: 'e1', name: 'f', expr: DEFAULT_EXPR, color: '#2a63e8', visible: true }];
     }
-    if (typeof scene.script !== 'string') scene.script = '';
-    scene.autoRun = scene.autoRun !== false;
-    geo.recompute(scene);
 
-    var view = scene.view;   /* 渲染器持有同一个 viewRef 对象 */
-    var renderer = rendererApi.create(canvas, scene, view);
+    var view = scene.view;   /* 状态栏 / 缩放百分比与 board 共用同一个 view 对象 */
+    var board = boardApi.create(boardHost, scene, {
+      onDrag: function () {
+        /* 拖动过程中只刷新属性面板，松手后再统一保存 / 跑脚本 */
+        renderProps();
+      },
+      onDragEnd: function () {
+        board.syncScene(scene);
+        afterChange();
+      }
+    });
 
     /* ---------- 状态 ---------- */
     var state = {
@@ -332,7 +416,6 @@
       pending: [],
       selKind: null,
       selId: null,
-      drag: null,
       pan: null,
       applyingScript: false
     };
@@ -365,12 +448,13 @@
       if (timers.draw || destroyed) return;
       timers.draw = window.requestAnimationFrame(function () {
         timers.draw = 0;
-        if (!destroyed) renderer.draw();
+        if (!destroyed) board.redraw();
       });
     }
 
     function save() {
       if (destroyed) return;
+      board.syncScene(scene);   /* 自由点的最新坐标先写回 scene 再落盘 */
       writeStore(scene, labId);
     }
 
@@ -428,7 +512,7 @@
     }
 
     function typeName(o) {
-      return (geo.TYPES && geo.TYPES[o.type]) || o.type || '对象';
+      return TYPES[o.type] || o.type || '对象';
     }
 
     /* ---------- 参数 ---------- */
@@ -523,6 +607,7 @@
         id: nextId('e'), name: name, expr: parsed.expr,
         color: color, visible: true
       });
+      board.rebuild(scene);
       exprInput.value = '';
       setSelection('expr', scene.expressions[scene.expressions.length - 1].id);
       syncParams();
@@ -531,6 +616,7 @@
 
     function removeExpression(id) {
       scene.expressions = expressions().filter(function (e) { return e.id !== id; });
+      board.rebuild(scene);
       if (state.selKind === 'expr' && state.selId === id) setSelection(null, null);
       syncParams();
       afterChange();
@@ -610,10 +696,10 @@
         html += '<span class="prop-key">num</span><input class="prop-input" type="number" step="0.1" data-prop="num" value="' +
           (isNum(o.num) ? o.num : 0) + '">';
         if (isPointLike(o)) {
-          html += '<span class="prop-key">x</span><span class="prop-val is-readonly">' + fmtMeasure('x', o.x) + '</span>';
-          html += '<span class="prop-key">y</span><span class="prop-val is-readonly">' + fmtMeasure('y', o.y) + '</span>';
+          html += '<span class="prop-key">x</span><span class="prop-val is-readonly">' + fmtMeasure('x', board.getProp(o.id, 'x')) + '</span>';
+          html += '<span class="prop-key">y</span><span class="prop-val is-readonly">' + fmtMeasure('y', board.getProp(o.id, 'y')) + '</span>';
         } else {
-          var m = geo.measure(o, scene) || {};
+          var m = board.measure(o.id) || {};
           var keys = ['length', 'slope', 'radius', 'circumference', 'area', 'perimeter'];
           for (var k = 0; k < keys.length; k += 1) {
             if (!has(m, keys[k])) continue;
@@ -640,7 +726,7 @@
     function setSelection(kind, id) {
       state.selKind = kind || null;
       state.selId = id == null ? null : id;
-      renderer.setSelection(kind === 'object' ? state.selId : null);
+      board.setSelection(kind === 'object' ? state.selId : null);
       renderExprList();
       renderObjList();
       renderProps();
@@ -649,19 +735,17 @@
 
     /* ---------- 重绘 / 变更收口 ---------- */
     function afterChange() {
-      geo.recompute(scene);
       renderExprList();
       renderObjList();
       renderProps();
-      scheduleDraw();
+      board.redraw();
       scheduleSave();
       scheduleRun();
     }
 
     function syncAll() {
-      geo.recompute(scene);
-      renderer.resize();
-      renderer.draw();
+      board.resize();
+      board.redraw();
       syncParams();
       renderExprList();
       renderObjList();
@@ -686,7 +770,7 @@
     }
 
     function updateCoord(px, py) {
-      var w = renderer.toWorld(px, py);
+      var w = board.toWorld(px, py);
       var f = function (v) { return SL.fmt ? SL.fmt(v, 2) : v.toFixed(2); };
       coordHost.textContent = 'x = ' + f(w.x) + ', y = ' + f(w.y);
     }
@@ -706,12 +790,43 @@
 
     /* ---------- 画布坐标 / 命中 ---------- */
     function localPoint(ev) {
-      var rect = canvas.getBoundingClientRect();
+      var rect = boardHost.getBoundingClientRect();
       return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
     }
 
+    /* 曲线命中：按当前表达式求值后比较屏幕纵向距离（对象命中优先于曲线） */
+    function pickCurve(px, py) {
+      var list = expressions();
+      var w = board.toWorld(px, py);
+      var best = null;
+      var bestD = PICK_PX;
+      for (var i = 0; i < list.length; i += 1) {
+        var e = list[i];
+        if (!e || e.visible === false) continue;
+        var c = expr.compile(e.expr);
+        if (!c || !c.ok) continue;
+        var y = c.eval(w.x, scene.params || {});
+        if (!isNum(y)) continue;
+        var sp = board.toScreen(w.x, y);
+        var d = Math.abs(sp.y - py);
+        if (d <= bestD) { bestD = d; best = e.id; }
+      }
+      return best;
+    }
+
+    function pickAt(px, py) {
+      var id = board.pick(px, py);
+      if (id) {
+        var o = byId(id);
+        if (o) return { kind: isPointLike(o) ? 'point' : 'object', id: id };
+      }
+      var eid = pickCurve(px, py);
+      if (eid) return { kind: 'curve', id: eid };
+      return null;
+    }
+
     function pointAt(px, py) {
-      var hit = renderer.pick(px, py);
+      var hit = pickAt(px, py);
       if (!hit || hit.kind !== 'point') return null;
       return byId(hit.id);
     }
@@ -719,12 +834,15 @@
     function ensurePoint(px, py, w) {
       var p = pointAt(px, py);
       if (p) return p;
-      return geo.addPoint(scene, w.x, w.y);
+      return board.addPoint(w.x, w.y);
     }
 
     function pointRef(id) {
       var o = byId(id);
-      return (o && isPointLike(o) && isNum(o.x) && isNum(o.y)) ? o : null;
+      if (!o || !isPointLike(o)) return null;
+      var x = board.getProp(id, 'x');
+      var y = board.getProp(id, 'y');
+      return (isNum(x) && isNum(y)) ? { x: x, y: y } : null;
     }
 
     /* 线的世界方向：垂线 / 平行线递归取参考线 */
@@ -751,8 +869,8 @@
       if (isLineLike(o)) {
         var L = lineWorld(o, 0);
         if (!L) return Infinity;
-        var a = renderer.toScreen(L.x, L.y);
-        var b = renderer.toScreen(L.x + L.dx, L.y + L.dy);
+        var a = board.toScreen(L.x, L.y);
+        var b = board.toScreen(L.x + L.dx, L.y + L.dy);
         return L.finite ? distToSeg(px, py, a.x, a.y, b.x, b.y)
           : distToInfinite(px, py, a.x, a.y, b.x, b.y);
       }
@@ -761,8 +879,9 @@
         var T = pointRef(o.through);
         if (!C || !T) return Infinity;
         var rw = Math.sqrt((T.x - C.x) * (T.x - C.x) + (T.y - C.y) * (T.y - C.y));
-        var c = renderer.toScreen(C.x, C.y);
-        return Math.abs(Math.sqrt((c.x - px) * (c.x - px) + (c.y - py) * (c.y - py)) - rw * view.pxPerUnit);
+        var c = board.toScreen(C.x, C.y);
+        var unit = board.toScreen(1, 0).x - board.toScreen(0, 0).x;
+        return Math.abs(Math.sqrt((c.x - px) * (c.x - px) + (c.y - py) * (c.y - py)) - rw * unit);
       }
       if (o.type === 'polygon') {
         var ids = o.points || [];
@@ -771,8 +890,8 @@
           var A = pointRef(ids[i]);
           var B = pointRef(ids[(i + 1) % ids.length]);
           if (!A || !B) continue;
-          var sa = renderer.toScreen(A.x, A.y);
-          var sb = renderer.toScreen(B.x, B.y);
+          var sa = board.toScreen(A.x, A.y);
+          var sb = board.toScreen(B.x, B.y);
           var d = distToSeg(px, py, sa.x, sa.y, sb.x, sb.y);
           if (d < best) best = d;
         }
@@ -801,7 +920,7 @@
     /* ---------- 工具状态机 ---------- */
     function removeObjectById(id) {
       if (!id) return;
-      geo.removeObject(scene, id);
+      board.removeObject(id);
       if (state.selKind === 'object' && state.selId === id) setSelection(null, null);
       afterChange();
     }
@@ -813,7 +932,7 @@
       }
       state.pending = [];
       if (ids.length < 3) { notify('多边形至少需要 3 个不同的点'); updateHints(); return; }
-      var poly = geo.addPolygon(scene, ids);
+      var poly = board.addPolygon(ids);
       if (!poly) { notify('多边形创建失败，请换几个点'); updateHints(); return; }
       setSelection('object', poly.id);
       setTool(state.tool);
@@ -830,12 +949,12 @@
           return;
         }
       }
-      var p0 = geo.addIntersection(scene, aId, bId, 0);
+      var p0 = board.addIntersection(aId, bId, 0);
       if (!p0) { notify('这两个对象没有可用交点'); return; }
-      var p1 = geo.addIntersection(scene, aId, bId, 1);
+      var p1 = board.addIntersection(aId, bId, 1);
       if (p1 && (!isNum(p1.x) || !isNum(p1.y) ||
           (isNum(p0.x) && Math.abs(p0.x - p1.x) < 1e-9 && Math.abs(p0.y - p1.y) < 1e-9))) {
-        geo.removeObject(scene, p1.id);
+        board.removeObject(p1.id);
       }
       setSelection('object', p0.id);
     }
@@ -847,14 +966,14 @@
 
       if (tool === 'point') {
         var hitPt = pointAt(px, py);
-        o = hitPt || geo.addPoint(scene, w.x, w.y);
+        o = hitPt || board.addPoint(w.x, w.y);
         if (o) setSelection('object', o.id);
         afterChange();
         return;
       }
 
       if (tool === 'delete') {
-        var hit = renderer.pick(px, py);
+        var hit = pickAt(px, py);
         if (!hit) return;
         if (hit.kind === 'curve') removeExpression(hit.id);
         else removeObjectById(hit.id);
@@ -876,8 +995,8 @@
           var lineObj = shapeAt(px, py, ['segment', 'line', 'perpendicular', 'parallel']);
           if (!lineObj) { failPending('请点一条线段或直线'); return; }
           var made = tool === 'perpendicular'
-            ? geo.addPerpendicular(scene, firstId, lineObj.id)
-            : geo.addParallel(scene, firstId, lineObj.id);
+            ? board.addPerpendicular(firstId, lineObj.id)
+            : board.addParallel(firstId, lineObj.id);
           state.pending = [];
           if (!made) { notify('创建失败：先选一个点，再点一条线'); updateHints(); return; }
           setSelection('object', made.id);
@@ -888,10 +1007,10 @@
         var second = ensurePoint(px, py, w);
         if (!second) return;
         var result = null;
-        if (tool === 'segment') result = geo.addSegment(scene, firstId, second.id);
-        else if (tool === 'line') result = geo.addLine(scene, firstId, second.id);
-        else if (tool === 'circle') result = geo.addCircle(scene, firstId, second.id);
-        else if (tool === 'midpoint') result = geo.addMidpoint(scene, firstId, second.id);
+        if (tool === 'segment') result = board.addSegment(firstId, second.id);
+        else if (tool === 'line') result = board.addLine(firstId, second.id);
+        else if (tool === 'circle') result = board.addCircle(firstId, second.id);
+        else if (tool === 'midpoint') result = board.addMidpoint(firstId, second.id);
         state.pending = [];
         if (!result) { notify('创建失败：两个点不能相同，请重新选择'); updateHints(); return; }
         setSelection('object', result.id);
@@ -934,7 +1053,7 @@
     function onCanvasClick(ev) {
       if (state.tool === 'select') return;
       var p = localPoint(ev);
-      onToolClick(p.x, p.y, renderer.toWorld(p.x, p.y));
+      onToolClick(p.x, p.y, board.toWorld(p.x, p.y));
     }
 
     function onDblClick(ev) {
@@ -945,17 +1064,14 @@
     function onPointerDown(ev) {
       if (state.tool !== 'select') return;
       var p = localPoint(ev);
-      var hit = renderer.pick(p.x, p.y);
+      var hit = pickAt(p.x, p.y);
       if (hit && hit.kind === 'curve') {
         setSelection('expr', hit.id);
         return;
       }
-      if (hit && (hit.kind === 'point' || hit.kind === 'object')) {
+      if (hit) {
+        /* 点 / 图形的拖动由 JSXGraph 自己处理，这里只负责选中 */
         setSelection('object', hit.id);
-        var obj = byId(hit.id);
-        if (obj && obj.type === 'point' && obj.free !== false) {
-          state.drag = { id: obj.id, moved: false };
-        }
         return;
       }
       setSelection(null, null);
@@ -964,47 +1080,28 @@
 
     function onPointerMove(ev) {
       var p = localPoint(ev);
-      if (state.drag) {
-        var w = renderer.toWorld(p.x, p.y);
-        var obj = byId(state.drag.id);
-        if (obj) {
-          try {
-            geo.setProp(obj, 'x', w.x, scene);
-            geo.setProp(obj, 'y', w.y, scene);
-            geo.recompute(scene);
-            state.drag.moved = true;
-            renderProps();
-            scheduleDraw();
-          } catch (e) { /* 只读点（派生点）不拖动 */ }
-        }
-      } else if (state.pan) {
-        renderer.panBy(p.x - state.pan.x, p.y - state.pan.y);
+      if (state.pan) {
+        board.panBy(p.x - state.pan.x, p.y - state.pan.y);
         state.pan.x = p.x;
         state.pan.y = p.y;
         state.pan.moved = true;
         updateZoom();
-        scheduleDraw();
       }
       updateCoord(p.x, p.y);
     }
 
     function onPointerUp() {
-      var dragged = (state.drag && state.drag.moved) || (state.pan && state.pan.moved);
-      state.drag = null;
+      var moved = state.pan && state.pan.moved;
       state.pan = null;
-      if (dragged) {
-        geo.recompute(scene);
-        afterChange();
-      }
+      if (moved) afterChange();
     }
 
     function onWheel(ev) {
       ev.preventDefault();
       var p = localPoint(ev);
       var factor = ev.deltaY < 0 ? 1.1 : (1 / 1.1);
-      renderer.zoomAt(p.x, p.y, factor);
+      board.zoomAt(p.x, p.y, factor);
       updateZoom();
-      scheduleDraw();
       scheduleSave();
     }
 
@@ -1058,17 +1155,25 @@
         case 'tool': setTool(attrUp(node, 'data-tool')); return;
         case 'zoom-in': zoomBy(1.2); return;
         case 'zoom-out': zoomBy(1 / 1.2); return;
-        case 'fit': renderer.fit(); updateZoom(); scheduleDraw(); scheduleSave(); return;
+        case 'fit': board.fit(); updateZoom(); scheduleSave(); return;
         case 'expr-visible':
           id = attrUp(node, 'data-id');
           e = exprById(id);
-          if (e) { e.visible = e.visible === false; afterChange(); }
+          if (e) {
+            e.visible = e.visible === false;
+            board.rebuild(scene);
+            afterChange();
+          }
           return;
         case 'expr-delete': removeExpression(attrUp(node, 'data-id')); return;
         case 'obj-visible':
           id = attrUp(node, 'data-id');
           o = byId(id);
-          if (o) { o.visible = o.visible === false; afterChange(); }
+          if (o) {
+            o.visible = o.visible === false;
+            try { board.setProp(id, 'visible', o.visible); } catch (err) { /* 已删除 */ }
+            afterChange();
+          }
           return;
         case 'obj-delete': removeObjectById(attrUp(node, 'data-id')); return;
         case 'script-run': runScript(); return;
@@ -1097,7 +1202,7 @@
         var obj = byId(state.selId);
         if (!obj) return;
         try {
-          geo.setProp(obj, key, value, scene);
+          board.setProp(obj.id, key, value);
         } catch (err) {
           notify(err && err.message ? err.message : '属性写入失败');
           renderProps();
@@ -1106,8 +1211,9 @@
       } else if (state.selKind === 'expr') {
         var e = exprById(state.selId);
         if (!e) return;
-        if (key === 'color' || key === 'visible') e[key] = value;
-        else return;
+        if (key !== 'color' && key !== 'visible') return;
+        e[key] = value;
+        board.rebuild(scene);
       } else {
         return;
       }
@@ -1137,9 +1243,8 @@
     }
 
     function zoomBy(factor) {
-      renderer.zoomAt(canvas.clientWidth / 2, canvas.clientHeight / 2, factor);
+      board.zoomAt(boardHost.clientWidth / 2, boardHost.clientHeight / 2, factor);
       updateZoom();
-      scheduleDraw();
       scheduleSave();
     }
 
@@ -1164,11 +1269,10 @@
 
     function objectProxy(o) {
       return {
-        get: function (p) { return geo.getProp(o, p, scene); },
+        get: function (p) { return board.getProp(o.id, p); },
         set: function (p, value) {
-          geo.setProp(o, p, value, scene);
-          geo.recompute(scene);
-          scheduleDraw();
+          board.setProp(o.id, p, value);
+          board.redraw();
           scheduleSave();
         },
         call: function (method) {
@@ -1245,10 +1349,10 @@
       }
       state.applyingScript = false;
       renderScriptOutput(res);
-      geo.recompute(scene);
+      board.syncScene(scene);
+      board.redraw();
       renderObjList();
       renderProps();
-      scheduleDraw();
       scheduleSave();
     }
 
@@ -1271,8 +1375,8 @@
 
     /* ---------- 顶栏动作 ---------- */
     function exportPNG() {
-      renderer.draw();
-      var ret = renderer.exportPNG('数学绘图器-' + stamp() + '.png');
+      board.redraw();
+      var ret = board.exportPNG({ filename: '数学绘图器-' + stamp() + '.png', scale: 2, white: true });
       if (ret && typeof ret.then === 'function') {
         ret.then(function () {}, function () {});
       }
@@ -1290,7 +1394,7 @@
     }
 
     function replaceScene(next) {
-      var fresh = geo.normalize(next);
+      var fresh = normalizeScene(next);
       view.cx = fresh.view.cx;
       view.cy = fresh.view.cy;
       view.pxPerUnit = fresh.view.pxPerUnit;
@@ -1302,7 +1406,7 @@
       if (!scene.expressions.length) {
         scene.expressions = [{ id: 'e1', name: 'f', expr: DEFAULT_EXPR, color: '#2a63e8', visible: true }];
       }
-      geo.recompute(scene);
+      board.rebuild(scene);
       state.pending = [];
       setTool('select');
       setSelection(null, null);
@@ -1340,11 +1444,11 @@
     /* ---------- 绑定 ---------- */
     bind(root, 'click', onRootClick);
     bind(root, 'change', onPropChange);
-    bind(canvas, 'click', onCanvasClick);
-    bind(canvas, 'dblclick', onDblClick);
-    bind(canvas, 'pointerdown', onPointerDown);
-    /* pointermove 只绑 window：canvas 上的事件会冒泡上来，避免一次移动被处理两遍 */
-    bind(canvas, 'wheel', onWheel, { passive: false });
+    bind(boardHost, 'click', onCanvasClick);
+    bind(boardHost, 'dblclick', onDblClick);
+    bind(boardHost, 'pointerdown', onPointerDown);
+    /* pointermove 只绑 window：画布上的事件会冒泡上来，避免一次移动被处理两遍 */
+    bind(boardHost, 'wheel', onWheel, { passive: false });
     bind(window, 'pointermove', onPointerMove);
     bind(window, 'pointerup', onPointerUp);
     bind(document, 'keydown', onKeyDown);
@@ -1356,15 +1460,13 @@
     if (typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(function () {
         if (destroyed) return;
-        renderer.resize();
-        scheduleDraw();
+        board.resize();
       });
       resizeObserver.observe(canvasWrap);
     } else {
       bind(window, 'resize', function () {
         if (destroyed) return;
-        renderer.resize();
-        scheduleDraw();
+        board.resize();
       });
     }
 
@@ -1372,8 +1474,8 @@
     syncAll();
     window.requestAnimationFrame(function () {
       if (destroyed) return;
-      renderer.resize();
-      renderer.draw();
+      board.resize();
+      board.redraw();
     });
 
     /* ---------- destroy ---------- */
@@ -1403,7 +1505,7 @@
         if (closeBtn) closeBtn.click();
       }
       confirmOverlay = null;
-      renderer.destroy();
+      board.destroy();
       host.innerHTML = '';
       controls = null;
     }
